@@ -1,0 +1,158 @@
+services:
+
+  # Set bind-mounted folder ownership
+  permissions:
+    image: docker.io/overhangio/openedx-permissions:18.1.3
+    restart: on-failure
+    entrypoint: []
+    command: ["sh", "/usr/local/bin/setowners.sh"]
+    environment:
+      OPENEDX_USER_ID: "1000"
+    networks:
+      - chalix-network
+    volumes:
+      # Command script
+      - ../apps/permissions/setowners.sh:/usr/local/bin/setowners.sh:ro
+      # Bind-mounted volumes to set ownership
+      - ../../data/lms:/mounts/lms
+      - ../../data/cms:/mounts/cms
+      - ../../data/openedx-media:/mounts/openedx
+      
+      
+      
+      
+      
+
+  ############# External services
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  ############# LMS and CMS
+
+  lms:
+    image: docker.io/overhangio/openedx:18.1.3-indigo
+    environment:
+      SERVICE_VARIANT: lms
+      DJANGO_SETTINGS_MODULE: lms.envs.tutor.production
+      UWSGI_WORKERS: 8
+    restart: unless-stopped
+    volumes:
+      - ../apps/openedx/settings/lms:/openedx/edx-platform/lms/envs/tutor:ro
+      - ../apps/openedx/settings/cms:/openedx/edx-platform/cms/envs/tutor:ro
+      - ../apps/openedx/config:/openedx/config:ro
+      - ../apps/openedx/uwsgi.ini:/openedx/uwsgi.ini:ro
+      - ../../data/lms:/openedx/data
+      - ../../data/openedx-media:/openedx/media
+    networks:
+      - chalix-network
+    depends_on:
+      - permissions
+      
+      
+      
+      
+      
+      - minio
+
+  cms:
+    image: docker.io/overhangio/openedx:18.1.3-indigo
+    environment:
+      SERVICE_VARIANT: cms
+      DJANGO_SETTINGS_MODULE: cms.envs.tutor.production
+      UWSGI_WORKERS: 8
+    restart: unless-stopped
+    volumes:
+      - ../apps/openedx/settings/lms:/openedx/edx-platform/lms/envs/tutor:ro
+      - ../apps/openedx/settings/cms:/openedx/edx-platform/cms/envs/tutor:ro
+      - ../apps/openedx/config:/openedx/config:ro
+      - ../apps/openedx/uwsgi.ini:/openedx/uwsgi.ini:ro
+      - ../../data/cms:/openedx/data
+      - ../../data/openedx-media:/openedx/media
+    networks:
+      - chalix-network
+    depends_on:
+      - permissions
+      - lms
+      
+      
+      
+      
+      
+      - minio
+
+  ############# LMS and CMS workers
+
+  lms-worker:
+    image: docker.io/overhangio/openedx:18.1.3-indigo
+    environment:
+      SERVICE_VARIANT: lms
+      DJANGO_SETTINGS_MODULE: lms.envs.tutor.production
+    command: celery --app=lms.celery worker --loglevel=info --hostname=edx.lms.core.default.%%h --max-tasks-per-child=100 --exclude-queues=edx.cms.core.default
+    restart: unless-stopped
+    volumes:
+      - ../apps/openedx/settings/lms:/openedx/edx-platform/lms/envs/tutor:ro
+      - ../apps/openedx/settings/cms:/openedx/edx-platform/cms/envs/tutor:ro
+      - ../apps/openedx/config:/openedx/config:ro
+      - ../../data/lms:/openedx/data
+      - ../../data/openedx-media:/openedx/media
+    networks:
+      - chalix-network
+    depends_on:
+      - lms
+
+  cms-worker:
+    image: docker.io/overhangio/openedx:18.1.3-indigo
+    environment:
+      SERVICE_VARIANT: cms
+      DJANGO_SETTINGS_MODULE: cms.envs.tutor.production
+    command: celery --app=cms.celery worker --loglevel=info --hostname=edx.cms.core.default.%%h --max-tasks-per-child 100 --exclude-queues=edx.lms.core.default
+    restart: unless-stopped
+    volumes:
+      - ../apps/openedx/settings/lms:/openedx/edx-platform/lms/envs/tutor:ro
+      - ../apps/openedx/settings/cms:/openedx/edx-platform/cms/envs/tutor:ro
+      - ../apps/openedx/config:/openedx/config:ro
+      - ../../data/cms:/openedx/data
+      - ../../data/openedx-media:/openedx/media
+    networks:
+      - chalix-network
+    depends_on:
+      - cms
+
+  # MFE
+  mfe:
+    image: docker.io/overhangio/openedx-mfe:18.0.1-indigo
+    restart: unless-stopped
+    volumes:
+        - ../plugins/mfe/apps/mfe/Caddyfile:/etc/caddy/Caddyfile:ro
+    networks:
+      - chalix-network
+    depends_on:
+        - lms
+  # MinIO
+  minio:
+    image: quay.io/minio/minio:RELEASE.2024-09-22T00-33-43Z
+    
+    volumes:
+      - ../../data/minio:/data
+    
+    environment:
+      MINIO_ROOT_USER: "alimento"
+      MINIO_ROOT_PASSWORD: "alimento128"
+    
+    command: server --address ":9000" --console-address ":9001" /data
+    networks:
+      - chalix-network
+    
+    restart: unless-stopped
+
+networks:
+  chalix-network:
+    external: true

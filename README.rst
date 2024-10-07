@@ -1,4 +1,4 @@
-Open edX Platform
+Chalix Edu Platform
 #################
 | |License: AGPL v3| |Status| |Python CI|
 
@@ -12,17 +12,17 @@ Open edX Platform
 
 Purpose
 *******
-The `Open edX Platform <https://openedx.org>`_ is a service-oriented platform for authoring and
+The `Chalix Edu Platform <http://nuc.ali/>`_ is a service-oriented platform for authoring and
 delivering online learning at any scale.  The platform is written in
 Python and JavaScript and makes extensive use of the Django
 framework. At the highest level, the platform is composed of a
 monolith, some independently deployable applications (IDAs), and
 micro-frontends (MFEs) based on the ReactJS.
 
-This repository hosts the monolith at the center of the Open edX
+This repository hosts the monolith at the center of the Chalix Edu
 platform.  Functionally, the edx-platform repository provides two services:
 
-* CMS (Content Management Service), which powers Open edX Studio, the platform's learning content authoring environment; and
+* CMS (Content Management Service), which powers Chalix Edu Studio, the platform's learning content authoring environment; and
 * LMS (Learning Management Service), which delivers learning content.
 
 Documentation
@@ -33,39 +33,13 @@ Documentation can be found at https://docs.openedx.org/projects/edx-platform.
 Getting Started
 ***************
 
-For Production
-==============
-
-Installing and running an Open edX instance is not simple.  We strongly
-recommend that you use a service provider to run the software for you.  They
-have free trials that make it easy to get started:
-https://openedx.org/get-started/
-
-However, if you have the time and expertise, then it is is possible to
-self-manage a production Open edX instance. To help you build, customize,
-upgrade, and scale your instance, we recommend using `Tutor`_, the
-community-supported, Docker-based Open edX distribution.
-
-You can read more about getting up and running with a Tutor deployment
-at the `Site Ops home on docs.openedx.org`_.
-
-For Development
-===============
-
-Tutor also features a `development mode`_ which will also help you modify,
-test, and extend edx-platform. We recommend this method for all Open edX
-developers.
-
-Bare Metal (Advanced)
-=====================
-
-It is also possible to spin up an Open edX platform directly on a Linux host.
-This method is less common and mostly undocumented. The Open edX community will
+It is also possible to spin up an Chalix Edu platform directly on a Linux host.
+This method is less common and mostly undocumented. The Chalix Edu community will
 only be able to provided limited support for it.
 
 Running "bare metal" is only advisable for (a) developers seeking an
 adventure and (b) experienced system administrators who are willing to take the
-complexity of Open edX configuration and deployment into their own hands.
+complexity of Chalix Edu configuration and deployment into their own hands.
 
 System Dependencies
 -------------------
@@ -137,7 +111,7 @@ Start the CMS::
 
   ./manage.py cms runserver
 
-This will give you a mostly-headless Open edX platform. Most frontends have
+This will give you a mostly-headless Chalix Edu platform. Most frontends have
 been migrated to "Micro-Frontends (MFEs)" which need to be installed and run
 separately. At a bare minimum, you will need to run the `Authentication MFE`_,
 `Learner Home MFE`_, and `Learning MFE`_ in order meaningfully navigate the UI.
@@ -159,74 +133,180 @@ unless otherwise noted. Please see the `LICENSE`_ file for details.
 .. _LICENSE: https://github.com/openedx/edx-platform/blob/master/LICENSE
 
 
-More about Open edX
+More about Chalix Edu
 *******************
 
-See the `Open edX site`_ to learn more about the Open edX world. You can find
-information about hosting, extending, and contributing to Open edX software. In
-addition, the Open edX site provides product announcements, the Open edX blog,
+See the `Chalix Edu site`_ to learn more about the Chalix Edu world. You can find
+information about hosting, extending, and contributing to Chalix Edu software. In
+addition, the Chalix Edu site provides product announcements, the Chalix Edu blog,
 and other rich community resources.
 
-.. _Open edX site: https://openedx.org
+.. _Chalix Edu site: http://nuc.ali/
 
+Current Implementation
+**********************
+1. Additional plugins:
+- [tutor-minio](https://github.com/overhangio/tutor-minio)
+- [tutor-contrib-videoupload](https://github.com/dungdl/tutor-contrib-videoupload)
 
-Getting Help
-************
+2. Custom tutor core:
+- [alitutor](https://github.com/Alimento-Team/tutor)
 
-If you're having trouble, we have discussion forums at
-https://discuss.openedx.org where you can connect with others in the community.
+3. Adjust tutor configs:
+3.1. Caddyfile:
+```caddy
+# Global configuration
+{
 
-Our real-time conversations are on Slack. You can request a `Slack
-invitation`_, then join our `community Slack team`_.
+    
+    
+}
 
-For more information about these options, see the `Getting Help`_ page.
+# proxy directive snippet (with logging) to be used as follows:
+#
+#     import proxy "containername:port"
+(proxy) {
+    log {
+        output stdout
+        format filter {
+            wrap json
+            fields {
+                common_log delete
+                request>headers delete
+                resp_headers delete
+                tls delete
+            }
+        }
+    }
 
-.. _Slack invitation: https://openedx.org/slack
-.. _community Slack team: http://openedx.slack.com/
-.. _Getting Help: https://openedx.org/getting-help
+    # This will compress requests that matches the default criteria set by Caddy.
+    # see https://caddyserver.com/docs/caddyfile/directives/encode
+    # for information about the defaults; i.e. how/when this will be applied.
+    encode gzip
 
+    reverse_proxy {args.0} {
+        header_up X-Forwarded-Port 80
+    }
 
-Issue Tracker
-*************
+    
+}
 
-We use Github Issues for our issue tracker. You can search
-`previously reported issues`_.  If you need to report a bug, or want to discuss
-a new feature before you implement it, please `create a new issue`_.
+nuc.ali{$default_site_port}, preview.nuc.ali{$default_site_port} {
+    @favicon_matcher {
+        path_regexp ^/favicon.ico$
+    }
+    rewrite @favicon_matcher /theming/asset/images/favicon.ico
 
-.. _previously reported issues: https://github.com/openedx/edx-platform/issues
-.. _create a new issue: https://github.com/openedx/edx-platform/issues/new/choose
+    # Limit profile image upload size
+    handle_path /api/profile_images/*/*/upload {
+        request_body {
+            max_size 1MB
+        }
+    }
 
+    import proxy "lms:8000"
 
-How to Contribute
-*****************
+    
 
-Contributions are welcome! The first step is to submit a signed
-`individual contributor agreement`_.  See our `CONTRIBUTING`_ file for more
-information – it also contains guidelines for how to maintain high code
-quality, which will make your contribution more likely to be accepted.
+    handle_path /* {
+        request_body {
+            max_size 4MB
+        }
+    }
+}
 
-New features are accepted. Discussing your new ideas with the maintainers
-before you write code will also increase the chances that your work is accepted.
+studio.nuc.ali{$default_site_port} {
+    @favicon_matcher {
+        path_regexp ^/favicon.ico$
+    }
+    rewrite @favicon_matcher /theming/asset/images/favicon.ico
 
-Code of Conduct
-***************
+    import proxy "cms:8000"
 
-Please read the `Community Code of Conduct`_ for interacting with this repository.
+    
 
-Reporting Security Issues
-*************************
+    handle_path /* {
+        request_body {
+            max_size 250MB
+        }
+    }
+}
 
-Please do not report security issues in public. Please email
-security@openedx.org.
+apps.nuc.ali{$default_site_port} {
+    redir / http://nuc.ali
+    request_body {
+        max_size 2MB
+    }
+    import proxy "mfe:8002"
+}
+# MinIO
+files.nuc.ali{$default_site_port} {
+    @video_id {
+        query x-amz-meta-client_video_id=*
+    }
+    rewrite @video_id {http.request.uri.path}?{http.request.uri.query}
+    header @video_id X-Amz-Meta-Client_video_id {http.request.uri.query.x-amz-meta-client_video_id}
 
-.. _individual contributor agreement: https://openedx.org/cla
-.. _CONTRIBUTING: https://github.com/openedx/.github/blob/master/CONTRIBUTING.md
-.. _Community Code of Conduct: https://openedx.org/code-of-conduct/
-
-People
-******
-
-The current maintainers of this repository can be found on `Backstage`_.
-
-.. _Backstage: https://backstage.openedx.org/catalog/default/component/edx-platform
-
+    @course_key {
+        query x-amz-meta-course_key=*
+    }
+    rewrite @course_key {http.request.uri.path}?{http.request.uri.query}
+    header @course_key X-Amz-Meta-Course_key {http.request.uri.query.x-amz-meta-course_key}
+    import proxy "minio:9000"
+}
+minio.nuc.ali{$default_site_port} {
+    import proxy "minio:9001"
+}%
+```
+3.2. config.yml:
+```yaml
+CMS_HOST: studio.nuc.ali
+CMS_OAUTH2_SECRET: lYzC4JrsY9XIM4EQoxm7QqRF
+CONTACT_EMAIL: alimento128@gmail.com
+DOCKER_IMAGE_OPENEDX: overhangio/openedx:18.1.3-indigo
+ELASTICSEARCH_HEAP_SIZE: 1g
+ELASTICSEARCH_HOST: elasticsearch
+ELASTICSEARCH_PORT: 9200
+ELASTICSEARCH_SCHEME: http
+ENABLE_HTTPS: false
+ID: k6hoMKjzcaottLGPv369QXr8
+JWT_RSA_PRIVATE_KEY: '-----BEGIN RSA PRIVATE KEY-----
+<SOME PRIVATE KEY>
+  -----END RSA PRIVATE KEY-----'
+LANGUAGE_CODE: en
+LMS_HOST: nuc.ali
+MINIO_AWS_SECRET_ACCESS_KEY: RANDOM_MINIO_AWS_SECRET_ACCESS_KEY
+MINIO_DOCKER_IMAGE: quay.io/minio/minio:RELEASE.2024-09-22T00-33-43Z
+MINIO_MC_DOCKER_IMAGE: docker.io/minio/mc:RELEASE.2024-09-16T17-43-14Z
+MONGODB_HOST: mongo
+MONGODB_PASSWORD: alimento128
+MONGODB_USERNAME: admin
+MOUNTS:
+- /home/alimento/dungdl/code/chalix-ed
+MYSQL_HOST: mysql
+MYSQL_PORT: 3306
+MYSQL_ROOT_PASSWORD: alimento128
+MYSQL_ROOT_USERNAME: root
+OPENEDX_AWS_ACCESS_KEY: alimento
+OPENEDX_AWS_SECRET_ACCESS_KEY: OPENEDX_AWS_SECRET_ACCESS_KEY
+OPENEDX_CMS_UWSGI_WORKERS: 8
+OPENEDX_LMS_UWSGI_WORKERS: 8
+OPENEDX_MYSQL_PASSWORD: RANDOM_OPENEDX_MYSQL_PASSWORD
+OPENEDX_SECRET_KEY: RANDOM_OPENEDX_SECRET_KEY 
+PLATFORM_NAME: Chalix Edu
+PLUGINS:
+- indigo
+- mfe
+- minio
+- videoupload
+PLUGIN_INDEXES:
+- https://overhang.io/tutor/main
+REDIS_HOST: redis
+REDIS_PORT: 6379
+RUN_ELASTICSEARCH: false
+RUN_FORUM: false
+RUN_MONGODB: false
+RUN_MYSQL: false
+RUN_REDIS: false
+RUN_SMTP: false
+```

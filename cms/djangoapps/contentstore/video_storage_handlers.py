@@ -849,7 +849,9 @@ def videos_post(course, request):
         upload_url = key.generate_url(
             KEY_EXPIRATION_IN_SECONDS,
             'PUT',
-            headers={'Content-Type': req_file['content_type']}
+            headers={'Content-Type': req_file['content_type']},
+            query_auth=True,
+	        force_http=True
         )
 
         # persist edx_video_id in VAL
@@ -880,10 +882,12 @@ def storage_service_bucket():
         }
     else:
         params = {
+            'host': settings.AWS_S3_ENDPOINT_URL.replace('https://', '').replace('http://', ''),
+            'calling_format': s3.connection.OrdinaryCallingFormat(),
             'aws_access_key_id': settings.AWS_ACCESS_KEY_ID,
             'aws_secret_access_key': settings.AWS_SECRET_ACCESS_KEY
         }
-
+        LOGGER.info('VIDEOS: Using S3 endpoint %s from setting %s', params['host'], settings.AWS_S3_ENDPOINT_URL)
     conn = S3Connection(**params)
 
     # We don't need to validate our bucket, it requires a very permissive IAM permission
