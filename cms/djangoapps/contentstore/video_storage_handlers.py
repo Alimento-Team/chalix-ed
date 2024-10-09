@@ -2,7 +2,7 @@
 Views related to the video upload feature
 """
 
-
+import boto3
 import codecs
 import csv
 import io
@@ -810,12 +810,13 @@ def videos_post(course, request):
     if error:
         return {'error': error}, 400
 
-    bucket = storage_service_bucket()
+    s3_client = storage_service_client()
     req_files = data['files']
     resp_files = []
 
     for req_file in req_files:
         file_name = req_file['file_name']
+        key_meta = {}
 
         try:
             file_name.encode('ascii')
@@ -824,7 +825,7 @@ def videos_post(course, request):
             return {'error': error_msg}, 400
 
         edx_video_id = str(uuid4())
-        key = storage_service_key(bucket, file_name=edx_video_id)
+        bucket_name = settings.VIDEO_UPLOAD_PIPELINE['VEM_S3_BUCKET']
 
         metadata_list = [
             ('client_video_id', file_name),
@@ -845,13 +846,18 @@ def videos_post(course, request):
                 metadata_list.append(('transcript_preferences', json.dumps(transcript_preferences)))
 
         for metadata_name, value in metadata_list:
-            key.set_metadata(metadata_name, value)
-        upload_url = key.generate_url(
-            KEY_EXPIRATION_IN_SECONDS,
-            'PUT',
-            headers={'Content-Type': req_file['content_type']},
-            query_auth=True,
-	        force_http=True
+            key_meta[metadata_name] = value
+        root_path = settings.VIDEO_UPLOAD_PIPELINE.get("ROOT_PATH") + "/" if settings.VIDEO_UPLOAD_PIPELINE.get("ROOT_PATH", "") else ""
+        upload_url = s3_client.generate_presigned_url(
+            'put_object',
+            Params={
+                'Bucket': bucket_name,
+                'Key': root_path + file_name,
+                'ContentType': req_file['content_type'],
+                'Metadata': dict(metadata_list)
+            },
+            ExpiresIn=KEY_EXPIRATION_IN_SECONDS,
+            HttpMethod='PUT'
         )
 
         # persist edx_video_id in VAL
@@ -868,44 +874,19 @@ def videos_post(course, request):
 
     return {'files': resp_files}, 200
 
-
-def storage_service_bucket():
+def storage_service_client():
     """
-    Returns an S3 bucket for video upload.
+    Returns an S3 client for video upload.
     """
-    if ENABLE_DEVSTACK_VIDEO_UPLOADS.is_enabled():
-        params = {
-            'aws_access_key_id': settings.AWS_ACCESS_KEY_ID,
-            'aws_secret_access_key': settings.AWS_SECRET_ACCESS_KEY,
-            'security_token': settings.AWS_SECURITY_TOKEN
-
-        }
-    else:
-        params = {
-            'host': settings.AWS_S3_ENDPOINT_URL.replace('https://', '').replace('http://', ''),
-            'calling_format': s3.connection.OrdinaryCallingFormat(),
-            'aws_access_key_id': settings.AWS_ACCESS_KEY_ID,
-            'aws_secret_access_key': settings.AWS_SECRET_ACCESS_KEY
-        }
-        LOGGER.info('VIDEOS: Using S3 endpoint %s from setting %s', params['host'], settings.AWS_S3_ENDPOINT_URL)
-    conn = S3Connection(**params)
-
-    # We don't need to validate our bucket, it requires a very permissive IAM permission
-    # set since behind the scenes it fires a HEAD request that is equivalent to get_all_keys()
-    # meaning it would need ListObjects on the whole bucket, not just the path used in each
-    # environment (since we share a single bucket for multiple deployments in some configurations)
-    return conn.get_bucket(settings.VIDEO_UPLOAD_PIPELINE['VEM_S3_BUCKET'], validate=False)
-
-
-def storage_service_key(bucket, file_name):
-    """
-    Returns an S3 key to the given file in the given bucket.
-    """
-    key_name = "{}/{}".format(
-        settings.VIDEO_UPLOAD_PIPELINE.get("ROOT_PATH", ""),
-        file_name
-    )
-    return s3.key.Key(bucket, key_name)
+    params = {
+        'endpoint_url': 'http://' + settings.AWS_S3_ENDPOINT_URL.replace('https://', '').replace('http://', ''),
+        'aws_access_key_id': settings.AWS_ACCESS_KEY_ID,
+        'aws_secret_access_key': settings.AWS_SECRET_ACCESS_KEY,
+        'config': boto3.session.Config(signature_version='s3v4'),
+        'verify': False
+    }
+    s3_client = boto3.client('s3', **params)
+    return s3_client
 
 
 def send_video_status_update(updates):
