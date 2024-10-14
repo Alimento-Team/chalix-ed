@@ -874,6 +874,7 @@ def videos_post(course, request):
 
     return {'files': resp_files}, 200
 
+
 def storage_service_client():
     """
     Returns an S3 client for video upload.
@@ -882,7 +883,6 @@ def storage_service_client():
         'endpoint_url': 'http://' + settings.AWS_S3_ENDPOINT_URL.replace('https://', '').replace('http://', ''),
         'aws_access_key_id': settings.AWS_ACCESS_KEY_ID,
         'aws_secret_access_key': settings.AWS_SECRET_ACCESS_KEY,
-        'config': boto3.session.Config(signature_version='s3v4'),
         'verify': False
     }
     s3_client = boto3.client('s3', **params)

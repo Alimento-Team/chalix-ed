@@ -27,7 +27,7 @@
     # for information about the defaults; i.e. how/when this will be applied.
     encode gzip
 
-    reverse_proxy {args.0} {
+    reverse_proxy {args[0]} {
         header_up X-Forwarded-Port 80
     }
 
@@ -84,18 +84,28 @@ apps.nuc.ali{$default_site_port} {
 }
 # MinIO
 files.nuc.ali{$default_site_port} {
+    header {
+        Access-Control-Allow-Origin *
+        Access-Control-Allow-Credentials true
+        Access-Control-Allow-Methods *
+        Access-Control-Allow-Headers *
+        defer
+    }
     @video_id {
         query x-amz-meta-client_video_id=*
     }
-    rewrite @video_id {http.request.uri.path}?{http.request.uri.query}
-    header @video_id X-Amz-Meta-Client_video_id {http.request.uri.query.x-amz-meta-client_video_id}
 
     @course_key {
         query x-amz-meta-course_key=*
     }
-    rewrite @course_key {http.request.uri.path}?{http.request.uri.query}
-    header @course_key X-Amz-Meta-Course_key {http.request.uri.query.x-amz-meta-course_key}
-    import proxy "minio:9000"
+    reverse_proxy minio:9000 {
+        header_up -*
+        header_up x-amz-meta-client_video_id {http.request.uri.query.x-amz-meta-client_video_id}
+        header_up x-amz-meta-course_key {http.request.uri.query.x-amz-meta-course_key}
+        header_up Content-Type {http.request.header.Content-Type}
+        header_up Content-Length {http.request.header.Content-Length}
+        header_down -Access-Control-Allow-Origin
+    }
 }
 minio.nuc.ali{$default_site_port} {
     import proxy "minio:9001"
