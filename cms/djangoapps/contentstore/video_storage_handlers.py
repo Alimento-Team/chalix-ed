@@ -680,7 +680,7 @@ def _get_index_videos(course, pagination_conf=None):
     attrs = [
         'edx_video_id', 'client_video_id', 'created', 'duration', 'status_nontranslated',
         'status', 'courses', 'encoded_videos', 'transcripts', 'transcription_status',
-        'transcript_urls', 'error_description'
+        'transcript_urls', 'error_description', 'url'
     ]
 
     def _get_values(video, course):
@@ -852,16 +852,25 @@ def videos_post(course, request):
             'put_object',
             Params={
                 'Bucket': bucket_name,
+<<<<<<< Updated upstream
                 'Key': root_path + file_name,
                 'ContentType': req_file['content_type'],
                 'Metadata': dict(metadata_list)
+=======
+                'Key': root_path + edx_video_id,
+                'ContentType': req_file['content_type']
+>>>>>>> Stashed changes
             },
             ExpiresIn=KEY_EXPIRATION_IN_SECONDS,
             HttpMethod='PUT'
         )
 
+        public_url = 'http://' + settings.AWS_S3_ENDPOINT_URL.replace('https://', '').replace('http://', '') + f"/{bucket_name}/{root_path}{edx_video_id}"
+        LOGGER.info('VIDEOS: Generated upload URL for %s: %s -> %s', file_name, upload_url, public_url)
+
         # persist edx_video_id in VAL
         create_video({
+            'url': public_url,
             'edx_video_id': edx_video_id,
             'status': 'upload',
             'client_video_id': file_name,
