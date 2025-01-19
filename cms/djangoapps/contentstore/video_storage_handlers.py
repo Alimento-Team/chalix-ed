@@ -852,14 +852,9 @@ def videos_post(course, request):
             'put_object',
             Params={
                 'Bucket': bucket_name,
-<<<<<<< Updated upstream
                 'Key': root_path + file_name,
                 'ContentType': req_file['content_type'],
                 'Metadata': dict(metadata_list)
-=======
-                'Key': root_path + edx_video_id,
-                'ContentType': req_file['content_type']
->>>>>>> Stashed changes
             },
             ExpiresIn=KEY_EXPIRATION_IN_SECONDS,
             HttpMethod='PUT'
