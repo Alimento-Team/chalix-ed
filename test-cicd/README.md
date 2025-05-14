@@ -1,1 +1,1 @@
-trigger buildd
+trigger build
