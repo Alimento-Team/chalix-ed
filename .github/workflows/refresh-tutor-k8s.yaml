@@ -1,0 +1,17 @@
+name: ci_tutor_k8s
+
+on:
+  push:
+    branches: [ "hungnv/cicd" ]
+    paths:
+      - 'test-cicd/**'
+
+jobs:
+  build-spiders:
+    runs-on: self-hosted
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Run command in subdirectory
+        run: touch test.txt
+        working-directory: /home/alimento/hungnv
