@@ -244,7 +244,7 @@ FEATURES = {
     'PREVENT_CONCURRENT_LOGINS': False,
 
     # Turn off Video Upload Pipeline through Studio, by default
-    'ENABLE_VIDEO_UPLOAD_PIPELINE': False,
+    'ENABLE_VIDEO_UPLOAD_PIPELINE': True,
 
     # See annotations in lms/envs/common.py for details.
     'ENABLE_EDXNOTES': False,
@@ -1623,9 +1623,9 @@ YOUTUBE_API_KEY = 'PUT_YOUR_API_KEY_HERE'
 ############################# SETTINGS FOR VIDEO UPLOAD PIPELINE #############################
 
 VIDEO_UPLOAD_PIPELINE = {
-    'VEM_S3_BUCKET': '',
-    'BUCKET': '',
-    'ROOT_PATH': '',
+    'VEM_S3_BUCKET': 'openedxvideos',
+    'BUCKET': 'openedxvideos',
+    'ROOT_PATH': 'upload',
     'CONCURRENT_UPLOAD_LIMIT': 4,
 }
 

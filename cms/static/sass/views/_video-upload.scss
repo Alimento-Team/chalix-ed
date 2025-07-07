@@ -1,4 +1,5 @@
 .view-video-uploads {
+
   .content-primary,
   .content-supplementary {
     box-sizing: border-box;
@@ -47,6 +48,7 @@
     margin-top: ($baseline/2);
 
     .transcript-upload-status-container {
+
       .video-transcript-detail-status,
       .more-details-action {
         @include font-size(12);
@@ -514,6 +516,10 @@
       .video-head-col.thumbnail-col {
         width: 17% !important;
       }
+
+      .public-url-col {
+        width: 8% !important;
+      }
     }
   }
 
@@ -527,152 +533,157 @@
     }
   }
 
-  $thumbnail-width: ($baseline*7.5);
-  $thumbnail-height: ($baseline*5);
+  $thumbnail-width: (
+    $baseline*7.5
+  );
+$thumbnail-height: (
+  $baseline*5
+);
 
-  .thumbnail-wrapper {
-    position: relative;
-    max-width: $thumbnail-width;
-    max-height: $thumbnail-height;
+.thumbnail-wrapper {
+  position: relative;
+  max-width: $thumbnail-width;
+  max-height: $thumbnail-height;
 
-    img {
-      width: $thumbnail-width;
-      height: $thumbnail-height;
+  img {
+    width: $thumbnail-width;
+    height: $thumbnail-height;
+  }
+
+  * {
+    cursor: pointer;
+  }
+
+  &.upload,
+  &.requirements {
+    border: 1px dashed $gray-l3;
+  }
+
+  &.requirements {
+    .requirements-text {
+      font-weight: 600;
     }
 
-    * {
-      cursor: pointer;
-    }
-
-    &.upload,
-    &.requirements {
-      border: 1px dashed $gray-l3;
-    }
-
-    &.requirements {
-      .requirements-text {
-        font-weight: 600;
-      }
-
-      .requirements-instructions {
-        font-size: 15px;
-        font-family: $font-family-sans-serif;
-        text-align: left;
-        color: $gray-d2;
-        line-height: 1.5;
-      }
-
-      .video-duration {
-        opacity: 0;
-      }
-    }
-
-    &.edit {
-      background: black;
-
-      &:hover,
-      &:focus,
-      &.focused {
-        img,
-        .video-duration {
-          @include transition(all 0.3s linear);
-
-          opacity: 0.1;
-        }
-      }
-    }
-
-    &.progress {
-      background: white;
-
-      img {
-        @include transition(all 0.5s linear);
-
-        opacity: 0.15;
-      }
-
-      .action-icon {
-        display: block;
-      }
-    }
-
-    &.upload .thumbnail-action {
-      color: $blue;
-    }
-
-    &.progress .thumbnail-action {
-      .action-icon {
-        @include font-size(20);
-      }
-    }
-
-    &.edit {
-      background-color: #4e4e4e;
-    }
-
-    &.edit .thumbnail-action .action-icon.edit {
-      display: none;
-    }
-
-    &.edit .thumbnail-action .edit-container {
-      background-color: $white;
-      padding: ($baseline/4);
-      border-radius: ($baseline/5);
-      margin-top: ($baseline/2);
-      display: none;
-    }
-
-    &.edit .action-text {
-      color: $white;
-    }
-
-    .thumbnail-action {
-      @include font-size(14);
-    }
-
-    .thumbnail-overlay > :not(.upload-image-input) {
-      position: absolute;
-      text-align: center;
-      top: 50%;
-      left: 5px;
-      right: 5px;
-
-      @include transform(translateY(-50%));
-
-      z-index: 1;
-    }
-
-    .upload-image-input {
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      opacity: 0;
-      z-index: 6;
-      width: $thumbnail-width;
-      height: $thumbnail-height;
+    .requirements-instructions {
+      font-size: 15px;
+      font-family: $font-family-sans-serif;
+      text-align: left;
+      color: $gray-d2;
+      line-height: 1.5;
     }
 
     .video-duration {
-      position: absolute;
-      text-align: center;
-      bottom: 1px;
-
-      @include right(1px);
-
-      width: auto;
-      min-width: 25%;
-      color: white;
-      padding: ($baseline/10) ($baseline/5);
-      background-color: black;
-    }
-
-    &.focused {
-      box-shadow: 0 0 ($baseline/5) 1px $blue;
-    }
-
-    &.error {
-      box-shadow: 0 0 ($baseline/5) 1px $red;
+      opacity: 0;
     }
   }
+
+  &.edit {
+    background: black;
+
+    &:hover,
+    &:focus,
+    &.focused {
+
+      img,
+      .video-duration {
+        @include transition(all 0.3s linear);
+
+        opacity: 0.1;
+      }
+    }
+  }
+
+  &.progress {
+    background: white;
+
+    img {
+      @include transition(all 0.5s linear);
+
+      opacity: 0.15;
+    }
+
+    .action-icon {
+      display: block;
+    }
+  }
+
+  &.upload .thumbnail-action {
+    color: $blue;
+  }
+
+  &.progress .thumbnail-action {
+    .action-icon {
+      @include font-size(20);
+    }
+  }
+
+  &.edit {
+    background-color: #4e4e4e;
+  }
+
+  &.edit .thumbnail-action .action-icon.edit {
+    display: none;
+  }
+
+  &.edit .thumbnail-action .edit-container {
+    background-color: $white;
+    padding: ($baseline/4);
+    border-radius: ($baseline/5);
+    margin-top: ($baseline/2);
+    display: none;
+  }
+
+  &.edit .action-text {
+    color: $white;
+  }
+
+  .thumbnail-action {
+    @include font-size(14);
+  }
+
+  .thumbnail-overlay> :not(.upload-image-input) {
+    position: absolute;
+    text-align: center;
+    top: 50%;
+    left: 5px;
+    right: 5px;
+
+    @include transform(translateY(-50%));
+
+    z-index: 1;
+  }
+
+  .upload-image-input {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    opacity: 0;
+    z-index: 6;
+    width: $thumbnail-width;
+    height: $thumbnail-height;
+  }
+
+  .video-duration {
+    position: absolute;
+    text-align: center;
+    bottom: 1px;
+
+    @include right(1px);
+
+    width: auto;
+    min-width: 25%;
+    color: white;
+    padding: ($baseline/10) ($baseline/5);
+    background-color: black;
+  }
+
+  &.focused {
+    box-shadow: 0 0 ($baseline/5) 1px $blue;
+  }
+
+  &.error {
+    box-shadow: 0 0 ($baseline/5) 1px $red;
+  }
+}
 }

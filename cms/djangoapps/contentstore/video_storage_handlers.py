@@ -2,23 +2,25 @@
 Views related to the video upload feature
 """
 
-import boto3
 import codecs
 import csv
 import io
 import json
 import logging
 import os
-import requests
-import shutil
 import pathlib
+import shutil
 import zipfile
-
 from contextlib import closing
 from datetime import datetime, timedelta
+from tempfile import NamedTemporaryFile, mkdtemp
 from uuid import uuid4
-from boto.s3.connection import S3Connection
+from wsgiref.util import FileWrapper
+
+import boto3
+import requests
 from boto import s3
+from boto.s3.connection import S3Connection
 from django.conf import settings
 from django.contrib.staticfiles.storage import staticfiles_storage
 from django.http import FileResponse, HttpResponseNotFound, StreamingHttpResponse
@@ -33,8 +35,8 @@ from edxval.api import (
     create_video,
     get_3rd_party_transcription_plans,
     get_available_transcript_languages,
-    get_video_transcript_url,
     get_transcript_preferences,
+    get_video_transcript_url,
     get_videos_for_course,
     remove_transcript_preferences,
     remove_video_for_course,
@@ -48,23 +50,18 @@ from path import Path as path
 from pytz import UTC
 from rest_framework import status as rest_status
 from rest_framework.response import Response
-from tempfile import NamedTemporaryFile, mkdtemp
-from wsgiref.util import FileWrapper
 
 from common.djangoapps.edxmako.shortcuts import render_to_response
 from common.djangoapps.util.json_request import JsonResponse
 from openedx.core.djangoapps.video_config.models import VideoTranscriptEnabledFlag
 from openedx.core.djangoapps.video_config.toggles import PUBLIC_VIDEO_SHARE
-from openedx.core.djangoapps.video_pipeline.config.waffle import (
-    DEPRECATE_YOUTUBE,
-    ENABLE_DEVSTACK_VIDEO_UPLOADS,
-)
+from openedx.core.djangoapps.video_pipeline.config.waffle import DEPRECATE_YOUTUBE, ENABLE_DEVSTACK_VIDEO_UPLOADS
 from openedx.core.djangoapps.waffle_utils import CourseWaffleFlag
 from xmodule.modulestore.django import modulestore  # lint-amnesty, pylint: disable=wrong-import-order
 
 from .models import VideoUploadConfig
-from .toggles import use_new_video_uploads_page, use_mock_video_uploads
-from .utils import get_video_uploads_url, get_course_videos_context
+from .toggles import use_mock_video_uploads, use_new_video_uploads_page
+from .utils import get_course_videos_context, get_video_uploads_url
 from .video_utils import validate_video_image
 from .views.course import get_course_and_check_access
 
@@ -704,6 +701,19 @@ def _get_index_videos(course, pagination_conf=None):
                         values['file_size'] = encoding['file_size']
             else:
                 values[attr] = video[attr]
+        # Construct public_url using current settings and video info
+        bucket_name = settings.VIDEO_UPLOAD_PIPELINE["VEM_S3_BUCKET"]
+        root_path = settings.VIDEO_UPLOAD_PIPELINE.get("ROOT_PATH")
+        if root_path:
+            root_path = root_path.rstrip("/") + "/"
+        else:
+            root_path = ""
+        edx_video_id = video.get("edx_video_id", "")
+        public_url = (
+            "http://" + settings.AWS_S3_ENDPOINT_URL.replace("https://", "").replace("http://", "")
+            + f"/{bucket_name}/{root_path}{edx_video_id}"
+        )
+        values['public_url'] = public_url
         return values
 
     videos, pagination_context = _get_videos(course, pagination_conf)
@@ -820,6 +830,10 @@ def videos_post(course, request):
 
         try:
             file_name.encode('ascii')
+            # Normalize file_name to avoid URL/browsing errors
+            file_name = os.path.basename(file_name)
+            file_name = file_name.replace(" ", "_")
+            file_name = "".join(c for c in file_name if c.isalnum() or c in ('-', '_', '.', '(', ')'))
         except UnicodeEncodeError:
             error_msg = 'The file name for %s must contain only ASCII characters.' % file_name
             return {'error': error_msg}, 400
@@ -848,19 +862,19 @@ def videos_post(course, request):
         for metadata_name, value in metadata_list:
             key_meta[metadata_name] = value
         root_path = settings.VIDEO_UPLOAD_PIPELINE.get("ROOT_PATH") + "/" if settings.VIDEO_UPLOAD_PIPELINE.get("ROOT_PATH", "") else ""
+        LOGGER.info(f'-----------Generating presigned URL for {file_name}: {bucket_name} with parameters: {key_meta}')
         upload_url = s3_client.generate_presigned_url(
             'put_object',
             Params={
                 'Bucket': bucket_name,
                 'Key': root_path + file_name,
                 'ContentType': req_file['content_type'],
-                'Metadata': dict(metadata_list)
             },
             ExpiresIn=KEY_EXPIRATION_IN_SECONDS,
             HttpMethod='PUT'
         )
 
-        public_url = 'http://' + settings.AWS_S3_ENDPOINT_URL.replace('https://', '').replace('http://', '') + f"/{bucket_name}/{root_path}{edx_video_id}"
+        public_url = 'http://' + settings.AWS_S3_ENDPOINT_URL.replace('https://', '').replace('http://', '') + f"/{bucket_name}/{root_path}{file_name}"
         LOGGER.info('VIDEOS: Generated upload URL for %s: %s -> %s', file_name, upload_url, public_url)
 
         # persist edx_video_id in VAL
