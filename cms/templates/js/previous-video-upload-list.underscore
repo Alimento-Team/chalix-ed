@@ -16,7 +16,6 @@
                 <div class="video-head-col video-col video-id-col"><%- gettext("Video ID") %></div>
                 <div class="video-head-col video-col transcripts-col"><%- gettext("Transcripts") %></div>
                 <div class="video-head-col video-col status-col"><%- gettext("Video Status") %></div>
-                <div class="video-head-col video-col public-url-col"><%- gettext("Public URL") %></div>
                 <div class="video-head-col video-col actions-col"><%- gettext("Action") %></div>
             </div>
         </div>

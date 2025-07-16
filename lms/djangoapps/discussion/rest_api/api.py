@@ -127,7 +127,8 @@ from .utils import (
     get_usernames_for_course,
     get_usernames_from_search_string,
     set_attribute,
-    is_posting_allowed
+    is_posting_allowed,
+    can_user_notify_all_learners
 )
 
 User = get_user_model()
@@ -199,7 +200,7 @@ def _get_course(course_key: CourseKey, user: User, check_tab: bool = True) -> Co
     return course
 
 
-def _get_thread_and_context(request, thread_id, retrieve_kwargs=None):
+def _get_thread_and_context(request, thread_id, retrieve_kwargs=None, course_id=None):
     """
     Retrieve the given thread and build a serializer context for it, returning
     both. This function also enforces access control for the thread (checking
@@ -213,7 +214,7 @@ def _get_thread_and_context(request, thread_id, retrieve_kwargs=None):
             retrieve_kwargs["with_responses"] = False
         if "mark_as_read" not in retrieve_kwargs:
             retrieve_kwargs["mark_as_read"] = False
-        cc_thread = Thread(id=thread_id).retrieve(**retrieve_kwargs)
+        cc_thread = Thread(id=thread_id).retrieve(course_id=course_id, **retrieve_kwargs)
         course_key = CourseKey.from_string(cc_thread["course_id"])
         course = _get_course(course_key, request.user)
         context = get_context(course, request, cc_thread)
@@ -333,6 +334,8 @@ def get_course(request, course_key, check_tab=True):
         course.get_discussion_blackout_datetimes()
     )
     discussion_tab = CourseTabList.get_tab_by_type(course.tabs, 'discussion')
+    is_course_staff = CourseStaffRole(course_key).has_user(request.user)
+    is_course_admin = CourseInstructorRole(course_key).has_user(request.user)
     return {
         "id": str(course_key),
         "is_posting_enabled": is_posting_enabled,
@@ -358,8 +361,8 @@ def get_course(request, course_key, check_tab=True):
         }),
         "is_group_ta": bool(user_roles & {FORUM_ROLE_GROUP_MODERATOR}),
         "is_user_admin": request.user.is_staff,
-        "is_course_staff": CourseStaffRole(course_key).has_user(request.user),
-        "is_course_admin": CourseInstructorRole(course_key).has_user(request.user),
+        "is_course_staff": is_course_staff,
+        "is_course_admin": is_course_admin,
         "provider": course_config.provider_type,
         "enable_in_context": course_config.enable_in_context,
         "group_at_subsection": course_config.plugin_configuration.get("group_at_subsection", False),
@@ -372,6 +375,9 @@ def get_course(request, course_key, check_tab=True):
             for (reason_code, label) in CLOSE_REASON_CODES.items()
         ],
         'show_discussions': bool(discussion_tab and discussion_tab.is_enabled(course, request.user)),
+        'is_notify_all_learners_enabled': can_user_notify_all_learners(
+            course_key, user_roles, is_course_staff, is_course_admin
+        ),
     }
 
 
@@ -990,7 +996,10 @@ def get_thread_list(
             except ValueError:
                 pass
 
-    if (group_id is None) and not context["has_moderation_privilege"]:
+    if (group_id is None) and (
+        not context["has_moderation_privilege"]
+        or request.user.id in context["ta_user_ids"]
+    ):
         group_id = get_group_id_for_user(request.user, CourseDiscussionSettings.get(course.id))
 
     query_params = {
@@ -1010,7 +1019,7 @@ def get_thread_list(
         if view in ["unread", "unanswered", "unresponded"]:
             query_params[view] = "true"
         else:
-            ValidationError({
+            raise ValidationError({
                 "view": [f"Invalid value. '{view}' must be 'unread' or 'unanswered'"]
             })
 
@@ -1466,6 +1475,8 @@ def create_thread(request, thread_data):
     if not discussion_open_for_user(course, user):
         raise DiscussionBlackOutException
 
+    notify_all_learners = thread_data.pop("notify_all_learners", False)
+
     context = get_context(course, request)
     _check_initializable_thread_fields(thread_data, context)
     discussion_settings = CourseDiscussionSettings.get(course_key)
@@ -1481,12 +1492,12 @@ def create_thread(request, thread_data):
         raise ValidationError(dict(list(serializer.errors.items()) + list(actions_form.errors.items())))
     serializer.save()
     cc_thread = serializer.instance
-    thread_created.send(sender=None, user=user, post=cc_thread)
+    thread_created.send(sender=None, user=user, post=cc_thread, notify_all_learners=notify_all_learners)
     api_thread = serializer.data
     _do_extra_actions(api_thread, cc_thread, list(thread_data.keys()), actions_form, context, request)
 
     track_thread_created_event(request, course, cc_thread, actions_form.cleaned_data["following"],
-                               from_mfe_sidebar)
+                               from_mfe_sidebar, notify_all_learners)
 
     return api_thread
 
@@ -1645,7 +1656,8 @@ def get_thread(request, thread_id, requested_fields=None, course_id=None):
         retrieve_kwargs={
             "with_responses": True,
             "user_id": str(request.user.id),
-        }
+        },
+        course_id=course_id,
     )
     if course_id and course_id != cc_thread.course_id:
         raise ThreadNotFoundError("Thread not found.")

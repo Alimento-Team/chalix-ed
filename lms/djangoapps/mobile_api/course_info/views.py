@@ -28,6 +28,7 @@ from lms.djangoapps.mobile_api.course_info.serializers import (
     MobileCourseEnrollmentSerializer
 )
 from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
+from openedx.core.djangoapps.video_pipeline.config.waffle import DEPRECATE_YOUTUBE
 from openedx.core.lib.api.view_utils import view_auth_classes
 from openedx.core.lib.xblock_utils import get_course_update_items
 from openedx.features.course_experience import ENABLE_COURSE_GOALS
@@ -320,10 +321,16 @@ class BlocksInfoInCourseView(BlocksInCourseView):
             request - Django request object
         """
 
-        response = super().list(request, kwargs)
+        api_version = self.kwargs.get('api_version')
+        if api_version is None or api_version in ['v0.5', 'v1', 'v2', 'v3']:
+            response = super().list(request, kwargs)
+        else:
+            # The previous implementation unintentionally passed kwargs as the positional argument to
+            # `hide_access_denial`, leading to potential issues. This new condition for version > v3 removes that risk
+            # while preserving the original behavior for older clients.
+            response = super().list(request)
 
         if request.GET.get('return_type', 'dict') == 'dict':
-            api_version = self.kwargs.get('api_version')
             course_id = request.query_params.get('course_id', None)
             course_key = CourseKey.from_string(course_id)
             course_overview = CourseOverview.get_from_id(course_key)
@@ -341,6 +348,7 @@ class BlocksInfoInCourseView(BlocksInCourseView):
                     kwargs={'api_version': api_version, 'course_id': course_id},
                     request=request,
                 ),
+                'deprecate_youtube': DEPRECATE_YOUTUBE.is_enabled(course_key)
             }
 
             course_info_context = {}

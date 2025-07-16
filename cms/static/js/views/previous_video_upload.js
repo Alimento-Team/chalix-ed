@@ -13,8 +13,7 @@ define(
             className: 'video-row',
 
             events: {
-                'click .remove-video-button.action-button': 'removeVideo',
-                'click .copy-public-url-btn': 'copyPublicUrl'
+                'click .remove-video-button.action-button': 'removeVideo'
             },
 
             initialize: function(options) {
@@ -52,8 +51,7 @@ define(
                 var renderedAttributes = {
                     videoImageUploadEnabled: this.videoImageUploadEnabled,
                     created: DateUtils.renderDate(this.model.get('created')),
-                    status: this.model.get('status'),
-                    public_url: this.model.get('public_url') // ensure public_url is passed to the template
+                    status: this.model.get('status')
                 };
                 HtmlUtils.setHtml(
                     this.$el,
@@ -92,26 +90,6 @@ define(
                         );
                     }
                 );
-            },
-
-            copyPublicUrl: function(event) {
-                event.preventDefault();
-                var $btn = $(event.currentTarget);
-                var url = $btn.data('url');
-                // Use Clipboard API if available
-                if (navigator.clipboard) {
-                    navigator.clipboard.writeText(url).then(function() {
-                        $btn.siblings('.copy-success-message').fadeIn(200).delay(1000).fadeOut(200);
-                    });
-                } else {
-                    // Fallback for older browsers
-                    var $input = $('<input>');
-                    $('body').append($input);
-                    $input.val(url).select();
-                    document.execCommand('copy');
-                    $input.remove();
-                    $btn.siblings('.copy-success-message').fadeIn(200).delay(1000).fadeOut(200);
-                }
             }
         });
 

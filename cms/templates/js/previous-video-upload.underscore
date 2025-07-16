@@ -7,16 +7,6 @@
     <div class="video-col video-id-col"><%- edx_video_id %></div>
     <div class="video-col transcripts-col"></div>
     <div class="video-col status-col"></div>
-    <div class="video-col public-url-col">
-        <% if (public_url) { %>
-            <button type="button" class="copy-public-url-btn" data-url="<%- public_url %>">
-                <%- gettext("Copy") %>
-            </button>
-            <span class="copy-success-message" style="display:none;color:green;margin-left:5px;">
-                <%- gettext("Copied!") %>
-            </span>
-        <% } %>
-    </div>
     <div class="video-col actions-col">
         <ul class="actions-list">
             <li class="action-item action-remove">

@@ -109,8 +109,10 @@ def create_message_context(comment, site):
         'course_id': str(thread.course_id),
         'comment_id': comment.id,
         'comment_body': comment.body,
+        'comment_body_text': comment.body_text,
         'comment_author_id': comment.user_id,
         'comment_created_at': comment.created_at,  # comment_client models dates are already serialized
+        'comment_parent_id': comment.parent_id,
         'thread_id': thread.id,
         'thread_title': thread.title,
         'thread_author_id': thread.user_id,
@@ -164,7 +166,10 @@ def create_thread_created_notification(*args, **kwargs):
     """
     user = kwargs['user']
     post = kwargs['post']
-    send_thread_created_notification.apply_async(args=[post.id, post.attributes['course_id'], user.id])
+    notify_all_learners = kwargs.get('notify_all_learners', False)
+    send_thread_created_notification.apply_async(
+        args=[post.id, post.attributes['course_id'], user.id, notify_all_learners]
+    )
 
 
 @receiver(signals.comment_created)
