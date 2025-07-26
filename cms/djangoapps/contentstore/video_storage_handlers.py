@@ -2,23 +2,25 @@
 Views related to the video upload feature
 """
 
-
 import codecs
 import csv
 import io
 import json
 import logging
 import os
-import requests
-import shutil
 import pathlib
+import shutil
 import zipfile
-
 from contextlib import closing
 from datetime import datetime, timedelta
+from tempfile import NamedTemporaryFile, mkdtemp
 from uuid import uuid4
-from boto.s3.connection import S3Connection
+from wsgiref.util import FileWrapper
+
+import boto3
+import requests
 from boto import s3
+from boto.s3.connection import S3Connection
 from django.conf import settings
 from django.contrib.staticfiles.storage import staticfiles_storage
 from django.http import FileResponse, HttpResponseNotFound, StreamingHttpResponse
@@ -33,8 +35,8 @@ from edxval.api import (
     create_video,
     get_3rd_party_transcription_plans,
     get_available_transcript_languages,
-    get_video_transcript_url,
     get_transcript_preferences,
+    get_video_transcript_url,
     get_videos_for_course,
     remove_transcript_preferences,
     remove_video_for_course,
@@ -48,23 +50,18 @@ from path import Path as path
 from pytz import UTC
 from rest_framework import status as rest_status
 from rest_framework.response import Response
-from tempfile import NamedTemporaryFile, mkdtemp
-from wsgiref.util import FileWrapper
 
 from common.djangoapps.edxmako.shortcuts import render_to_response
 from common.djangoapps.util.json_request import JsonResponse
 from openedx.core.djangoapps.video_config.models import VideoTranscriptEnabledFlag
 from openedx.core.djangoapps.video_config.toggles import PUBLIC_VIDEO_SHARE
-from openedx.core.djangoapps.video_pipeline.config.waffle import (
-    DEPRECATE_YOUTUBE,
-    ENABLE_DEVSTACK_VIDEO_UPLOADS,
-)
+from openedx.core.djangoapps.video_pipeline.config.waffle import DEPRECATE_YOUTUBE, ENABLE_DEVSTACK_VIDEO_UPLOADS
 from openedx.core.djangoapps.waffle_utils import CourseWaffleFlag
 from xmodule.modulestore.django import modulestore  # lint-amnesty, pylint: disable=wrong-import-order
 
 from .models import VideoUploadConfig
-from .toggles import use_new_video_uploads_page, use_mock_video_uploads
-from .utils import get_video_uploads_url, get_course_videos_context
+from .toggles import use_mock_video_uploads, use_new_video_uploads_page
+from .utils import get_course_videos_context, get_video_uploads_url
 from .video_utils import validate_video_image
 from .views.course import get_course_and_check_access
 
@@ -680,7 +677,7 @@ def _get_index_videos(course, pagination_conf=None):
     attrs = [
         'edx_video_id', 'client_video_id', 'created', 'duration', 'status_nontranslated',
         'status', 'courses', 'encoded_videos', 'transcripts', 'transcription_status',
-        'transcript_urls', 'error_description'
+        'transcript_urls', 'error_description', 'url'
     ]
 
     def _get_values(video, course):
@@ -704,6 +701,20 @@ def _get_index_videos(course, pagination_conf=None):
                         values['file_size'] = encoding['file_size']
             else:
                 values[attr] = video[attr]
+        # Construct public_url using current settings and video info
+        bucket_name = settings.VIDEO_UPLOAD_PIPELINE["VEM_S3_BUCKET"]
+        root_path = settings.VIDEO_UPLOAD_PIPELINE.get("ROOT_PATH")
+        if root_path:
+            root_path = root_path.rstrip("/") + "/"
+        else:
+            root_path = ""
+        client_video_id = video.get("client_video_id", "")
+        protocol = 'https' if getattr(settings, 'HTTPS', False) else 'http'
+        public_url = (
+            protocol + '://' + settings.AWS_S3_ENDPOINT_URL.replace('https://', '').replace('http://', '')
+            + f"/{bucket_name}/{root_path}{client_video_id}"
+        )
+        values['public_url'] = public_url
         return values
 
     videos, pagination_context = _get_videos(course, pagination_conf)
@@ -724,9 +735,7 @@ def get_all_transcript_languages():
     third_party_transcription_languages.update(cielo_fidelity['PREMIUM']['languages'])
     third_party_transcription_languages.update(cielo_fidelity['PROFESSIONAL']['languages'])
 
-    # combines ALL_LANGUAGES with additional languages that should be supported for transcripts
-    extended_all_languages = settings.ALL_LANGUAGES + settings.EXTENDED_VIDEO_TRANSCRIPT_LANGUAGES
-    all_languages_dict = dict(extended_all_languages, **third_party_transcription_languages)
+    all_languages_dict = dict(settings.ALL_LANGUAGES, **third_party_transcription_languages)
     # Return combined system settings and 3rd party transcript languages.
     all_languages = []
     for key, value in sorted(all_languages_dict.items(), key=lambda k_v: k_v[1]):
@@ -812,21 +821,26 @@ def videos_post(course, request):
     if error:
         return {'error': error}, 400
 
-    bucket = storage_service_bucket()
+    s3_client = storage_service_client()
     req_files = data['files']
     resp_files = []
 
     for req_file in req_files:
         file_name = req_file['file_name']
+        key_meta = {}
 
         try:
             file_name.encode('ascii')
+            # Normalize file_name to avoid URL/browsing errors
+            file_name = os.path.basename(file_name)
+            file_name = file_name.replace(" ", "_")
+            file_name = "".join(c for c in file_name if c.isalnum() or c in ('-', '_', '.', '(', ')'))
         except UnicodeEncodeError:
             error_msg = 'The file name for %s must contain only ASCII characters.' % file_name
             return {'error': error_msg}, 400
 
         edx_video_id = str(uuid4())
-        key = storage_service_key(bucket, file_name=edx_video_id)
+        bucket_name = settings.VIDEO_UPLOAD_PIPELINE['VEM_S3_BUCKET']
 
         metadata_list = [
             ('client_video_id', file_name),
@@ -847,15 +861,30 @@ def videos_post(course, request):
                 metadata_list.append(('transcript_preferences', json.dumps(transcript_preferences)))
 
         for metadata_name, value in metadata_list:
-            key.set_metadata(metadata_name, value)
-        upload_url = key.generate_url(
-            KEY_EXPIRATION_IN_SECONDS,
-            'PUT',
-            headers={'Content-Type': req_file['content_type']}
+            key_meta[metadata_name] = value
+        root_path = settings.VIDEO_UPLOAD_PIPELINE.get("ROOT_PATH") + "/" if settings.VIDEO_UPLOAD_PIPELINE.get("ROOT_PATH", "") else ""
+        LOGGER.info(f'-----------Generating presigned URL for {file_name}: {bucket_name} with parameters: {key_meta}')
+        upload_url = s3_client.generate_presigned_url(
+            'put_object',
+            Params={
+                'Bucket': bucket_name,
+                'Key': root_path + file_name,
+                'ContentType': req_file['content_type'],
+            },
+            ExpiresIn=KEY_EXPIRATION_IN_SECONDS,
+            HttpMethod='PUT'
         )
+
+        protocol = 'https' if getattr(settings, 'HTTPS', False) else 'http'
+        public_url = (
+            protocol + '://' + settings.AWS_S3_ENDPOINT_URL.replace('https://', '').replace('http://', '')
+            + f"/{bucket_name}/{root_path}{file_name}"
+        )
+        LOGGER.info('VIDEOS: Generated upload URL for %s: %s -> %s', file_name, upload_url, public_url)
 
         # persist edx_video_id in VAL
         create_video({
+            'url': public_url,
             'edx_video_id': edx_video_id,
             'status': 'upload',
             'client_video_id': file_name,
@@ -869,41 +898,19 @@ def videos_post(course, request):
     return {'files': resp_files}, 200
 
 
-def storage_service_bucket():
+def storage_service_client():
     """
-    Returns an S3 bucket for video upload.
+    Returns an S3 client for video upload.
     """
-    if ENABLE_DEVSTACK_VIDEO_UPLOADS.is_enabled():
-        params = {
-            'aws_access_key_id': settings.AWS_ACCESS_KEY_ID,
-            'aws_secret_access_key': settings.AWS_SECRET_ACCESS_KEY,
-            'security_token': settings.AWS_SECURITY_TOKEN
-
-        }
-    else:
-        params = {
-            'aws_access_key_id': settings.AWS_ACCESS_KEY_ID,
-            'aws_secret_access_key': settings.AWS_SECRET_ACCESS_KEY
-        }
-
-    conn = S3Connection(**params)
-
-    # We don't need to validate our bucket, it requires a very permissive IAM permission
-    # set since behind the scenes it fires a HEAD request that is equivalent to get_all_keys()
-    # meaning it would need ListObjects on the whole bucket, not just the path used in each
-    # environment (since we share a single bucket for multiple deployments in some configurations)
-    return conn.get_bucket(settings.VIDEO_UPLOAD_PIPELINE['VEM_S3_BUCKET'], validate=False)
-
-
-def storage_service_key(bucket, file_name):
-    """
-    Returns an S3 key to the given file in the given bucket.
-    """
-    key_name = "{}/{}".format(
-        settings.VIDEO_UPLOAD_PIPELINE.get("ROOT_PATH", ""),
-        file_name
-    )
-    return s3.key.Key(bucket, key_name)
+    protocol = 'https' if getattr(settings, 'HTTPS', False) else 'http'
+    params = {
+        'endpoint_url': protocol + '://' + settings.AWS_S3_ENDPOINT_URL.replace('https://', '').replace('http://', ''),
+        'aws_access_key_id': settings.AWS_ACCESS_KEY_ID,
+        'aws_secret_access_key': settings.AWS_SECRET_ACCESS_KEY,
+        'verify': False
+    }
+    s3_client = boto3.client('s3', **params)
+    return s3_client
 
 
 def send_video_status_update(updates):
@@ -969,38 +976,26 @@ def get_course_youtube_edx_video_ids(course_id):
     """
     Get a list of youtube edx_video_ids
     """
-    invalid_key_error_msg = "Invalid course_key: '%s'." % course_id
-    unexpected_error_msg = "Unexpected error occurred for course_id: '%s'." % course_id
-
-    try:  # lint-amnesty, pylint: disable=too-many-nested-blocks
+    error_msg = "Invalid course_key: '%s'." % course_id
+    try:
         course_key = CourseKey.from_string(course_id)
         course = modulestore().get_course(course_key)
+    except InvalidKeyError:
+        return JsonResponse({'error': error_msg}, status=500)
+    blocks = []
+    block_yt_field = 'youtube_id_1_0'
+    block_edx_id_field = 'edx_video_id'
+    if hasattr(course, 'get_children'):
+        for section in course.get_children():
+            for subsection in section.get_children():
+                for vertical in subsection.get_children():
+                    for block in vertical.get_children():
+                        blocks.append(block)
 
-        blocks = []
-        block_yt_field = 'youtube_id_1_0'
-        block_edx_id_field = 'edx_video_id'
-        if hasattr(course, 'get_children'):
-            for section in course.get_children():
-                for subsection in section.get_children():
-                    for vertical in subsection.get_children():
-                        for block in vertical.get_children():
-                            blocks.append(block)
-
-        edx_video_ids = []
-        for block in blocks:
-            if hasattr(block, block_yt_field) and getattr(block, block_yt_field):
-                if getattr(block, block_edx_id_field):
-                    edx_video_ids.append(getattr(block, block_edx_id_field))
-
-    except InvalidKeyError as error:
-        LOGGER.exception(
-            f"InvalidKeyError occurred while getting YouTube video IDs for course_id: {course_id}: {error}"
-        )
-        return JsonResponse({'error': invalid_key_error_msg}, status=500)
-    except (TypeError, AttributeError) as error:
-        LOGGER.exception(
-            f"Error occurred while getting YouTube video IDs for course_id: {course_id}: {error}"
-        )
-        return JsonResponse({'error': unexpected_error_msg}, status=500)
+    edx_video_ids = []
+    for block in blocks:
+        if hasattr(block, block_yt_field) and getattr(block, block_yt_field):
+            if getattr(block, block_edx_id_field):
+                edx_video_ids.append(getattr(block, block_edx_id_field))
 
     return JsonResponse({'edx_video_ids': edx_video_ids}, status=200)

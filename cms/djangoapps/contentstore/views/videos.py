@@ -4,35 +4,41 @@ Views related to the video upload feature
 
 
 import logging
-from django.contrib.auth.decorators import login_required
-from django.views.decorators.http import require_GET, require_http_methods, require_POST
-from edx_toggles.toggles import WaffleSwitch
-from rest_framework.decorators import api_view
 
+from cms.djangoapps.contentstore.video_storage_handlers import \
+    check_video_images_upload_enabled
+from cms.djangoapps.contentstore.video_storage_handlers import \
+    convert_video_status as convert_video_status_source_function
+from cms.djangoapps.contentstore.video_storage_handlers import \
+    enabled_video_features
+from cms.djangoapps.contentstore.video_storage_handlers import \
+    get_all_transcript_languages as \
+    get_all_transcript_languages_source_function
 from cms.djangoapps.contentstore.video_storage_handlers import (
-    handle_videos,
-    handle_generate_video_upload_link,
-    handle_video_images,
-    check_video_images_upload_enabled,
-    enabled_video_features,
-    handle_transcript_preferences,
-    get_video_encodings_download,
-    validate_transcript_preferences as validate_transcript_preferences_source_function,
-    convert_video_status as convert_video_status_source_function,
-    get_all_transcript_languages as get_all_transcript_languages_source_function,
-    videos_index_html as videos_index_html_source_function,
-    videos_index_json as videos_index_json_source_function,
-    videos_post as videos_post_source_function,
-    storage_service_bucket as storage_service_bucket_source_function,
-    storage_service_key as storage_service_key_source_function,
-    send_video_status_update as send_video_status_update_source_function,
-    is_status_update_request as is_status_update_request_source_function,
-    get_course_youtube_edx_video_ids,
-)
-
+    get_course_youtube_edx_video_ids, get_video_encodings_download,
+    handle_generate_video_upload_link, handle_transcript_preferences,
+    handle_video_images, handle_videos)
+from cms.djangoapps.contentstore.video_storage_handlers import \
+    is_status_update_request as is_status_update_request_source_function
+from cms.djangoapps.contentstore.video_storage_handlers import \
+    send_video_status_update as send_video_status_update_source_function
+from cms.djangoapps.contentstore.video_storage_handlers import \
+    validate_transcript_preferences as \
+    validate_transcript_preferences_source_function
+from cms.djangoapps.contentstore.video_storage_handlers import \
+    videos_index_html as videos_index_html_source_function
+from cms.djangoapps.contentstore.video_storage_handlers import \
+    videos_index_json as videos_index_json_source_function
+from cms.djangoapps.contentstore.video_storage_handlers import \
+    videos_post as videos_post_source_function
 from common.djangoapps.util.json_request import expect_json
+from django.contrib.auth.decorators import login_required
+from django.views.decorators.http import (require_GET, require_http_methods,
+                                          require_POST)
+from edx_toggles.toggles import WaffleSwitch
 from openedx.core.djangoapps.waffle_utils import CourseWaffleFlag
 from openedx.core.lib.api.view_utils import view_auth_classes
+from rest_framework.decorators import api_view
 
 __all__ = [
     'videos_handler',
@@ -172,7 +178,7 @@ def video_encodings_download(request, course_key_string):
     in the following format:
 
     Video ID,Name,Status,Profile1 URL,Profile2 URL
-    aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa,video.mp4,Complete,http://example.com/prof1.mp4,http://example.com/prof2.mp4
+aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa,video.mp4,Complete,http://example.com/prof1.mp4,http://example.com/prof2.mp4
     """
     return get_video_encodings_download(request, course_key_string)
 
@@ -210,20 +216,6 @@ def videos_post(course, request):
     Exposes helper method without breaking existing bindings/dependencies
     """
     return videos_post_source_function(course, request)
-
-
-def storage_service_bucket():
-    """
-    Exposes helper method without breaking existing bindings/dependencies
-    """
-    return storage_service_bucket_source_function()
-
-
-def storage_service_key(bucket, file_name):
-    """
-    Exposes helper method without breaking existing bindings/dependencies
-    """
-    return storage_service_key_source_function(bucket, file_name)
 
 
 def send_video_status_update(updates):
