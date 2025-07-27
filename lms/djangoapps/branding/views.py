@@ -214,8 +214,8 @@ def footer(request):
                 # ...
             ],
             "openedx_link": {
-                "url": "https://open.edx.org",
-                "title": "Powered by Open edX",
+                "url": "mailto:alimento128@gmail.com",
+                "title": "Powered by Chalix",
                 "image": "http://example.com/openedx.png"
             },
             "logo_image": "http://example.com/static/images/logo.png",

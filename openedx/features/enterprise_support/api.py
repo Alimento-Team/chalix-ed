@@ -227,7 +227,7 @@ class EnterpriseApiClient:
                             "enforce_data_sharing_consent": "at_login",
                             "branding_configuration": {
                                 "enterprise_customer": "cf246b88-d5f6-4908-a522-fc307e0b0c59",
-                                "logo": "https://open.edx.org/sites/all/themes/edx_open/logo.png"
+                                "logo": "http://files.local.openedx.io:9000/chalix/chalix.png"
                             },
                             "enterprise_customer_entitlements": [
                                 {

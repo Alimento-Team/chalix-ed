@@ -89,8 +89,8 @@ def get_footer(is_secure=True, language=settings.LANGUAGE_CODE):
             # ...
         ],
         "openedx_link": {
-            "url": "https://open.edx.org",
-            "title": "Powered by Open edX",
+            "url": "mailto:alimento128@gmail.com",
+            "title": "Powered by Chalix",
             "image": "http://example.com/openedx.png"
         }
     }
@@ -108,13 +108,10 @@ def get_footer(is_secure=True, language=settings.LANGUAGE_CODE):
         "navigation_links": _footer_navigation_links(language),
         "legal_links": _footer_legal_links(language),
         "edx_org_link": {
-            "url": "https://www.edx.org/?utm_medium=affiliate_partner"
-                   "&utm_source=opensource-partner"
-                   "&utm_content=open-edx-partner-footer-link"
-                   "&utm_campaign=open-edx-footer",
+            "url": "mailto:alimento128@gmail.com",
             # Translators: This string is used across Open edX installations
             # as a callback to edX. Please do not translate `edX.org`
-            "text": _("Take free online courses at edX.org"),
+            "text": _("Contact Alimento Team for more details"),
         },
     }
 
@@ -143,7 +140,7 @@ def _footer_openedx_link():
     """
     # Translators: 'Open edX' is a trademark, please keep this untranslated.
     # See http://openedx.org for more information.
-    title = _("Powered by Open edX")
+    title = _("Powered by Chalix")
     return {
         "url": settings.FOOTER_OPENEDX_URL,
         "title": title,

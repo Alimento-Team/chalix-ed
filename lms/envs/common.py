@@ -2202,7 +2202,7 @@ PARENTAL_CONSENT_AGE_LIMIT = 13
 # (such as marketing and the blog) via the branding API.
 
 # URL for Open edX displayed in the footer
-FOOTER_OPENEDX_URL = "https://open.edx.org"
+FOOTER_OPENEDX_URL = "mailto:alimento128@gmail.com"
 
 # URL for the OpenEdX logo image
 # We use logo images served from files.edx.org so we can (roughly) track
@@ -2211,7 +2211,7 @@ FOOTER_OPENEDX_URL = "https://open.edx.org"
 # * https://logos.openedx.org/open-edx-logo-tag.png
 # * https://logos.openedx.org/open-edx-logo-tag-light.png"
 # * https://logos.openedx.org/open-edx-logo-tag-dark.png
-FOOTER_OPENEDX_LOGO_IMAGE = "https://logos.openedx.org/open-edx-logo-tag.png"
+FOOTER_OPENEDX_LOGO_IMAGE = "http://files.local.openedx.io:9000/chalix/chalix.png"
 
 # These are referred to both by the Django asset pipeline
 # AND by the branding footer API, which needs to decide which
