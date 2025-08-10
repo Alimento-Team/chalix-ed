@@ -1,5 +1,7 @@
 """ Django admin pages for student app """
 
+# Import admin-specific email validation to ensure signals are registered
+from . import admin_email_validation
 
 from functools import wraps
 from dal_select2.views import Select2ListView
@@ -239,6 +241,7 @@ class LinkedInAddToProfileConfigurationAdmin(admin.ModelAdmin):
 
 class CourseEnrollmentForm(forms.ModelForm):
     """ Form for Course Enrollments in the Django Admin Panel. """
+
     def __init__(self, *args, **kwargs):
         # If args is a QueryDict, then the ModelForm addition request came in as a POST with a course ID string.
         # Change the course ID string to a CourseLocator object by copying the QueryDict to make it mutable.
@@ -422,10 +425,134 @@ class UserChangeForm(BaseUserChangeForm):
             )
 
 
+class UserCreationForm(forms.ModelForm):
+    """
+    A form that creates a user, with no privileges, from the given username, email,
+    and password. This ensures email is required and prevents empty email errors.
+    """
+    error_messages = {
+        'password_mismatch': _('The two password fields didn\'t match.'),
+    }
+    username = forms.CharField(
+        max_length=150,
+        help_text=_('Required. 150 characters or fewer. Letters, digits and @/./+/-/_ only.'),
+    )
+    email = forms.EmailField(
+        required=True,
+        help_text=_('Required. Enter a valid email address.'),
+    )
+    password1 = forms.CharField(
+        label=_('Password'),
+        widget=forms.PasswordInput,
+        help_text=_('Enter a strong password.'),
+    )
+    password2 = forms.CharField(
+        label=_('Password confirmation'),
+        widget=forms.PasswordInput,
+        help_text=_('Enter the same password as before, for verification.'),
+    )
+
+    class Meta:
+        model = get_user_model()
+        fields = ('username', 'email', 'first_name', 'last_name')
+
+    def clean_email(self):
+        """
+        Validate that the email is not empty and is unique.
+        """
+        email = self.cleaned_data.get('email')
+        if not email or not email.strip():
+            raise forms.ValidationError(_('Email field is required and cannot be empty.'))
+
+        # Check if email already exists
+        User = get_user_model()
+        if User.objects.filter(email=email).exists():
+            raise forms.ValidationError(_('A user with this email already exists.'))
+
+        return email
+
+    def clean_password2(self):
+        password1 = self.cleaned_data.get("password1")
+        password2 = self.cleaned_data.get("password2")
+        if password1 and password2 and password1 != password2:
+            raise forms.ValidationError(
+                self.error_messages['password_mismatch'],
+                code='password_mismatch',
+            )
+        return password2
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        user.set_password(self.cleaned_data["password1"])
+        if commit:
+            user.save()
+        return user
+
+
 class UserAdmin(BaseUserAdmin):
     """ Admin interface for the User model. """
     inlines = (UserProfileInline, AccountRecoveryInline)
     form = UserChangeForm
+    add_form = UserCreationForm
+
+    # Define the fields for adding a new user
+    add_fieldsets = (
+        (None, {
+            'classes': ('wide',),
+            'fields': ('username', 'email', 'password1', 'password2'),
+        }),
+    )
+
+    # Define the fields for editing an existing user
+    fieldsets = (
+        (None, {
+            'fields': ('username', 'password')
+        }),
+        ('Personal info', {
+            'fields': ('first_name', 'last_name', 'email')
+        }),
+        ('Permissions', {
+            'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions'),
+        }),
+        ('Important dates', {
+            'fields': ('last_login', 'date_joined')
+        }),
+    )
+
+    # Fields to display in the user list
+    list_display = ('username', 'email', 'first_name', 'last_name', 'is_staff', 'is_active', 'date_joined')
+    list_filter = ('is_staff', 'is_superuser', 'is_active', 'date_joined')
+    search_fields = ('username', 'first_name', 'last_name', 'email')
+    ordering = ('username',)
+
+    def save_model(self, request, obj, form, change):
+        """
+        Override save_model to ensure email is not empty before saving.
+        For new users, also set Vietnamese as default language preference.
+        """
+        if not change:  # Only for new users
+            if not obj.email or not obj.email.strip():
+                from django.contrib import messages
+                messages.error(request, 'Email field is required and cannot be empty.')
+                return
+
+        super().save_model(request, obj, form, change)
+
+        # Set Vietnamese language preference for newly created users
+        if not change:  # Only for new users
+            from django.db import transaction
+            from openedx.core.djangoapps.user_api.preferences.api import set_user_preference
+
+            def set_vietnamese_preference():
+                try:
+                    set_user_preference(obj, 'pref-lang', 'vi')
+                except Exception as e:
+                    import logging
+                    log = logging.getLogger(__name__)
+                    log.warning(f"Failed to set Vietnamese language preference for user {obj.username}: {e}")
+
+            # Use transaction.on_commit to ensure user is saved before setting preference
+            transaction.on_commit(set_vietnamese_preference)
 
     def get_readonly_fields(self, request, obj=None):
         """

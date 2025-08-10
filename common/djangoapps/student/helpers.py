@@ -448,6 +448,7 @@ class AccountValidationError(Exception):
     """
     Used in account creation views to raise exceptions with details about specific invalid fields
     """
+
     def __init__(self, message, field, error_code=None):
         super().__init__(message)
         self.field = field
@@ -747,6 +748,22 @@ def do_create_account(form, custom_form=None):
     except Exception:
         log.exception(f"UserProfile creation failed for user {user.id}.")
         raise
+
+    # Schedule Vietnamese language setting to happen after transaction commit
+    # to avoid IntegrityError during user creation
+    def set_vietnamese_after_commit():
+        try:
+            from openedx.core.djangoapps.lang_pref import LANGUAGE_KEY
+            from openedx.core.djangoapps.user_api.preferences.api import set_user_preference
+            set_user_preference(user, LANGUAGE_KEY, 'vi')
+            log.info(f"Set Vietnamese as default language for new user: {user.username}")
+        except Exception as e:
+            # Log error but don't fail user creation if language preference setting fails
+            log.error(f"Failed to set Vietnamese default language for user {user.username}: {e}")
+
+    # Use transaction.on_commit to ensure this runs after user creation is complete
+    from django.db import transaction
+    transaction.on_commit(set_vietnamese_after_commit)
 
     return user, profile, registration
 

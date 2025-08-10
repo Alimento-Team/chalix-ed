@@ -17,6 +17,8 @@ class StudentConfig(AppConfig):
     def ready(self):
         # Connect signal handlers.
         from .signals import receivers  # pylint: disable=unused-import
+        # Import Vietnamese default language signal handler
+        from . import signals_vi_default  # pylint: disable=unused-import
 
         # The django-simple-history model on CourseEnrollment creates performance
         # problems in testing, we mock it here so that the mock impacts all tests.

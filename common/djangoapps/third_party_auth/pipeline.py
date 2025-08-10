@@ -86,9 +86,11 @@ from common.djangoapps import third_party_auth
 from common.djangoapps.edxmako.shortcuts import render_to_string
 from lms.djangoapps.verify_student.models import SSOVerification
 from lms.djangoapps.verify_student.utils import earliest_allowed_verification_date
+from openedx.core.djangoapps.lang_pref import LANGUAGE_KEY
 from openedx.core.djangoapps.site_configuration import helpers as configuration_helpers
 from openedx.core.djangoapps.user_api import accounts
 from openedx.core.djangoapps.user_api.accounts.utils import username_suffix_generator
+from openedx.core.djangoapps.user_api.preferences import api as preferences_api
 from openedx.core.djangoapps.user_authn import cookies as user_authn_cookies
 from openedx.core.djangoapps.user_authn.toggles import is_auto_generated_username_enabled
 from openedx.core.djangoapps.user_authn.utils import is_safe_login_or_logout_redirect
@@ -144,6 +146,7 @@ AUTH_ENTRY_CUSTOM = getattr(settings, 'THIRD_PARTY_AUTH_CUSTOM_AUTH_FORMS', {})
 def is_api(auth_entry):
     """Returns whether the auth entry point is via an API call."""
     return (auth_entry == AUTH_ENTRY_LOGIN_API) or (auth_entry == AUTH_ENTRY_REGISTER_API)  # lint-amnesty, pylint: disable=consider-using-in
+
 
 # URLs associated with auth entry points
 # These are used to request additional user information
@@ -993,7 +996,7 @@ def get_username(strategy, details, backend, user=None, *args, **kwargs):  # lin
             else:
                 clean_func = storage.user.clean_username
         else:
-            clean_func = lambda val: val
+            def clean_func(val): return val
 
         if do_slugify:
             override_slug = strategy.setting('SLUGIFY_FUNCTION')
@@ -1002,7 +1005,7 @@ def get_username(strategy, details, backend, user=None, *args, **kwargs):  # lin
             else:
                 slug_func = slugify
         else:
-            slug_func = lambda val: val
+            def slug_func(val): return val
 
         if is_auto_generated_username_enabled():
             username = get_auto_generated_username(details)
@@ -1070,3 +1073,26 @@ def ensure_redirect_url_is_safe(strategy, *args, **kwargs):
         if not is_safe:
             safe_redirect_url = getattr(settings, 'SOCIAL_AUTH_LOGIN_REDIRECT_URL', '/dashboard')
             strategy.session_set(REDIRECT_FIELD_NAME, safe_redirect_url)
+
+
+def set_default_language_preference(auth_entry, strategy, details, user=None, *args, **kwargs):  # lint-amnesty, pylint: disable=keyword-arg-before-vararg
+    """
+    Set default language preference to Vietnamese for new users created through social authentication.
+    This ensures that users created via third-party auth have the same default language as users
+    created through the normal registration flow.
+
+    Uses transaction.on_commit to avoid IntegrityError during user creation.
+    """
+    if user:
+        def set_vietnamese_after_commit():
+            try:
+                # Only set a default language preference if user does not already have one
+                if not preferences_api.has_user_preference(user, LANGUAGE_KEY):
+                    preferences_api.set_user_preference(user, LANGUAGE_KEY, 'vi')
+                    logger.info(f"Set Vietnamese as default language for social auth user: {user.username}")
+            except Exception as e:
+                logger.error(f"Failed to set Vietnamese default language for social auth user {user.username}: {e}")
+
+        # Use transaction.on_commit to ensure this runs after user creation is complete
+        from django.db import transaction
+        transaction.on_commit(set_vietnamese_after_commit)
