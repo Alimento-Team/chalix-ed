@@ -218,7 +218,7 @@ class EnterpriseServiceMockMixin:
                     'enable_audit_enrollment': enable_audit_enrollment,
                     'branding_configuration': {
                         'enterprise_customer': enterprise_customer_uuid,
-                        'logo': 'http://files.local.openedx.io:9000/chalix/chalix.png'
+                        'logo': "${static.url('images/studio-logo.png')}"
                     },
                     'enterprise_customer_entitlements': [
                         {

@@ -2211,7 +2211,7 @@ FOOTER_OPENEDX_URL = "mailto:alimento128@gmail.com"
 # * https://logos.openedx.org/open-edx-logo-tag.png
 # * https://logos.openedx.org/open-edx-logo-tag-light.png"
 # * https://logos.openedx.org/open-edx-logo-tag-dark.png
-FOOTER_OPENEDX_LOGO_IMAGE = "http://files.local.openedx.io:9000/chalix/chalix.png"
+FOOTER_OPENEDX_LOGO_IMAGE = "${static.url('images/studio-logo.png')}"
 
 # These are referred to both by the Django asset pipeline
 # AND by the branding footer API, which needs to decide which
