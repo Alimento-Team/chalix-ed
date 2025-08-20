@@ -1,0 +1,436 @@
+## mako
+
+<%page expression_filter="h" args="online_help_token, use_cookie_banner=False" />
+
+<%namespace name='s            <div class="chalix-user-avatar">
+                <a href="/u/${user.username}" class="user-avatar-link">
+                    <div class="avatar-circle">
+                        % if profile_image_url:
+                            <img src="${profile_image_url}" alt="${displayname}" class="user-avatar-image" />
+                        % else:
+                            <span class="avatar-initials">${displayname[0].upper() if displayname else ' U'}</span>
+    % endif
+    </div>
+    </a>
+    </div>='../static_content.html'/>
+    <%namespace file='../main.html' import="login_query" />
+    <%! from django.urls import reverse from django.utils.translation import gettext as _ import waffle from
+        lms.djangoapps.ccx.overrides import get_current_ccx from openedx.core.djangoapps.lang_pref.api import
+        header_language_selector_is_enabled, released_languages from openedx.core.djangoapps.site_configuration import
+        helpers as configuration_helpers # App that handles subdomain specific branding from lms.djangoapps.branding
+        import api as branding_api %>
+
+        ## Provide a hook for themes to inject branding on top.
+        <%block name="navigation_top" />
+
+        <% unsupported_browser_alert_versions=configuration_helpers.get_value('UNSUPPORTED_BROWSER_ALERT_VERSIONS',
+            settings.FEATURES.get('UNSUPPORTED_BROWSER_ALERT_VERSIONS')) %>
+            % if waffle.switch_is_active('enable_unsupported_browser_alert'):
+            <script>
+                var $buoop = {
+                    notify: ${unsupported_browser_alert_versions | n, decode.utf8},
+                api: 5,
+                    reminder: 0
+    };
+                function $buo_f() {
+                    var e = document.createElement("script");
+                    e.src = "//browser-update.org/update.min.js";
+                    document.body.appendChild(e);
+                };
+                try {document.addEventListener("DOMContentLoaded", $buo_f, false)}
+                catch (e) {window.attachEvent("onload", $buo_f)}
+            </script>
+            % endif
+
+            <header class="chalix-header">
+                % if settings.FEATURES.get('ENABLE_COOKIE_POLICY_BANNER', use_cookie_banner):
+                ${static.renderReact(
+                component="CookiePolicyBanner",
+                id="frontend-component-cookie-policy-banner",
+                props={}
+                )}
+                % endif
+                <div class="chalix-header-content">
+                    <!-- Logo -->
+                    <div class="chalix-logo">
+                        <a href="${branding_api.get_home_url()}">
+                            <img class="logo-icon" src="${static.url('images/chalix-logo-icon.png')}" alt="Logo" />
+                            <span class="logo-text">SmartLearn</span>
+                        </a>
+                    </div>
+
+                    <!-- Search Bar -->
+                    <div class="chalix-search-container">
+                        <form class="chalix-search-form" action="/course/search/" method="get">
+                            <div class="chalix-search-input-wrapper">
+                                <input type="text" name="q" class="chalix-search-input"
+                                    placeholder="Nhập từ khóa tìm kiếm" aria-label="Search courses"
+                                    value="${request.GET.get('q', '')}" />
+                                <button type="submit" class="chalix-search-button" aria-label="Search">
+                                    <i class="fa fa-search" aria-hidden="true"></i>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Learning Button -->
+                    <div class="chalix-learning-button">
+                        <a href="/courses" class="nav-item nav-link">Học Tập</a>
+                    </div>
+
+                    <!-- Teacher Dashboard Button (only for instructors/staff) -->
+                    % if user.is_authenticated:
+                    <% from common.djangoapps.student.roles import CourseInstructorRole, CourseStaffRole
+                        is_teacher=CourseInstructorRole.user_has_role(user) or CourseStaffRole.user_has_role(user) %>
+                        % if is_teacher:
+                        <div class="chalix-teacher-button">
+                            <a href="/teacher-dashboard/" class="btn-teacher">Giảng Dạy</a>
+                        </div>
+                        % endif
+                        % endif <!-- User Avatar -->
+                        % if user.is_authenticated:
+                        <% from openedx.core.djangoapps.user_api.accounts.image_helpers import
+                            get_profile_image_urls_for_user from openedx.features.enterprise_support.utils import
+                            get_enterprise_learner_generic_name from urllib.parse import urljoin
+                            self.real_user=getattr(user, 'real_user' , user)
+                            profile_image_url=get_profile_image_urls_for_user(self.real_user)['medium']
+                            username=self.real_user.username displayname=get_enterprise_learner_generic_name(request) or
+                            username # Create profile URL try: if hasattr(settings, 'PROFILE_MICROFRONTEND_URL' ) and
+                            settings.PROFILE_MICROFRONTEND_URL: profile_url=urljoin(settings.PROFILE_MICROFRONTEND_URL,
+                            f'/u/{username}') else: profile_url=reverse('learner_profile', kwargs={'username':
+                            username}) except: profile_url=f'/u/{username}' %>
+                            <div class="chalix-user-avatar">
+                                <a href="${profile_url}" class="user-avatar-link">
+                                    <div class="avatar-circle">
+                                        % if profile_image_url:
+                                        <img src="${profile_image_url}" alt="${displayname}"
+                                            class="user-avatar-image" />
+                                        % else:
+                                        <span class="avatar-initials">${displayname[0].upper() if displayname else
+                                            'U'}</span>
+                                        % endif
+                                    </div>
+                                </a>
+                            </div>
+                            % else:
+                            <div class="chalix-auth-buttons">
+                                <a href="/login" class="btn-signin">Đăng nhập</a>
+                                <a href="/register" class="btn-signup">Đăng ký</a>
+                            </div>
+                            % endif
+                </div>
+            </header>
+
+            <style>
+                .chalix-header {
+                    background: #ffffff;
+                    border-bottom: 1px solid rgba(155, 149, 149, 0.8);
+                    height: 80px;
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    z-index: 1000;
+                }
+
+                .chalix-header-content {
+                    display: flex;
+                    align-items: center;
+                    height: 100%;
+                    max-width: 1440px;
+                    margin: 0 auto;
+                    padding: 0 20px;
+                    position: relative;
+                }
+
+                .chalix-logo {
+                    display: flex;
+                    align-items: center;
+                    margin-right: 40px;
+                }
+
+                .chalix-logo a {
+                    display: flex;
+                    align-items: center;
+                    text-decoration: none;
+                }
+
+                .logo-icon {
+                    height: 40px;
+                    width: auto;
+                    margin-right: 10px;
+                }
+
+                .logo-text {
+                    font-family: 'Inter', sans-serif;
+                    font-weight: 700;
+                    font-size: 16px;
+                    color: #3494c8;
+                    line-height: 24px;
+                }
+
+                .chalix-search-container {
+                    flex: 1;
+                    max-width: 596px;
+                    margin: 0 40px;
+                }
+
+                .chalix-search-form {
+                    width: 100%;
+                }
+
+                .chalix-search-input-wrapper {
+                    position: relative;
+                    width: 100%;
+                }
+
+                .chalix-search-input {
+                    width: 100%;
+                    height: 56px;
+                    border: 2px solid #99abc8;
+                    border-radius: 28px;
+                    padding: 0 60px 0 20px;
+                    font-family: 'Roboto', sans-serif;
+                    font-size: 16px;
+                    color: rgba(73, 69, 79, 0.8);
+                    background: #ffffff;
+                    outline: none;
+                    box-sizing: border-box;
+                }
+
+                .chalix-search-input:focus {
+                    border-color: #3494c8;
+                }
+
+                .chalix-search-input::placeholder {
+                    color: rgba(73, 69, 79, 0.8);
+                    font-weight: 400;
+                    line-height: 24px;
+                    letter-spacing: 0.5px;
+                }
+
+                .chalix-search-button {
+                    position: absolute;
+                    right: 4px;
+                    top: 50%;
+                    transform: translateY(-50%);
+                    width: 48px;
+                    height: 48px;
+                    border: none;
+                    border-radius: 24px;
+                    background: transparent;
+                    color: #333;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    transition: background-color 0.2s;
+                }
+
+                .chalix-search-button:hover {
+                    background: rgba(0, 0, 0, 0.05);
+                }
+
+                .chalix-learning-button {
+                    margin-right: 16px;
+                }
+
+                .chalix-teacher-button {
+                    margin-right: 40px;
+                }
+
+                .btn-learning,
+                .btn-teacher {
+                    background: #3494c8;
+                    color: #ffffff;
+                    text-decoration: none;
+                    padding: 18px 32px;
+                    border-radius: 5px;
+                    font-family: 'Roboto', sans-serif;
+                    font-weight: 400;
+                    font-size: 20px;
+                    line-height: 24px;
+                    letter-spacing: 0.5px;
+                    transition: background-color 0.2s;
+                    border: none;
+                    cursor: pointer;
+                    display: inline-block;
+                }
+
+                .btn-learning:hover,
+                .btn-teacher:hover {
+                    background: #2a7ba7;
+                    color: #ffffff;
+                    text-decoration: none;
+                }
+
+                .btn-teacher {
+                    background: #ff6b35;
+                }
+
+                .btn-teacher:hover {
+                    background: #e55a2b;
+                }
+
+                .chalix-user-avatar {
+                    margin-left: auto;
+                }
+
+                .user-avatar-link {
+                    text-decoration: none;
+                }
+
+                .avatar-circle {
+                    width: 60px;
+                    height: 60px;
+                    border-radius: 30px;
+                    background: #99abc8;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    overflow: hidden;
+                }
+
+                .user-avatar-image {
+                    width: 100%;
+                    height: 100%;
+                    object-fit: cover;
+                }
+
+                .avatar-initials {
+                    font-family: 'Roboto', sans-serif;
+                    font-weight: 600;
+                    font-size: 20px;
+                    color: #000000;
+                    line-height: 24px;
+                    letter-spacing: 0.5px;
+                }
+
+                .chalix-auth-buttons {
+                    margin-left: auto;
+                    display: flex;
+                    gap: 16px;
+                }
+
+                .btn-signin,
+                .btn-signup {
+                    padding: 12px 24px;
+                    border-radius: 5px;
+                    text-decoration: none;
+                    font-family: 'Roboto', sans-serif;
+                    font-weight: 400;
+                    font-size: 16px;
+                    line-height: 24px;
+                    transition: all 0.2s;
+                }
+
+                .btn-signin {
+                    background: transparent;
+                    color: #3494c8;
+                    border: 1px solid #3494c8;
+                }
+
+                .btn-signin:hover {
+                    background: #3494c8;
+                    color: #ffffff;
+                    text-decoration: none;
+                }
+
+                .btn-signup {
+                    background: #3494c8;
+                    color: #ffffff;
+                    border: 1px solid #3494c8;
+                }
+
+                .btn-signup:hover {
+                    background: #2a7ba7;
+                    border-color: #2a7ba7;
+                    text-decoration: none;
+                }
+
+                /* Responsive adjustments */
+                @media (max-width: 768px) {
+                    .chalix-header-content {
+                        padding: 0 16px;
+                    }
+
+                    .chalix-search-container {
+                        margin: 0 20px;
+                        max-width: 400px;
+                    }
+
+                    .chalix-learning-button {
+                        margin-right: 8px;
+                    }
+
+                    .chalix-teacher-button {
+                        margin-right: 20px;
+                    }
+
+                    .logo-text {
+                        display: none;
+                    }
+                }
+
+                @media (max-width: 640px) {
+                    .chalix-search-container {
+                        margin: 0 16px;
+                        max-width: 300px;
+                    }
+
+                    .btn-learning,
+                    .btn-teacher {
+                        padding: 14px 24px;
+                        font-size: 18px;
+                    }
+
+                    .avatar-circle {
+                        width: 50px;
+                        height: 50px;
+                        border-radius: 25px;
+                    }
+                }
+            </style>
+
+            % if course:
+            <!--[if lte IE 9]>
+<div class="ie-banner" aria-hidden="true">${Text(_('{begin_strong}Warning:{end_strong} Your browser is not fully supported. We strongly recommend using {chrome_link} or {ff_link}.')).format(
+    begin_strong=HTML('<strong>'),
+    end_strong=HTML('</strong>'),
+    chrome_link=HTML('<a href="https://www.google.com/chrome" rel="noopener" target="_blank">Chrome</a>'),
+    ff_link=HTML('<a href="http://www.mozilla.org/firefox" rel="noopener" target="_blank">Firefox</a>'),
+)}</div>
+<![endif]-->
+            % endif
+
+            % if settings.FEATURES.get('ENABLE_COOKIE_CONSENT', False):
+            <%include file="../widgets/cookie-consent.html" />
+            % endif
+
+            % if header_language_selector_is_enabled():
+            <% languages=released_languages() %>
+                % if len(languages) > 1:
+                <form action="/i18n/setlang/" method="post" class="settings-language-form" id="language-settings-form">
+                    <input type="hidden" id="csrf_token" name="csrfmiddlewaretoken" value="${csrf_token}">
+                    % if user.is_authenticated:
+                    <input title="preference api" type="hidden" class="url-endpoint"
+                        value="${reverse('preferences_api', kwargs={'username': user.username})}"
+                        data-user-is-authenticated="true">
+                    % else:
+                    <input title="session update url" type="hidden" class="url-endpoint"
+                        value="${reverse('update_language')}" data-user-is-authenticated="false">
+                    % endif
+                    <label><span class="sr">${_("Choose Language")}</span>
+                        <select class="input select language-selector" id="settings-language-value" name="language">
+                            % for language in languages:
+                            % if language[0] == LANGUAGE_CODE:
+                            <option value="${language[0]}" selected="selected">${language[1]}</option>
+                            % else:
+                            <option value="${language[0]}">${language[1]}</option>
+                            % endif
+                            % endfor
+                        </select>
+                    </label>
+                </form>
+                % endif
+                % endif

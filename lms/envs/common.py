@@ -3118,6 +3118,7 @@ INSTALLED_APPS = [
     'common.djangoapps.util',
     'lms.djangoapps.certificates.apps.CertificatesConfig',
     'lms.djangoapps.instructor_task',
+    'lms.djangoapps.teacher_dashboard.apps.TeacherDashboardConfig',
     'openedx.core.djangoapps.course_groups',
     'lms.djangoapps.bulk_email',
     'lms.djangoapps.branding',

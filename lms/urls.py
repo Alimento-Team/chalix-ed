@@ -99,6 +99,7 @@ urlpatterns = [
     path('', include('common.djangoapps.student.urls')),
     # TODO: Move lms specific student views out of common code
     re_path(r'^dashboard/?$', student_views.student_dashboard, name='dashboard'),
+    path('teacher-dashboard/', include('lms.djangoapps.teacher_dashboard.urls')),
     path('change_enrollment', student_views.change_enrollment, name='change_enrollment'),
 
     # Event tracking endpoints
@@ -227,6 +228,10 @@ urlpatterns += [
 
 urlpatterns += [
     path('support/', include('lms.djangoapps.support.urls')),
+]
+
+urlpatterns += [
+    path('course/', include('lms.djangoapps.course_search.urls')),
 ]
 
 # Favicon

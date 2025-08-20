@@ -1,0 +1,424 @@
+<%page expression_filter="h" />
+<%inherit file="../main.html" />
+<%! from django.urls import reverse from django.utils.translation import gettext as _ from
+    openedx.core.djangoapps.site_configuration import helpers as configuration_helpers %>
+
+    <%block name="pagetitle">${_("Course Search Results")}</%block>
+
+    <%block name="bodyclass">view-course-search-results</%block>
+
+    <div class="course-search-results">
+        <div class="search-header">
+            <div class="container">
+                <h1 class="search-title">
+                    % if query:
+                    ${_('Search results for "{query}"').format(query=query)}
+                    % else:
+                    ${_('Course Search')}
+                    % endif
+                </h1>
+
+                % if query and courses:
+                <p class="search-summary">
+                    ${_('Found {count} course(s)').format(count=paginator.count if paginator else len(courses))}
+                </p>
+                % endif
+            </div>
+        </div>
+
+        <div class="search-content">
+            <div class="container">
+                % if not query:
+                <div class="search-prompt">
+                    <h2>${_('Discover Courses')}</h2>
+                    <p>${_('Use the search box above to find courses by title, description, or content.')}</p>
+                </div>
+                % elif not courses:
+                <div class="no-results">
+                    <h2>${_('No courses found')}</h2>
+                    <p>${_('We couldn\'t find any courses matching "{query}". Try different keywords or browse all
+                        available courses.').format(query=query)}</p>
+                    <a href="${marketing_link('COURSES')}" class="btn btn-primary">${_('Browse All Courses')}</a>
+                </div>
+                % else:
+                <div class="search-results">
+                    % for course_data in courses:
+                    <% overview=course_data['overview'] course_url=course_data['course_url']
+                        enrollment_url=course_data['enrollment_url'] is_enrolled=course_data['is_enrolled'] %>
+                        <div class="course-item">
+                            <div class="course-image">
+                                % if overview.course_image_url:
+                                <img src="${overview.course_image_url}" alt="${overview.display_name}" />
+                                % else:
+                                <div class="placeholder-image">
+                                    <span class="course-org">${overview.org}</span>
+                                </div>
+                                % endif
+                            </div>
+
+                            <div class="course-info">
+                                <h3 class="course-title">
+                                    <a href="${course_url}">${overview.display_name}</a>
+                                </h3>
+
+                                <div class="course-meta">
+                                    <span class="course-org">${overview.org}</span>
+                                    % if overview.number:
+                                    <span class="course-number">${overview.number}</span>
+                                    % endif
+                                </div>
+
+                                % if overview.short_description:
+                                <p class="course-description">${overview.short_description}</p>
+                                % endif
+
+                                <div class="course-actions">
+                                    % if is_enrolled:
+                                    <a href="${course_url}" class="btn btn-primary">${_('View Course')}</a>
+                                    % else:
+                                    <a href="${enrollment_url}" class="btn btn-outline-primary">${_('Enroll')}</a>
+                                    <a href="${course_url}" class="btn btn-link">${_('Learn More')}</a>
+                                    % endif
+                                </div>
+                            </div>
+                        </div>
+                        % endfor
+                </div>
+
+                % if is_paginated:
+                <div class="pagination-container">
+                    <nav aria-label="${_('Search results pagination')}">
+                        <ul class="pagination">
+                            % if page_obj.has_previous():
+                            <li class="page-item">
+                                <a class="page-link" href="?q=${query}&page=1" aria-label="${_('First page')}">
+                                    <span aria-hidden="true">&laquo;&laquo;</span>
+                                </a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?q=${query}&page=${page_obj.previous_page_number()}"
+                                    aria-label="${_('Previous page')}">
+                                    <span aria-hidden="true">&laquo;</span>
+                                </a>
+                            </li>
+                            % endif
+
+                            % for num in page_obj.paginator.page_range:
+                            % if num == page_obj.number:
+                            <li class="page-item active">
+                                <span class="page-link">${num}</span>
+                            </li>
+                            % elif num > page_obj.number - 3 and num < page_obj.number + 3: <li class="page-item">
+                                <a class="page-link" href="?q=${query}&page=${num}">${num}</a>
+                                </li>
+                                % endif
+                                % endfor
+
+                                % if page_obj.has_next():
+                                <li class="page-item">
+                                    <a class="page-link" href="?q=${query}&page=${page_obj.next_page_number()}"
+                                        aria-label="${_('Next page')}">
+                                        <span aria-hidden="true">&raquo;</span>
+                                    </a>
+                                </li>
+                                <li class="page-item">
+                                    <a class="page-link" href="?q=${query}&page=${page_obj.paginator.num_pages}"
+                                        aria-label="${_('Last page')}">
+                                        <span aria-hidden="true">&raquo;&raquo;</span>
+                                    </a>
+                                </li>
+                                % endif
+                        </ul>
+                    </nav>
+                </div>
+                % endif
+                % endif
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .course-search-results {
+            padding-top: 100px;
+            /* Account for fixed header */
+            min-height: calc(100vh - 240px);
+            /* Account for header and footer */
+        }
+
+        .search-header {
+            background: #f8f9fa;
+            padding: 40px 0;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .search-title {
+            font-size: 2.5rem;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .search-summary {
+            color: #666;
+            font-size: 1.1rem;
+            margin: 0;
+        }
+
+        .search-content {
+            padding: 40px 0;
+        }
+
+        .search-prompt,
+        .no-results {
+            text-align: center;
+            padding: 60px 20px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .search-prompt h2,
+        .no-results h2 {
+            font-size: 2rem;
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        .search-prompt p,
+        .no-results p {
+            font-size: 1.1rem;
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 30px;
+        }
+
+        .search-results {
+            display: grid;
+            gap: 30px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .course-item {
+            display: flex;
+            background: #fff;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            overflow: hidden;
+            transition: box-shadow 0.2s, transform 0.2s;
+        }
+
+        .course-item:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            transform: translateY(-2px);
+        }
+
+        .course-image {
+            width: 300px;
+            height: 200px;
+            flex-shrink: 0;
+            overflow: hidden;
+        }
+
+        .course-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .placeholder-image {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #3494c8, #99abc8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .placeholder-image .course-org {
+            color: #fff;
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .course-info {
+            padding: 30px;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .course-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .course-title a {
+            color: #333;
+            text-decoration: none;
+        }
+
+        .course-title a:hover {
+            color: #3494c8;
+            text-decoration: none;
+        }
+
+        .course-meta {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+            font-size: 0.9rem;
+            color: #666;
+        }
+
+        .course-meta .course-org {
+            background: #e9ecef;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: 500;
+        }
+
+        .course-description {
+            color: #555;
+            line-height: 1.6;
+            margin-bottom: 20px;
+            flex-grow: 1;
+        }
+
+        .course-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: auto;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border-radius: 5px;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.2s;
+            border: 2px solid transparent;
+            cursor: pointer;
+        }
+
+        .btn-primary {
+            background: #3494c8;
+            color: #fff;
+            border-color: #3494c8;
+        }
+
+        .btn-primary:hover {
+            background: #2a7ba7;
+            border-color: #2a7ba7;
+            color: #fff;
+            text-decoration: none;
+        }
+
+        .btn-outline-primary {
+            background: transparent;
+            color: #3494c8;
+            border-color: #3494c8;
+        }
+
+        .btn-outline-primary:hover {
+            background: #3494c8;
+            color: #fff;
+            text-decoration: none;
+        }
+
+        .btn-link {
+            background: transparent;
+            color: #666;
+            border: none;
+        }
+
+        .btn-link:hover {
+            color: #3494c8;
+            text-decoration: none;
+        }
+
+        .pagination-container {
+            margin-top: 40px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .pagination {
+            display: flex;
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .page-item {
+            margin: 0;
+        }
+
+        .page-link {
+            display: block;
+            padding: 10px 15px;
+            color: #3494c8;
+            text-decoration: none;
+            border: 1px solid #dee2e6;
+            border-right: none;
+            background: #fff;
+            transition: all 0.2s;
+        }
+
+        .page-item:last-child .page-link {
+            border-right: 1px solid #dee2e6;
+        }
+
+        .page-link:hover {
+            background: #f8f9fa;
+            color: #2a7ba7;
+            text-decoration: none;
+        }
+
+        .page-item.active .page-link {
+            background: #3494c8;
+            color: #fff;
+            border-color: #3494c8;
+        }
+
+        /* Responsive design */
+        @media (max-width: 768px) {
+            .course-item {
+                flex-direction: column;
+            }
+
+            .course-image {
+                width: 100%;
+                height: 200px;
+            }
+
+            .course-info {
+                padding: 20px;
+            }
+
+            .course-actions {
+                flex-direction: column;
+            }
+
+            .search-title {
+                font-size: 2rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .search-content {
+                padding: 20px 0;
+            }
+
+            .course-info {
+                padding: 15px;
+            }
+
+            .search-title {
+                font-size: 1.5rem;
+            }
+        }
+    </style>

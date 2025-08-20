@@ -1,0 +1,391 @@
+<%page expression_filter="h" />
+<%inherit file="/main.html" />
+<%namespace name='static' file='/static_content.html' />
+<%! from django.utils.translation import gettext as _ from django.urls import reverse from openedx.core.djangolib.markup
+    import HTML from django.conf import settings %>
+    <%block name="bodyclass">view-teacher-dashboard</%block>
+
+    <%block name="pagetitle">${_("Lớp Đang Giảng Dạy")}</%block>
+
+    <%block name="headextra">
+        <%static:css group='style-course' />
+        <style>
+            .teacher-dashboard-container {
+                background: rgba(255, 255, 255, 0.3);
+                min-height: 100vh;
+                padding: 27px 0 0 0;
+            }
+
+            .teacher-dashboard-content {
+                background: #ffffff;
+                border-radius: 5px;
+                border: 1px solid #9b9595;
+                max-width: 1360px;
+                margin: 0 auto;
+                min-height: 757px;
+            }
+
+            .teacher-dashboard-tabs {
+                background: #eaebee;
+                height: 50px;
+                display: flex;
+                border-radius: 5px 5px 0 0;
+            }
+
+            .teacher-dashboard-tab {
+                flex: 1;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 12px 16px;
+                border: 0;
+                background: transparent;
+                font-family: 'Inter', sans-serif;
+                font-weight: 500;
+                font-size: 16px;
+                line-height: 1.4;
+                color: #000000;
+                cursor: pointer;
+                border-radius: 4px 4px 0 0;
+                border-right: 1px solid #b2b2b2;
+            }
+
+            .teacher-dashboard-tab:last-child {
+                border-right: none;
+            }
+
+            .teacher-dashboard-tab.active {
+                background: #3494c8;
+                color: #ffffff;
+            }
+
+            .teacher-dashboard-tab:hover:not(.active) {
+                background: rgba(52, 148, 200, 0.1);
+            }
+
+            .teacher-dashboard-list {
+                padding: 32px;
+                max-width: 1308px;
+                margin: 0 auto;
+            }
+
+            .course-item {
+                background: #f7f7f7;
+                border: 1px solid #b2b2b2;
+                border-radius: 8px;
+                padding: 24px 41px;
+                margin-bottom: 22px;
+                position: relative;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+            }
+
+            .course-item:last-child {
+                margin-bottom: 0;
+            }
+
+            .course-info {
+                flex: 1;
+            }
+
+            .course-name {
+                font-family: 'Inter', sans-serif;
+                font-weight: 500;
+                font-size: 16px;
+                line-height: 1.4;
+                color: #000000;
+                margin: 0 0 8px 0;
+            }
+
+            .course-schedule {
+                font-family: 'Inter', sans-serif;
+                font-weight: 500;
+                font-size: 16px;
+                line-height: 1.4;
+                color: #000000;
+                margin: 0;
+            }
+
+            .course-actions {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+
+            .course-action-btn {
+                width: 40px;
+                height: 40px;
+                border: none;
+                background: none;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                border-radius: 4px;
+                transition: background-color 0.2s;
+            }
+
+            .course-action-btn:hover {
+                background: rgba(0, 0, 0, 0.1);
+            }
+
+            .edit-icon {
+                width: 24px;
+                height: 24px;
+                background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23666'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z'/%3E%3C/svg%3E") no-repeat center;
+                background-size: contain;
+            }
+
+            .menu-icon {
+                width: 24px;
+                height: 24px;
+                background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23666'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z'/%3E%3C/svg%3E") no-repeat center;
+                background-size: contain;
+            }
+
+            .empty-state {
+                text-align: center;
+                padding: 80px 20px;
+                color: #666;
+            }
+
+            .empty-state h3 {
+                font-family: 'Inter', sans-serif;
+                font-weight: 500;
+                font-size: 18px;
+                margin: 0 0 16px 0;
+            }
+
+            .empty-state p {
+                font-family: 'Inter', sans-serif;
+                font-size: 14px;
+                line-height: 1.4;
+            }
+
+            .pagination-container {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+                padding: 32px 0;
+            }
+
+            .pagination-btn {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 8px 12px;
+                border: none;
+                background: none;
+                font-family: 'Inter', sans-serif;
+                font-size: 16px;
+                font-weight: 400;
+                color: #1e1e1e;
+                border-radius: 8px;
+                cursor: pointer;
+                transition: all 0.2s;
+            }
+
+            .pagination-btn:hover:not(:disabled) {
+                background: rgba(52, 148, 200, 0.1);
+            }
+
+            .pagination-btn:disabled {
+                opacity: 0.5;
+                cursor: not-allowed;
+            }
+
+            .pagination-page {
+                width: 40px;
+                height: 40px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                border: none;
+                background: none;
+                font-family: 'Inter', sans-serif;
+                font-size: 16px;
+                font-weight: 400;
+                color: #1e1e1e;
+                border-radius: 8px;
+                cursor: pointer;
+                transition: all 0.2s;
+            }
+
+            .pagination-page:hover {
+                background: rgba(52, 148, 200, 0.1);
+            }
+
+            .pagination-page.active {
+                background: #3494c8;
+                color: #ffffff;
+            }
+
+            .pagination-gap {
+                width: 40px;
+                height: 40px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-family: 'Inter', sans-serif;
+                font-size: 16px;
+                font-weight: 700;
+                color: #000000;
+            }
+        </style>
+    </%block>
+
+    <%include file="/courseware/course_navigation.html" args="active_page='teacher'" />
+
+    <div class="teacher-dashboard-container">
+        <div class="teacher-dashboard-content">
+            <!-- Tabs -->
+            <div class="teacher-dashboard-tabs">
+                <button class="teacher-dashboard-tab active" data-tab="current-classes">
+                    Lớp học đang giảng dạy
+                </button>
+                <button class="teacher-dashboard-tab" data-tab="schedule">
+                    Lịch giảng dạy
+                </button>
+                <button class="teacher-dashboard-tab" data-tab="tests">
+                    Lịch kiểm tra
+                </button>
+                <button class="teacher-dashboard-tab" data-tab="grades">
+                    Đánh giá kết quả
+                </button>
+            </div>
+
+            <!-- Current Classes Content -->
+            <div class="teacher-dashboard-list" id="current-classes-content">
+                % if courses:
+                % for course in courses:
+                <div class="course-item" data-course-id="${course['id']}">
+                    <div class="course-info">
+                        <h3 class="course-name">
+                            Tên lớp học: ${course['display_name']}
+                        </h3>
+                        <p class="course-schedule">
+                            % if course['start'] and course['end']:
+                            Thời gian: ${course['start'].strftime('%d/%m/%Y')} - ${course['end'].strftime('%d/%m/%Y')}
+                            % elif course['start']:
+                            Bắt đầu: ${course['start'].strftime('%d/%m/%Y')}
+                            % elif course['enrollment_start']:
+                            Đăng ký từ: ${course['enrollment_start'].strftime('%d/%m/%Y')}
+                            % else:
+                            Thời gian: Chưa xác định
+                            % endif
+                        </p>
+                    </div>
+                    <div class="course-actions">
+                        <button class="course-action-btn" title="Chỉnh sửa" data-course-id="${course['id']}"
+                            onclick="editCourse(this.getAttribute('data-course-id'))">
+                            <div class="edit-icon"></div>
+                        </button>
+                        <button class="course-action-btn" title="Tùy chọn" data-course-id="${course['id']}"
+                            onclick="openCourseMenu(this.getAttribute('data-course-id'))">
+                            <div class="menu-icon"></div>
+                        </button>
+                    </div>
+                </div>
+                % endfor
+
+                <!-- Pagination -->
+                <div class="pagination-container">
+                    <button class="pagination-btn" disabled>
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M10 12L6 8L10 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round" />
+                        </svg>
+                        Previous
+                    </button>
+
+                    <button class="pagination-page active">1</button>
+                    % if courses|length > 6:
+                    <button class="pagination-page">2</button>
+                    <button class="pagination-page">3</button>
+                    <div class="pagination-gap">...</div>
+                    <button class="pagination-page">67</button>
+                    <button class="pagination-page">68</button>
+                    % endif
+
+                    <button class="pagination-btn">
+                        Next
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M6 4L10 8L6 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round" />
+                        </svg>
+                    </button>
+                </div>
+
+                % else:
+                <div class="empty-state">
+                    <h3>Chưa có lớp học nào</h3>
+                    <p>Bạn chưa được phân công giảng dạy lớp học nào. Vui lòng liên hệ quản trị viên để được hỗ trợ.</p>
+                </div>
+                % endif
+            </div>
+
+            <!-- Other tab contents (placeholder) -->
+            <div class="teacher-dashboard-list" id="schedule-content" style="display: none;">
+                <div class="empty-state">
+                    <h3>Lịch giảng dạy</h3>
+                    <p>Tính năng này đang được phát triển.</p>
+                </div>
+            </div>
+
+            <div class="teacher-dashboard-list" id="tests-content" style="display: none;">
+                <div class="empty-state">
+                    <h3>Lịch kiểm tra</h3>
+                    <p>Tính năng này đang được phát triển.</p>
+                </div>
+            </div>
+
+            <div class="teacher-dashboard-list" id="grades-content" style="display: none;">
+                <div class="empty-state">
+                    <h3>Đánh giá kết quả</h3>
+                    <p>Tính năng này đang được phát triển.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <%block name="js_extra">
+        <script>
+            // Tab switching functionality
+            document.addEventListener('DOMContentLoaded', function () {
+                const tabs = document.querySelectorAll('.teacher-dashboard-tab');
+                const contents = document.querySelectorAll('.teacher-dashboard-list');
+
+                tabs.forEach(tab => {
+                    tab.addEventListener('click', function () {
+                        const tabName = this.getAttribute('data-tab');
+
+                        // Remove active class from all tabs
+                        tabs.forEach(t => t.classList.remove('active'));
+                        // Add active class to clicked tab
+                        this.classList.add('active');
+
+                        // Hide all content
+                        contents.forEach(content => content.style.display = 'none');
+                        // Show selected content
+                        const targetContent = document.getElementById(tabName + '-content');
+                        if (targetContent) {
+                            targetContent.style.display = 'block';
+                        }
+                    });
+                });
+            });
+
+            // Course action functions
+            function editCourse(courseId) {
+                // Redirect to instructor dashboard for this course
+                window.location.href = '/courses/' + courseId + '/instructor';
+            }
+
+            function openCourseMenu(courseId) {
+                // For now, just redirect to course dashboard
+                window.location.href = '/courses/' + courseId + '/instructor';
+            }
+        </script>
+    </%block>

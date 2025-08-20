@@ -1,0 +1,93 @@
+## mako
+<%page expression_filter="h" />
+<%! from django.urls import reverse from django.utils.translation import gettext as _ from lms.djangoapps.branding.api
+    import get_footer from openedx.core.djangoapps.lang_pref.api import footer_language_selector_is_enabled %>
+    <% footer=get_footer(is_secure=is_secure) %>
+        <% icp_license_info=getattr(settings, 'ICP_LICENSE_INFO' , {})%>
+            <%namespace name='static' file='static_content.html' />
+
+            <div class="chalix-footer-wrapper">
+                <footer class="chalix-footer">
+                    <div class="chalix-footer-content">
+                        <p class="chalix-footer-text">
+                            Cung cấp bởi nền tảng Chalix<br />
+                            Copyright@2025
+                        </p>
+                    </div>
+                </footer>
+            </div>
+
+            <style>
+                .chalix-footer-wrapper {
+                    background: #3563c1;
+                    width: 100%;
+                    margin-top: auto;
+                }
+
+                .chalix-footer {
+                    background: #3563c1;
+                    height: 140px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    width: 100%;
+                }
+
+                .chalix-footer-content {
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    height: 100%;
+                    width: 100%;
+                }
+
+                .chalix-footer-text {
+                    font-family: 'Roboto', sans-serif;
+                    font-weight: 400;
+                    font-size: 16px;
+                    line-height: 24px;
+                    letter-spacing: 0.5px;
+                    color: #ffffff;
+                    text-align: center;
+                    margin: 0;
+                    white-space: pre-line;
+                }
+
+                /* Responsive adjustments */
+                @media (max-width: 768px) {
+                    .chalix-footer {
+                        height: 120px;
+                        padding: 0 20px;
+                    }
+
+                    .chalix-footer-text {
+                        font-size: 14px;
+                        line-height: 20px;
+                    }
+                }
+
+                @media (max-width: 480px) {
+                    .chalix-footer {
+                        height: 100px;
+                        padding: 0 16px;
+                    }
+
+                    .chalix-footer-text {
+                        font-size: 12px;
+                        line-height: 18px;
+                    }
+                }
+            </style>
+
+            % if include_dependencies:
+            <%static:js group='base_vendor' />
+            <%static:css group='style-vendor' />
+            <%include file="widgets/segment-io.html" />
+            <%include file="widgets/segment-io-footer.html" />
+            % endif
+            % if footer_css_urls:
+            % for url in footer_css_urls:
+            <link rel="stylesheet" type="text/css" href="${url}">
+            </link>
+            % endfor
+            % endif
