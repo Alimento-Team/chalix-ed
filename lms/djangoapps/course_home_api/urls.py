@@ -15,6 +15,7 @@ from lms.djangoapps.course_home_api.outline.views import (
     save_course_goal,
     unsubscribe_from_course_goal_by_token,
 )
+from lms.djangoapps.course_home_api.outline.simplified_views import SimplifiedOutlineTabView
 from lms.djangoapps.course_home_api.progress.views import ProgressTabView
 
 # This API is a BFF ("backend for frontend") designed for the learning MFE. It's not versioned because there is no
@@ -47,6 +48,11 @@ urlpatterns += [
         fr'outline/{settings.COURSE_KEY_PATTERN}',
         OutlineTabView.as_view(),
         name='outline-tab'
+    ),
+    re_path(
+        fr'simplified_outline/{settings.COURSE_KEY_PATTERN}',
+        SimplifiedOutlineTabView.as_view(),
+        name='simplified-outline-tab'
     ),
     re_path(
         fr'navigation/{settings.COURSE_KEY_PATTERN}',

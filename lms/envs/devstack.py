@@ -118,6 +118,7 @@ def should_show_debug_toolbar(request):  # lint-amnesty, pylint: disable=missing
 
 ########################### PIPELINE #################################
 
+
 PIPELINE['PIPELINE_ENABLED'] = False
 STATICFILES_STORAGE = 'openedx.core.storage.DevelopmentStorage'
 
@@ -568,6 +569,9 @@ RETIREMENT_STATES = [
     'ABORTED',
     'COMPLETE',
 ]
+
+# Allow iframe embedding for unit content in development
+X_FRAME_OPTIONS = 'SAMEORIGIN'
 
 ################# New settings must go ABOVE this line #################
 ########################################################################

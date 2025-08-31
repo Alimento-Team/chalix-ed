@@ -985,12 +985,15 @@ def get_sibling_urls(subsection, unit_location):    # pylint: disable=too-many-s
         Returns subsections present in a section.
         """
         try:
+            if section is None:
+                log.error("URL Retrieval Error: section is None, cannot get subsections")
+                return None
             section_subsections = section.get_children()
             return section_subsections
         except AttributeError:
             log.error("URL Retrieval Error: subsection {subsection} included in section {section}".format(
-                section=section.location,
-                subsection=subsection.location
+                section=section.location if section else 'None',
+                subsection=subsection.location if subsection else 'None'
             ))
             return None
 
@@ -999,11 +1002,20 @@ def get_sibling_urls(subsection, unit_location):    # pylint: disable=too-many-s
         Returns sections present in course.
         """
         try:
-            section_subsections = section.get_parent().get_children()
+            if section is None:
+                log.error("URL Retrieval Error: section is None, cannot get parent course")
+                return None
+            parent_course = section.get_parent()
+            if parent_course is None:
+                log.error("URL Retrieval Error: section {section} has no parent course".format(
+                    section=section.location if section else 'None'
+                ))
+                return None
+            section_subsections = parent_course.get_children()
             return section_subsections
         except AttributeError:
             log.error("URL Retrieval Error: In section {section} in course".format(
-                section=section.location,
+                section=section.location if section else 'None',
             ))
             return None
 
@@ -1012,18 +1024,27 @@ def get_sibling_urls(subsection, unit_location):    # pylint: disable=too-many-s
         Returns the desired location of the adjacent subsections in a section.
         """
         location = None
-        subsection_index = section_subsections.index(next(s for s in subsections if s.location ==
-                                                          current_subsection.location))
+        if section_subsections is None:
+            log.error("URL Retrieval Error: section_subsections is None")
+            return None
         try:
-            if direction == 'previous':
-                if subsection_index > 0:
-                    prev_subsection = subsections[subsection_index - 1]
-                    location = prev_subsection.get_children()[-1].location
-            else:
-                next_subsection = subsections[subsection_index + 1]
-                location = next_subsection.get_children()[0].location
-            return location
-        except IndexError:
+            subsection_index = section_subsections.index(next(s for s in section_subsections if s.location ==
+                                                              current_subsection.location))
+            try:
+                if direction == 'previous':
+                    if subsection_index > 0:
+                        prev_subsection = section_subsections[subsection_index - 1]
+                        location = prev_subsection.get_children()[-1].location
+                else:
+                    next_subsection = section_subsections[subsection_index + 1]
+                    location = next_subsection.get_children()[0].location
+                return location
+            except IndexError:
+                return None
+        except (StopIteration, ValueError):
+            log.error("URL Retrieval Error: current_subsection {subsection} not found in section_subsections".format(
+                subsection=current_subsection.location if current_subsection else 'None'
+            ))
             return None
 
     def get_section_location(course_sections, current_section, direction):
@@ -1031,21 +1052,40 @@ def get_sibling_urls(subsection, unit_location):    # pylint: disable=too-many-s
         Returns the desired location of the adjacent sections in a course.
         """
         location = None
-        section_index = course_sections.index(next(s for s in sections if s.location == current_section.location))
+        if course_sections is None:
+            log.error("URL Retrieval Error: course_sections is None")
+            return None
         try:
-            if direction == 'previous':
-                if section_index > 0:
-                    prev_section = sections[section_index - 1]
-                    location = prev_section.get_children()[-1].get_children()[-1].location
-            else:
-                next_section = sections[section_index + 1]
-                location = next_section.get_children()[0].get_children()[0].location
-            return location
-        except IndexError:
+            section_index = course_sections.index(next(s for s in course_sections if s.location == current_section.location))
+            try:
+                if direction == 'previous':
+                    if section_index > 0:
+                        prev_section = course_sections[section_index - 1]
+                        location = prev_section.get_children()[-1].get_children()[-1].location
+                else:
+                    next_section = course_sections[section_index + 1]
+                    location = next_section.get_children()[0].get_children()[0].location
+                return location
+            except IndexError:
+                return None
+        except (StopIteration, ValueError):
+            log.error("URL Retrieval Error: current_section {section} not found in course_sections".format(
+                section=current_section.location if current_section else 'None'
+            ))
             return None
 
     section = subsection.get_parent()
     prev_url = next_url = ''
+
+    # If section is None (subsection has no parent), skip navigation entirely
+    if section is None:
+        log.warning(f"Skipping navigation for unit {unit_location} - subsection {subsection.location} has no parent")
+        return prev_url, next_url
+
+    # If subsection is a course (malformed hierarchy), skip navigation entirely
+    if subsection.category == 'course':
+        log.warning(f"Skipping navigation for unit {unit_location} in course-level subsection {subsection.location}")
+        return prev_url, next_url
 
     prev_loc = get_unit_location('previous')
     next_loc = get_unit_location('next')
@@ -2000,7 +2040,7 @@ def get_container_handler_context(request, usage_key, course, xblock):  # pylint
     # Build the breadcrumbs and find the ``Unit`` ancestor
     # if it is not the immediate parent.
     while parent:
-
+        # Check if the current block is a unit before moving to parent
         if unit is None and is_unit(block):
             unit = block
 
@@ -2017,18 +2057,113 @@ def get_container_handler_context(request, usage_key, course, xblock):  # pylint
         block = parent
         parent = get_parent_xblock(parent)
 
+        # Also check the new block after updating
+        if unit is None and block and is_unit(block):
+            unit = block
+
     ancestor_xblocks.reverse()
 
+    # If we still haven't found a unit, check if the original xblock is a vertical
+    # that can be treated as a unit even if it's not directly under a sequential
+    if unit is None and xblock.category == 'vertical':
+        # Log the hierarchy for debugging
+        logger = logging.getLogger(__name__)
+        logger.warning(
+            f"Could not find unit in normal hierarchy for vertical {xblock.location}. "
+            f"Parent: {parent.location if parent else 'None'}, "
+            f"Parent category: {parent.category if parent else 'None'}"
+        )
+
+        # Try to use this vertical as the unit if it has a valid parent structure
+        current_parent = get_parent_xblock(xblock)
+        if current_parent and current_parent.category in ['sequential', 'chapter', 'course']:
+            unit = xblock
+        else:
+            # If the vertical has an invalid parent, try to find any vertical ancestor
+            current_block = xblock
+            while current_block and unit is None:
+                if current_block.category == 'vertical':
+                    unit = current_block
+                    break
+                current_block = get_parent_xblock(current_block)
+
     if unit is None:
-        raise ValueError("Could not determine unit page")
+        # Handle case where no unit found in hierarchy
+        logger = logging.getLogger(__name__)
+        if xblock.category == 'vertical':
+            # If the xblock itself is a vertical, use it as the unit
+            logger.warning(
+                f"Could not find unit in normal hierarchy for vertical {xblock.location}. "
+                f"Using xblock itself as unit for navigation purposes."
+            )
+            unit = xblock
+        else:
+            # Enhanced error message with more context for non-vertical blocks
+            parent_xblock = get_parent_xblock(xblock)
+            parent_info = f"Parent: {parent_xblock.location if parent_xblock else 'None'}"
+            parent_category = f"Parent category: {parent_xblock.category if parent_xblock else 'None'}"
+            raise ValueError(
+                f"Could not determine unit page for {xblock.location}. "
+                f"Block category: {xblock.category}, {parent_info}, {parent_category}"
+            )
 
     subsection = get_parent_xblock(unit)
     if subsection is None:
-        raise ValueError(f"Could not determine parent subsection from unit {unit.location}")
+        # Handle case where unit has no parent (orphaned unit)
+        logger = logging.getLogger(__name__)
+        logger.warning(
+            f"Could not determine parent subsection from unit {unit.location}. "
+            f"Unit has no parent. Using unit as subsection for navigation purposes."
+        )
+        # Use the unit itself as the subsection for navigation purposes
+        subsection = unit
+
+    # Handle case where the unit might not be directly under a sequential
+    if subsection.category != 'sequential':
+        # Try to find a sequential ancestor
+        current_block = subsection
+        while current_block and current_block.category != 'sequential':
+            current_block = get_parent_xblock(current_block)
+
+        if current_block and current_block.category == 'sequential':
+            subsection = current_block
+        else:
+            # If no sequential found, log a warning but continue with the direct parent
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                f"Unit {unit.location} does not have a sequential parent. "
+                f"Using direct parent {subsection.location} (category: {subsection.category})"
+            )
 
     section = get_parent_xblock(subsection)
     if section is None:
-        raise ValueError(f"Could not determine ancestor section from unit {unit.location}")
+        # Handle case where subsection has no parent (orphaned or invalid hierarchy)
+        logger = logging.getLogger(__name__)
+        logger.warning(
+            f"Could not determine ancestor section from unit {unit.location}. "
+            f"Subsection {subsection.location} has no parent. "
+            f"Using subsection as section for navigation purposes."
+        )
+        # Use the subsection itself as the section for navigation purposes
+        # This prevents the error while still allowing the container to function
+        section = subsection
+
+    # Handle case where the subsection might not be directly under a chapter
+    if section.category != 'chapter':
+        # Try to find a chapter ancestor
+        current_block = section
+        while current_block and current_block.category != 'chapter':
+            current_block = get_parent_xblock(current_block)
+
+        if current_block and current_block.category == 'chapter':
+            section = current_block
+        else:
+            # If no chapter found, log a warning but continue with the current section
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                f"Subsection {subsection.location} does not have a chapter parent. "
+                f"Using ancestor {section.location} (category: {section.category}) as section."
+            )
 
     # for the sequence navigator
     prev_url, next_url = get_sibling_urls(subsection, unit.location)

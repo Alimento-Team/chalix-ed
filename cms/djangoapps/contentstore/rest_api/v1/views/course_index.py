@@ -10,6 +10,7 @@ from rest_framework.views import APIView
 from cms.djangoapps.contentstore.config.waffle import CUSTOM_RELATIVE_DATES
 from cms.djangoapps.contentstore.rest_api.v1.serializers import CourseIndexSerializer
 from cms.djangoapps.contentstore.utils import get_course_index_context
+from cms.djangoapps.contentstore.views.course import _create_simplified_course_structure, get_course_and_check_access
 from common.djangoapps.student.auth import has_studio_read_access
 from openedx.core.lib.api.view_utils import DeveloperErrorViewMixin, verify_course_exists, view_auth_classes
 
@@ -25,6 +26,11 @@ class CourseIndexView(DeveloperErrorViewMixin, APIView):
                 "show",
                 apidocs.ParameterLocation.QUERY,
                 description="Query param to set initial state which fully expanded to see the item",
+            ),
+            apidocs.string_parameter(
+                "simplified",
+                apidocs.ParameterLocation.QUERY,
+                description="Query param to get simplified course structure with units only",
             )],
         responses={
             200: CourseIndexSerializer,
@@ -89,12 +95,36 @@ class CourseIndexView(DeveloperErrorViewMixin, APIView):
         course_key = CourseKey.from_string(course_id)
         if not has_studio_read_access(request.user, course_key):
             self.permission_denied(request)
-        course_index_context = get_course_index_context(request, course_key)
-        course_index_context.update({
-            "discussions_incontext_learnmore_url": settings.DISCUSSIONS_INCONTEXT_LEARNMORE_URL,
-            "discussions_incontext_feedback_url": settings.DISCUSSIONS_INCONTEXT_FEEDBACK_URL,
-            "is_custom_relative_dates_active": CUSTOM_RELATIVE_DATES.is_enabled(course_key),
-        })
+
+        # Check if simplified view is requested
+        simplified = request.GET.get('simplified', 'false').lower() == 'true'
+
+        if simplified:
+            # Return simplified course structure with units only
+            course_index_context = get_course_index_context(request, course_key)
+
+            # Get the actual course block for simplified structure creation
+            course_block = get_course_and_check_access(course_key, request.user, depth=3)
+            simplified_structure = _create_simplified_course_structure(
+                course_block,
+                request.user
+            )
+
+            course_index_context.update({
+                "course_structure": simplified_structure,
+                "units": simplified_structure.get('children', []),
+                "discussions_incontext_learnmore_url": settings.DISCUSSIONS_INCONTEXT_LEARNMORE_URL,
+                "discussions_incontext_feedback_url": settings.DISCUSSIONS_INCONTEXT_FEEDBACK_URL,
+                "is_custom_relative_dates_active": CUSTOM_RELATIVE_DATES.is_enabled(course_key),
+            })
+        else:
+            # Return normal course structure
+            course_index_context = get_course_index_context(request, course_key)
+            course_index_context.update({
+                "discussions_incontext_learnmore_url": settings.DISCUSSIONS_INCONTEXT_LEARNMORE_URL,
+                "discussions_incontext_feedback_url": settings.DISCUSSIONS_INCONTEXT_FEEDBACK_URL,
+                "is_custom_relative_dates_active": CUSTOM_RELATIVE_DATES.is_enabled(course_key),
+            })
 
         serializer = CourseIndexSerializer(course_index_context)
         return Response(serializer.data)

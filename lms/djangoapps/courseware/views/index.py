@@ -60,7 +60,7 @@ from ..entrance_exams import (
 )
 from ..masquerade import check_content_start_date_for_masquerade_user, setup_masquerade
 from ..model_data import FieldDataCache
-from ..block_render import get_block_for_descriptor, toc_for_course
+from ..block_render import get_block_for_descriptor, toc_for_course, toc_for_simplified_course
 from ..permissions import MASQUERADE_AS_STUDENT
 from ..toggles import ENABLE_OPTIMIZELY_IN_COURSEWARE
 from .views import CourseTabView
@@ -69,6 +69,7 @@ log = logging.getLogger("edx.courseware.views.index")
 
 TEMPLATE_IMPORTS = {'urllib': urllib}
 CONTENT_DEPTH = 2
+SIMPLIFIED_CONTENT_DEPTH = 1  # For courses with units directly under course
 
 
 @method_decorator(transaction.non_atomic_requests, name='dispatch')
@@ -202,7 +203,11 @@ class CoursewareIndex(View):
         """
         self._prefetch_and_bind_course(request)
 
-        if self.course.has_children_at_depth(CONTENT_DEPTH):
+        # Check for content at traditional depth (sections->subsections) or simplified depth (course->units)
+        has_traditional_content = self.course.has_children_at_depth(CONTENT_DEPTH)
+        has_simplified_content = self.course.has_children_at_depth(SIMPLIFIED_CONTENT_DEPTH)
+
+        if has_traditional_content:
             self._reset_section_to_exam_if_required()
             self.chapter = self._find_chapter()
             self.section = self._find_section()
@@ -215,6 +220,9 @@ class CoursewareIndex(View):
 
             check_content_start_date_for_masquerade_user(self.course_key, self.effective_user, request,
                                                          self.course.start, self.chapter.start, self.section.start)
+        elif has_simplified_content:
+            # For simplified structure (course -> units), treat first unit as active section
+            self._handle_simplified_course_structure(request)
 
         if not request.user.is_authenticated:
             qs = urllib.parse.urlencode({
@@ -395,6 +403,27 @@ class CoursewareIndex(View):
         save_child_position(self.course, self.chapter_url_name)
         save_child_position(self.chapter, self.section_url_name)
 
+    def _handle_simplified_course_structure(self, request):
+        """
+        Handle courses with simplified structure (course -> units directly).
+        Set up chapter and section to point to the first unit.
+        """
+        units = self.course.get_children()
+        if units:
+            # Treat the first unit as both chapter and section for navigation purposes
+            first_unit = units[0]
+            self.chapter = first_unit
+            self.section = first_unit
+            self.chapter_url_name = first_unit.url_name
+            self.section_url_name = first_unit.url_name
+
+            # Check for requested specific unit
+            if hasattr(self, 'section_url_name') and self.section_url_name:
+                for unit in units:
+                    if unit.url_name == self.section_url_name:
+                        self.section = unit
+                        break
+
     def _create_courseware_context(self, request):
         """
         Returns and creates the rendering context for the courseware.
@@ -437,14 +466,33 @@ class CoursewareIndex(View):
                 self.effective_user,
             )
         )
-        table_of_contents = toc_for_course(
-            self.effective_user,
-            self.request,
-            self.course,
-            self.chapter_url_name,
-            self.section_url_name,
-            self.field_data_cache,
-        )
+
+        # Choose appropriate table of contents function based on course structure
+        has_traditional_content = self.course.has_children_at_depth(CONTENT_DEPTH)
+        has_simplified_content = self.course.has_children_at_depth(SIMPLIFIED_CONTENT_DEPTH)
+
+        if has_traditional_content:
+            table_of_contents = toc_for_course(
+                self.effective_user,
+                self.request,
+                self.course,
+                self.chapter_url_name,
+                self.section_url_name,
+                self.field_data_cache,
+            )
+        elif has_simplified_content:
+            table_of_contents = toc_for_simplified_course(
+                self.effective_user,
+                self.request,
+                self.course,
+                self.chapter_url_name,
+                self.section_url_name,
+                self.field_data_cache,
+            )
+        else:
+            # No content at all
+            table_of_contents = {'chapters': [], 'previous_of_active_section': None, 'next_of_active_section': None}
+
         courseware_context['accordion'] = render_accordion(
             self.request,
             self.course,

@@ -227,18 +227,29 @@ def xblock_type_display_name(xblock, default_display_name=None):
         return default_display_name
 
 
-def xblock_primary_child_category(xblock):
+def xblock_primary_child_category(xblock, simplified_structure=False):
     """
     Returns the primary child category for the specified xblock, or None if there is not a primary category.
+
+    Args:
+        xblock: The xblock to get the primary child category for
+        simplified_structure: If True, use simplified course structure (course -> unit)
     """
     category = xblock.category
-    if category == 'course':
-        return 'chapter'
-    elif category == 'chapter':
-        return 'sequential'
-    elif category == 'sequential':
-        return 'vertical'
-    return None
+    if simplified_structure:
+        # Simplified structure: course directly contains units (verticals)
+        if category == 'course':
+            return 'vertical'
+        return None
+    else:
+        # Traditional structure
+        if category == 'course':
+            return 'chapter'
+        elif category == 'chapter':
+            return 'sequential'
+        elif category == 'sequential':
+            return 'vertical'
+        return None
 
 
 def remove_entrance_exam_graders(course_key, user):

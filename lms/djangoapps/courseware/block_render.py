@@ -245,6 +245,75 @@ def toc_for_course(user, request, course, active_chapter, active_section, field_
         }
 
 
+def toc_for_simplified_course(user, request, course, active_chapter, active_section, field_data_cache):
+    '''
+    Create a table of contents for simplified course structure (course -> units directly)
+
+    Return format matches toc_for_course but treats units as sections within a single chapter
+    '''
+    with modulestore().bulk_operations(course.id):
+        course_block = get_block_for_descriptor(
+            user, request, course, field_data_cache, course.id, course=course
+        )
+        if course_block is None:
+            return None, None, None
+
+        units = course_block.get_children()
+
+        # Create sections list from units
+        sections = []
+        previous_of_active_section, next_of_active_section = None, None
+        last_processed_section = None
+        found_active_section = False
+
+        for unit in units:
+            if unit.hide_from_toc:
+                continue
+
+            is_section_active = (unit.url_name == active_section)
+            if is_section_active:
+                found_active_section = True
+
+            section_context = {
+                'display_name': unit.display_name_with_default_escaped,
+                'url_name': unit.url_name,
+                'format': getattr(unit, 'format', ''),
+                'due': getattr(unit, 'due', None),
+                'active': is_section_active,
+                'graded': getattr(unit, 'graded', False),
+            }
+
+            # Add timed exam info if applicable
+            _add_timed_exam_info(user, course, unit, section_context)
+
+            # Update next and previous of active section
+            if is_section_active:
+                if last_processed_section:
+                    previous_of_active_section = last_processed_section.copy()
+                    previous_of_active_section['chapter_url_name'] = 'main'  # Single chapter name
+            elif found_active_section and not next_of_active_section:
+                next_of_active_section = section_context.copy()
+                next_of_active_section['chapter_url_name'] = 'main'
+
+            sections.append(section_context)
+            last_processed_section = section_context
+
+        # Create a single chapter containing all units as sections
+        toc_chapters = [{
+            'display_name': course.display_name_with_default_escaped,
+            'display_id': 'main',
+            'url_name': 'main',
+            'sections': sections,
+            'active': True  # Always active since there's only one chapter
+        }] if sections else []
+
+        return {
+            'chapters': toc_chapters,
+            'previous_of_active_section': previous_of_active_section,
+            'next_of_active_section': next_of_active_section,
+        }
+
+
 def _add_timed_exam_info(user, course, section, section_context):
     """
     Add in rendering context if exam is a timed exam (which includes proctored)

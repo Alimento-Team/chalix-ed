@@ -2,6 +2,8 @@
 Urls of Studio.
 """
 
+from openedx.core.djangoapps.plugins.constants import ProjectType  # isort:skip
+from edx_django_utils.plugins import get_plugin_url_patterns  # isort:skip
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib.admin import autodiscover as django_autodiscover
@@ -18,6 +20,7 @@ import openedx.core.djangoapps.debug.views
 import openedx.core.djangoapps.lang_pref.views
 from cms.djangoapps.contentstore import toggles
 from cms.djangoapps.contentstore import views as contentstore_views
+from cms.djangoapps.contentstore.views.course import simplified_course_outline
 from cms.djangoapps.contentstore.views.block import xblock_edit_view
 from cms.djangoapps.contentstore.views.organization import OrganizationListView
 from openedx.core.apidocs import api_info
@@ -112,6 +115,7 @@ urlpatterns = oauth2_urlpatterns + [
             name='course_search_index_handler'
             ),
     re_path(fr'^course/{settings.COURSE_KEY_PATTERN}?$', contentstore_views.course_handler, name='course_handler'),
+    re_path(fr'^simplified_course/{settings.COURSE_KEY_PATTERN}?$', simplified_course_outline, name='simplified_course_handler'),
 
     re_path(fr'^checklists/{settings.COURSE_KEY_PATTERN}?$',
             contentstore_views.checklists_handler,
@@ -344,9 +348,7 @@ if 'openedx.testing.coverage_context_listener' in settings.INSTALLED_APPS:
     ]
 
 # pylint: disable=wrong-import-position, wrong-import-order
-from edx_django_utils.plugins import get_plugin_url_patterns  # isort:skip
 # pylint: disable=wrong-import-position
-from openedx.core.djangoapps.plugins.constants import ProjectType  # isort:skip
 
 urlpatterns.extend(get_plugin_url_patterns(ProjectType.CMS))
 

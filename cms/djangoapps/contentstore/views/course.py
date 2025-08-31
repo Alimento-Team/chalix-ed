@@ -359,14 +359,29 @@ def course_search_index_handler(request, course_key_string):
         }), content_type=content_type, status=200)
 
 
-def _course_outline_json(request, course_block):
+def _course_outline_json(request, course_block, simplified_structure=False):
     """
     Returns a JSON representation of the course block and recursively all of its children.
     """
     is_concise = request.GET.get('format') == 'concise'
-    include_children_predicate = lambda xblock: not xblock.category == 'vertical'
+    is_simplified = simplified_structure or request.GET.get('simplified') == 'true'
+
+    if is_simplified:
+        # For simplified structure, only include units (verticals) directly under course
+        def include_children_predicate(xblock): return xblock.category in ['course', 'vertical']
+        return create_xblock_info(
+            course_block,
+            include_child_info=True,
+            course_outline=True,
+            include_children_predicate=include_children_predicate,
+            is_concise=False,
+            user=request.user,
+            simplified_structure=True
+        )
+
+    def include_children_predicate(xblock): return not xblock.category == 'vertical'
     if is_concise:
-        include_children_predicate = lambda xblock: xblock.has_children
+        def include_children_predicate(xblock): return xblock.has_children
     return create_xblock_info(
         course_block,
         include_child_info=True,
@@ -737,6 +752,11 @@ def course_index(request, course_key):
     """
     if use_new_course_outline_page(course_key):
         return redirect(get_course_outline_url(course_key))
+
+    # Check if this is a request for simplified structure
+    if request.GET.get('simplified') == 'true':
+        return simplified_course_outline(request, str(course_key))
+
     with modulestore().bulk_operations(course_key):
         # A depth of None implies the whole course. The course outline needs this in order to compute has_changes.
         # A unit may not have a draft version, but one of its components could, and hence the unit itself has changes.
@@ -746,6 +766,78 @@ def course_index(request, course_key):
         # should be under bulk_operations if course_block is passed
         course_index_context = get_course_index_context(request, course_key, course_block)
         return render_to_response('course_outline.html', course_index_context)
+
+
+@login_required
+@ensure_csrf_cookie
+@require_GET
+def simplified_course_outline(request, course_key_string):
+    """
+    Returns the simplified course outline page that shows only units directly under the course.
+    This skips the traditional section/subsection hierarchy.
+    """
+    course_key = CourseKey.from_string(course_key_string)
+
+    with modulestore().bulk_operations(course_key):
+        course_block = get_course_and_check_access(course_key, request.user, depth=3)
+
+        # Get course index context but mark it as simplified
+        course_index_context = get_course_index_context(request, course_key, course_block)
+        course_index_context['simplified_structure'] = True
+        course_index_context['enable_copy_paste_units'] = settings.FEATURES.get('ENABLE_COPY_PASTE_UNITS', False)
+
+        # Modify course structure to flatten it
+        simplified_structure = _create_simplified_course_structure(course_block, request.user)
+        course_index_context['course_structure'] = simplified_structure
+
+        return render_to_response('simplified_course_outline.html', course_index_context)
+
+
+def _create_simplified_course_structure(course_block, user):
+    """
+    Create a simplified course structure that places units directly under the course.
+    """
+    from cms.djangoapps.contentstore.xblock_storage_handlers.view_handlers import create_xblock_info
+
+    # Create a flattened structure where units are direct children of the course
+    simplified_course = {
+        'id': str(course_block.location),
+        'display_name': course_block.display_name,
+        'category': 'course',
+        'children': []
+    }
+
+    # Get all units from all sections and subsections
+    units = _collect_all_units(course_block)
+
+    # Add units as direct children of the course
+    for unit in units:
+        unit_info = create_xblock_info(
+            unit,
+            include_child_info=True,
+            course_outline=True,
+            user=user
+        )
+        simplified_course['children'].append(unit_info)
+
+    return simplified_course
+
+
+def _collect_all_units(course_block):
+    """
+    Recursively collect all units (verticals) from the course structure.
+    """
+    units = []
+
+    def collect_units_recursive(block):
+        if block.category == 'vertical':
+            units.append(block)
+        elif hasattr(block, 'get_children'):
+            for child in block.get_children():
+                collect_units_recursive(child)
+
+    collect_units_recursive(course_block)
+    return units
 
 
 @function_trace('get_courses_accessible_to_user')

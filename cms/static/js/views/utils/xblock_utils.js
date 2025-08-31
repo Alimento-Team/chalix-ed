@@ -349,7 +349,7 @@ function($, _, gettext, ViewUtils, ModuleUtils, XBlockInfo, StringUtils) {
             xblockType = translate ? gettext('section') : 'section';
         } else if (category === 'sequential') {
             xblockType = translate ? gettext('subsection') : 'subsection';
-        } else if (category === 'vertical' && (!parentInfo || parentInfo.get('category') === 'sequential')) {
+        } else if (category === 'vertical' && (!parentInfo || parentInfo.get('category') === 'sequential' || parentInfo.get('category') === 'course')) {
             xblockType = translate ? gettext('unit') : 'unit';
         }
         return xblockType;

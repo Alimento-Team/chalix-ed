@@ -324,6 +324,13 @@ function($, _, gettext, BaseView, ViewUtils, XBlockViewUtils, XBlockStringFieldE
                     section: 'course'
                 },
                 parentXblockType = xblockMap[xblockType];
+            
+            // Check if this is a simplified structure by looking for a simplified course outline container
+            var isSimplified = $('.simplified-course-outline').length > 0;
+            if (isSimplified && xblockType === 'unit') {
+                parentXblockType = 'course';
+            }
+            
             return xblockElement.closest('.outline-' + parentXblockType);
         },
 

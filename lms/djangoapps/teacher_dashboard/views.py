@@ -15,7 +15,6 @@ from common.djangoapps.student.roles import (
     CourseStaffRole,
 )
 from lms.djangoapps.courseware.access import has_access
-from openedx.core.lib.courses import get_courses
 from xmodule.modulestore.django import modulestore
 
 from .utils import get_instructor_courses

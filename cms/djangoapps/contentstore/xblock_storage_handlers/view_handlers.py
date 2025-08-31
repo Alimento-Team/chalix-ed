@@ -99,8 +99,10 @@ log = logging.getLogger(__name__)
 CREATE_IF_NOT_FOUND = ["course_info"]
 
 # Useful constants for defining predicates
-NEVER = lambda x: False
-ALWAYS = lambda x: True
+
+
+def NEVER(x): return False
+def ALWAYS(x): return True
 
 
 def _filter_entrance_exam_grader(graders):
@@ -616,6 +618,8 @@ def _create_block(request):
         })
 
     category = request.json["category"]
+    simplified_structure = request.json.get("simplified_structure", False)
+
     if isinstance(usage_key, LibraryUsageLocator):
         # Only these categories are supported at this time.
         if category not in ["html", "problem", "video"]:
@@ -634,13 +638,24 @@ def _create_block(request):
                 status=400,
             )
 
-    created_block = create_xblock(
-        parent_locator=parent_locator,
-        user=request.user,
-        category=category,
-        display_name=request.json.get("display_name"),
-        boilerplate=request.json.get("boilerplate"),
-    )
+    # Handle simplified structure for units (verticals)
+    if simplified_structure and category == "vertical" and usage_key.category == "course":
+        # For simplified structure, create a default section/subsection hierarchy
+        # and place the unit there instead of directly under the course
+        created_block = _create_unit_with_simplified_structure(
+            parent_locator=parent_locator,
+            user=request.user,
+            display_name=request.json.get("display_name"),
+            boilerplate=request.json.get("boilerplate"),
+        )
+    else:
+        created_block = create_xblock(
+            parent_locator=parent_locator,
+            user=request.user,
+            category=category,
+            display_name=request.json.get("display_name"),
+            boilerplate=request.json.get("boilerplate"),
+        )
 
     response = {
         "locator": str(created_block.location),
@@ -990,6 +1005,7 @@ def create_xblock_info(  # lint-amnesty, pylint: disable=too-many-statements
     is_concise=False,
     summary_configuration=None,
     tags=None,
+    simplified_structure=False,
 ):
     """
     Creates the information needed for client-side XBlockInfo.
@@ -1053,6 +1069,7 @@ def create_xblock_info(  # lint-amnesty, pylint: disable=too-many-statements
             course=course,
             is_concise=is_concise,
             summary_configuration=summary_configuration,
+            simplified_structure=simplified_structure,
         )
     else:
         child_info = None
@@ -1549,7 +1566,7 @@ def _create_xblock_ancestor_info(
         Collect xblock info regarding the specified xblock and its ancestors.
         """
         if ancestor:
-            direct_children_only = lambda parent: parent == ancestor
+            def direct_children_only(parent): return parent == ancestor
             ancestors.append(
                 create_xblock_info(
                     ancestor,
@@ -1578,13 +1595,14 @@ def _create_xblock_child_info(
     course=None,
     is_concise=False,
     summary_configuration=None,
+    simplified_structure=False,
 ):
     """
     Returns information about the children of an xblock, as well as about the primary category
     of xblock expected as children.
     """
     child_info = {}
-    child_category = xblock_primary_child_category(xblock)
+    child_category = xblock_primary_child_category(xblock, simplified_structure)
     if child_category:
         child_info = {
             "category": child_category,
@@ -1605,6 +1623,7 @@ def _create_xblock_child_info(
                 course=course,
                 is_concise=is_concise,
                 summary_configuration=summary_configuration,
+                simplified_structure=simplified_structure,
             )
             for child in xblock.get_children()
         ]
@@ -1667,3 +1686,62 @@ def _xblock_type_and_display_name(xblock):
         section_or_subsection=xblock_type_display_name(xblock),
         display_name=xblock.display_name_with_default,
     )
+
+
+def _create_unit_with_simplified_structure(parent_locator, user, display_name, boilerplate=None):
+    """
+    Create a unit with simplified structure by ensuring proper section/subsection hierarchy.
+    For simplified structure, we create a default section and subsection if they don't exist,
+    then place the unit there.
+    """
+    from xmodule.modulestore.django import modulestore
+    from .create_xblock import create_xblock
+
+    store = modulestore()
+    usage_key = usage_key_with_run(parent_locator)
+
+    with store.bulk_operations(usage_key.course_key):
+        course = store.get_item(usage_key)
+
+        # Check if we have any sections (chapters)
+        sections = [child for child in course.get_children() if child.category == 'chapter']
+
+        if not sections:
+            # Create a default section
+            section = create_xblock(
+                parent_locator=parent_locator,
+                user=user,
+                category='chapter',
+                display_name='Section 1',
+                boilerplate=None,
+            )
+        else:
+            # Use the first section
+            section = sections[0]
+
+        # Check if the section has any subsections (sequentials)
+        subsections = [child for child in section.get_children() if child.category == 'sequential']
+
+        if not subsections:
+            # Create a default subsection
+            subsection = create_xblock(
+                parent_locator=str(section.location),
+                user=user,
+                category='sequential',
+                display_name='Subsection 1',
+                boilerplate=None,
+            )
+        else:
+            # Use the first subsection
+            subsection = subsections[0]
+
+        # Now create the unit under the subsection
+        unit = create_xblock(
+            parent_locator=str(subsection.location),
+            user=user,
+            category='vertical',
+            display_name=display_name or 'Unit',
+            boilerplate=boilerplate,
+        )
+
+        return unit
