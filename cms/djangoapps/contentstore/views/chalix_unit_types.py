@@ -2,10 +2,7 @@
 Chalix Unit Types - Custom unit content types for the Chalix platform.
 
 This module provides specialized unit content types:
-1. Online Class: Zoom/Meet            import json
-            data = json.loads(request.body.decode('utf-8'))
-
-        content_data = data.get('content', {})live sessions
+1. Online Class: Zoom/Meet live sessions
 2. Unit Video: Recorded lesson videos
 3. Slide: Presentation slides (PDF/PPTX)
 4. Quiz: Interactive assessments
@@ -234,11 +231,48 @@ def _create_content_block(unit_locator, content_type, content_data, user):
         return _create_quiz_block(unit, content_data, user)
 
 
-def create_online_class_block(unit, meeting_link, meeting_time=None, duration=None, user=None):
-    """Create an online class content block"""
-    store = modulestore()
+def _create_online_class_block(unit, content_data, user):
+    """Create an online class content block."""
+    meeting_link = content_data.get('meeting_link', '')
+    meeting_time = content_data.get('meeting_time', '')
+    duration = content_data.get('duration', '')
 
     html_content = f"""
+    <div class="chalix-online-class">
+        <div class="online-class-header">
+            <i class="fa fa-video-camera"></i>
+            <h3>Online Class Session</h3>
+        </div>
+        <div class="meeting-info">
+            <div class="info-item">
+                <strong>Meeting Time:</strong> {meeting_time}
+            </div>
+            <div class="info-item">
+                <strong>Duration:</strong> {duration}
+            </div>
+            {f'<div class="meeting-link"><a href="{meeting_link}" target="_blank" class="btn btn-primary btn-lg"><i class="fa fa-external-link"></i> Join Online Class</a></div>' if meeting_link else ''}
+        </div>
+    </div>
+    """
+
+    content_block = create_xblock(
+        parent_locator=str(unit.location),
+        user=user,
+        category='html',
+        display_name=content_data.get('title', 'Online Class')
+    )
+
+    content_block.data = html_content
+    content_block.metadata.update({
+        'chalix_content_type': 'online_class',
+        'meeting_link': meeting_link,
+        'meeting_time': meeting_time,
+        'duration': duration
+    })
+
+    store = modulestore()
+    store.update_item(content_block, user.id)
+    return content_block
 
 
 def _create_unit_video_block(unit, content_data, user):
