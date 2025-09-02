@@ -27,9 +27,30 @@ function($, _, gettext, BaseView, ViewUtils, AddXBlockButton, AddXBlockMenu, Add
             if (!this.$el.html()) {
                 that = this;
                 this.$el.html(HtmlUtils.HTML(this.template({})).toString());
+                
+                // Check if there's already an online class component in this unit
+                var hasOnlineClass = false;
+                if (this.options.parentModel && this.options.parentModel.get('child_info') && 
+                    this.options.parentModel.get('child_info').children) {
+                    hasOnlineClass = _.some(this.options.parentModel.get('child_info').children, function(child) {
+                        return child.metadata && child.metadata.chalix_content_type === 'online_class';
+                    });
+                }
+                
                 this.collection.each(
                     function(componentModel) {
                         var view, menu;
+                        
+                        // Skip online_class components if one already exists
+                        if (componentModel.type === 'chalix_content_types' && hasOnlineClass) {
+                            // Check if this component model contains online_class templates
+                            var hasOnlineClassTemplate = _.some(componentModel.templates, function(template) {
+                                return template.metadata && template.metadata.chalix_content_type === 'online_class';
+                            });
+                            if (hasOnlineClassTemplate) {
+                                return; // Skip this component type
+                            }
+                        }
 
                         view = new AddXBlockButton({model: componentModel});
                         that.$el.find('.new-component-type').append(view.render().el);
@@ -50,6 +71,25 @@ function($, _, gettext, BaseView, ViewUtils, AddXBlockButton, AddXBlockMenu, Add
             parentLocator = $(event.currentTarget).closest('.xblock[data-usage-id]').data('usage-id');
             parentBlockType  = $(event.currentTarget).parents('.xblock-author_view').last().data('block-type');
             model = this.collection.models.find(function(item) { return item.type === type; }) || {};
+
+            // Check if there's already an online class component in this unit
+            var hasOnlineClass = false;
+            if (this.options.parentModel && this.options.parentModel.get('child_info') && 
+                this.options.parentModel.get('child_info').children) {
+                hasOnlineClass = _.some(this.options.parentModel.get('child_info').children, function(child) {
+                    return child.metadata && child.metadata.chalix_content_type === 'online_class';
+                });
+            }
+            
+            // If this is a chalix_content_types component and we already have an online class, don't show templates
+            if (type === 'chalix_content_types' && hasOnlineClass) {
+                var hasOnlineClassTemplate = _.some(model.templates, function(template) {
+                    return template.metadata && template.metadata.chalix_content_type === 'online_class';
+                });
+                if (hasOnlineClassTemplate) {
+                    return; // Don't show the template menu
+                }
+            }
 
             try {
                 if (this.options.isIframeEmbed && parentBlockType !== 'split_test') {
@@ -97,6 +137,20 @@ function($, _, gettext, BaseView, ViewUtils, AddXBlockButton, AddXBlockMenu, Add
                 usageId = $element.closest('.xblock[data-usage-id]').data('usage-id');
             event.preventDefault();
             this.closeNewComponent(event);
+
+            // Check if there's already an online class component in this unit
+            var hasOnlineClass = false;
+            if (this.options.parentModel && this.options.parentModel.get('child_info') && 
+                this.options.parentModel.get('child_info').children) {
+                hasOnlineClass = _.some(this.options.parentModel.get('child_info').children, function(child) {
+                    return child.metadata && child.metadata.chalix_content_type === 'online_class';
+                });
+            }
+            
+            // If this is an online class component and we already have one, don't create it
+            if (saveData.category === 'online_class' && hasOnlineClass) {
+                return; // Don't create the component
+            }
 
             if (saveData.type === 'library_v2') {
                 try {

@@ -308,6 +308,7 @@ function($, _, Backbone, gettext, BasePage,
                         collection: self.options.templates,
                         libraryContentPickerUrl: self.options.libraryContentPickerUrl,
                         isIframeEmbed: self.options.isIframeEmbed,
+                        parentModel: self.model,
                     });
                     component.render();
                 });

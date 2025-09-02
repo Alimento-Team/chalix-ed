@@ -53,15 +53,10 @@ log = logging.getLogger(__name__)
 
 # NOTE: This list is disjoint from ADVANCED_COMPONENT_TYPES
 COMPONENT_TYPES = [
-    'html',
-    'video',
-    'problem',
-    'itembank',
-    'library_v2',  # Not an XBlock
-    'library',
-    'discussion',
-    'openassessment',
-    'drag-and-drop-v2',
+    'online_class',
+    'unit_video',
+    'slide',
+    'quiz',
 ]
 
 BETA_COMPONENT_TYPES = ['library_v2', 'itembank']
@@ -131,6 +126,14 @@ def _load_mixed_class(category):
     # Libraries v2 content doesn't have an XBlock.
     if category == 'library_v2':
         return None
+
+    # Chalix content types are special - they're not real XBlocks but use existing XBlocks
+    # These content types create units (verticals) with specific content inside
+    if category in ['online_class', 'unit_video', 'slide', 'quiz']:
+        # Return the vertical XBlock class since Chalix content types are implemented as units
+        component_class = XBlock.load_class('vertical')
+        mixologist = Mixologist(settings.XBLOCK_MIXINS)
+        return mixologist.mix(component_class)
 
     component_class = XBlock.load_class(category)
     mixologist = Mixologist(settings.XBLOCK_MIXINS)
@@ -278,6 +281,11 @@ def get_component_templates(courselike, library=False):  # lint-amnesty, pylint:
         }
 
     component_display_names = {
+        'online_class': _("Online Class"),
+        'unit_video': _("Unit Video"),
+        'slide': _("Lesson Slides"),
+        'quiz': _("Unit Quiz"),
+        # Legacy types for compatibility
         'discussion': _("Discussion"),
         'html': _("Text"),
         'problem': _("Problem"),
@@ -291,9 +299,39 @@ def get_component_templates(courselike, library=False):  # lint-amnesty, pylint:
 
     component_templates = []
     categories = set()
+
+    # Add Chalix component templates first if not in library
+    if not library:
+        def create_chalix_template_dict(content_type, display_name, description):
+            """Creates a Chalix component template dict."""
+            return {
+                "display_name": display_name,
+                "category": "vertical",  # All Chalix content is created as units (verticals)
+                "boilerplate_name": None,
+                "hinted": False,
+                "tab": "common",
+                "support_level": True,
+                "chalix_content_type": content_type,
+                "description": description
+            }
+
+        chalix_templates = {
+            "type": "Chalix Content",
+            "templates": [
+                create_chalix_template_dict("online_class", "Online Class", "Live online class session"),
+                create_chalix_template_dict("unit_video", "Unit Video", "Video content for learning"),
+                create_chalix_template_dict("slide", "Slide", "Presentation slides"),
+                create_chalix_template_dict("quiz", "Quiz", "Assessment quiz"),
+            ]
+        }
+        component_templates.append(chalix_templates)
     # The component_templates array is in the order of "advanced" (if present), followed
     # by the components in the order listed in COMPONENT_TYPES.
     component_types = COMPONENT_TYPES[:]
+
+    # Remove Chalix content types from regular processing since they're handled specially above
+    chalix_content_types = ['online_class', 'unit_video', 'slide', 'quiz']
+    component_types = [ct for ct in component_types if ct not in chalix_content_types]
 
     # Libraries do not support discussions, drag-and-drop, and openassessment and other libraries
     component_not_supported_by_library = [
@@ -368,7 +406,7 @@ def get_component_templates(courselike, library=False):  # lint-amnesty, pylint:
                             )
                         )
 
-        #If using new problem editor, we select problem type inside the editor
+        # If using new problem editor, we select problem type inside the editor
         # because of this, we only show one problem.
         if category == 'problem' and use_new_problem_editor(courselike.context_key):
             templates_for_category = [
@@ -596,7 +634,7 @@ def component_handler(request, usage_key_string, handler, suffix=''):
     if has_course_author_access(request.user, usage_key.course_key):
         modulestore().update_item(block, request.user.id, asides=asides)
     else:
-        #fail quietly if user is not course author.
+        # fail quietly if user is not course author.
         log.warning(
             "%s does not have have studio write permissions on course: %s. write operations not performed on %r",
             request.user.id,

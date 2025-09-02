@@ -24,7 +24,7 @@ class SimplifiedCourseManager:
     Manager for creating and maintaining simplified course structures.
     """
 
-    ALLOWED_CONTENT_TYPES = ['video', 'slide', 'questions']
+    ALLOWED_CONTENT_TYPES = ['online_class', 'unit_video', 'slide', 'quiz']
 
     def __init__(self):
         self.store = modulestore()
@@ -182,18 +182,62 @@ class SimplifiedCourseManager:
 
         vertical = self.store.get_item(vertical_location)
 
-        if content_type == 'video':
-            self._add_video_content(vertical, vertical_location, unit_data, user_id)
+        if content_type == 'online_class':
+            self._add_online_class_content(vertical, vertical_location, unit_data, user_id)
+        elif content_type == 'unit_video':
+            self._add_unit_video_content(vertical, vertical_location, unit_data, user_id)
         elif content_type == 'slide':
             self._add_slide_content(vertical, vertical_location, unit_data, user_id)
-        elif content_type == 'questions':
-            self._add_question_content(vertical, vertical_location, unit_data, user_id)
+        elif content_type == 'quiz':
+            self._add_quiz_content(vertical, vertical_location, unit_data, user_id)
 
-    def _add_video_content(self, vertical, vertical_location, unit_data, user_id):
-        """Add video content to a vertical."""
+    def _add_online_class_content(self, vertical, vertical_location, unit_data, user_id):
+        """Add online class content (Zoom/Meet link) to a vertical."""
+        html_location = vertical_location.replace(
+            category='html',
+            name='online_class_content'
+        )
+
+        class_data = unit_data.get('content_data', {})
+        meeting_link = class_data.get('meeting_link', '')
+        meeting_time = class_data.get('meeting_time', '')
+        duration = class_data.get('duration', '')
+
+        html_content = f"""
+        <div class="online-class-container">
+            <h3>Online Class Session</h3>
+            <div class="meeting-info">
+                <p><strong>Meeting Time:</strong> {meeting_time}</p>
+                <p><strong>Duration:</strong> {duration}</p>
+                {f'<p><a href="{meeting_link}" target="_blank" class="btn btn-primary">Join Online Class</a></p>' if meeting_link else ''}
+            </div>
+        </div>
+        """
+
+        html_block = self.store.create_item(
+            user_id,
+            html_location,
+            display_name=class_data.get('title', 'Online Class'),
+            data=html_content,
+            metadata={
+                'simplified_content': True,
+                'content_type': 'online_class',
+                'meeting_link': meeting_link,
+                'meeting_time': meeting_time,
+                'duration': duration,
+            }
+        )
+
+        vertical.children.append(html_location)
+        self.store.update_item(vertical, user_id)
+
+        log.info(f"Added online class content to {vertical_location}")
+
+    def _add_unit_video_content(self, vertical, vertical_location, unit_data, user_id):
+        """Add unit video content to a vertical."""
         video_location = vertical_location.replace(
             category='video',
-            name='video_content'
+            name='unit_video_content'
         )
 
         video_data = unit_data.get('content_data', {})
@@ -201,19 +245,102 @@ class SimplifiedCourseManager:
         video = self.store.create_item(
             user_id,
             video_location,
-            display_name=video_data.get('title', 'Video'),
+            display_name=video_data.get('title', 'Unit Video'),
             metadata={
                 'youtube_id_1_0': video_data.get('youtube_id', ''),
                 'video_url': video_data.get('video_url', ''),
                 'simplified_content': True,
-                'content_type': 'video',
+                'content_type': 'unit_video',
             }
         )
 
         vertical.children.append(video_location)
         self.store.update_item(vertical, user_id)
 
-        log.info(f"Added video content to {vertical_location}")
+        log.info(f"Added unit video content to {vertical_location}")
+
+    def _add_slide_content(self, vertical, vertical_location, unit_data, user_id):
+        """Add slide content (HTML/PDF) to a vertical."""
+        html_location = vertical_location.replace(
+            category='html',
+            name='slide_content'
+        )
+
+        slide_data = unit_data.get('content_data', {})
+        file_url = slide_data.get('file_url', '')
+        file_type = slide_data.get('file_type', 'pdf')  # pdf or pptx
+
+        slide_html = f"""
+        <div class="slide-container">
+            <h3>Lesson Slides</h3>
+            {f'<iframe src="{file_url}" width="100%" height="600px" frameborder="0"></iframe>' if file_url else '<p>No slides available</p>'}
+        </div>
+        """
+
+        html_block = self.store.create_item(
+            user_id,
+            html_location,
+            display_name=slide_data.get('title', 'Slides'),
+            data=slide_html,
+            metadata={
+                'simplified_content': True,
+                'content_type': 'slide',
+                'file_url': file_url,
+                'file_type': file_type,
+            }
+        )
+
+        vertical.children.append(html_location)
+        self.store.update_item(vertical, user_id)
+
+        log.info(f"Added slide content to {vertical_location}")
+
+    def _add_quiz_content(self, vertical, vertical_location, unit_data, user_id):
+        """Add quiz content to a vertical."""
+        problem_location = vertical_location.replace(
+            category='problem',
+            name='quiz_content'
+        )
+
+        question_data = unit_data.get('content_data', {})
+        questions = question_data.get('questions', [])
+
+        # Generate simple multiple choice problem XML
+        problem_xml = '<problem>\n'
+        problem_xml += f'<p>{question_data.get("instructions", "Complete the following quiz:")}</p>\n'
+
+        for i, question in enumerate(questions):
+            problem_xml += f"""
+            <multiplechoiceresponse>
+                <p>{question.get('question', f'Question {i+1}')}</p>
+                <choicegroup type="MultipleChoice">
+            """
+            for choice in question.get('choices', []):
+                correct = 'correct="true"' if choice.get('correct', False) else ''
+                problem_xml += f'<choice {correct}>{choice.get("text", "")}</choice>\n'
+
+            problem_xml += """
+                </choicegroup>
+            </multiplechoiceresponse>
+            """
+
+        problem_xml += '</problem>'
+
+        problem = self.store.create_item(
+            user_id,
+            problem_location,
+            display_name=question_data.get('title', 'Quiz'),
+            data=problem_xml,
+            metadata={
+                'simplified_content': True,
+                'content_type': 'quiz',
+            }
+        )
+
+        vertical.children.append(problem_location)
+        self.store.update_item(vertical, user_id)
+
+        log.info(f"Added quiz content to {vertical_location}")
 
     def _add_slide_content(self, vertical, vertical_location, unit_data, user_id):
         """Add slide content (HTML/PDF) to a vertical."""

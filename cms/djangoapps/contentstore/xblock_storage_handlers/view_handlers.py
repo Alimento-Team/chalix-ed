@@ -648,6 +648,17 @@ def _create_block(request):
             display_name=request.json.get("display_name"),
             boilerplate=request.json.get("boilerplate"),
         )
+    # Handle Chalix unit creation with content types
+    elif request.json.get("chalix_content_type"):
+        created_block = _create_chalix_unit_with_content(
+            parent_locator=parent_locator,
+            user=request.user,
+            category=category,
+            display_name=request.json.get("display_name"),
+            content_type=request.json.get("chalix_content_type"),
+            content_data=request.json.get("content_data", {}),
+            boilerplate=request.json.get("boilerplate"),
+        )
     else:
         created_block = create_xblock(
             parent_locator=parent_locator,
@@ -1745,3 +1756,198 @@ def _create_unit_with_simplified_structure(parent_locator, user, display_name, b
         )
 
         return unit
+
+
+def _create_chalix_unit_with_content(parent_locator, user, category, display_name, content_type, content_data, boilerplate=None):
+    """
+    Create a unit with Chalix content type.
+    This function creates a unit and immediately adds the specified content type.
+    """
+    from cms.djangoapps.contentstore.views.chalix_unit_types import CHALIX_CONTENT_TYPES
+
+    # Validate content type
+    if content_type not in CHALIX_CONTENT_TYPES:
+        raise ValueError(f"Invalid content type: {content_type}")
+
+    # Create the unit (vertical)
+    unit = create_xblock(
+        parent_locator=parent_locator,
+        user=user,
+        category=category,
+        display_name=display_name,
+        boilerplate=boilerplate,
+    )
+
+    # Add metadata to indicate this is a Chalix unit
+    setattr(unit, 'chalix_unit', True)
+    setattr(unit, 'chalix_content_type', content_type)
+
+    store = modulestore()
+    store.update_item(unit, user.id)
+
+    # Create the content block
+    content_config = CHALIX_CONTENT_TYPES[content_type]
+
+    if content_type == 'online_class':
+        content_block = _create_chalix_online_class_block(unit, content_data, user)
+    elif content_type == 'unit_video':
+        content_block = _create_chalix_unit_video_block(unit, content_data, user)
+    elif content_type == 'slide':
+        content_block = _create_chalix_slide_block(unit, content_data, user)
+    elif content_type == 'quiz':
+        content_block = _create_chalix_quiz_block(unit, content_data, user)
+
+    return unit
+
+
+def _create_chalix_online_class_block(unit, content_data, user):
+    """Create an online class content block within a unit."""
+    meeting_link = content_data.get('meeting_link', '')
+    meeting_time = content_data.get('meeting_time', '')
+    duration = content_data.get('duration', '')
+
+    html_content = f"""
+    <div class="chalix-online-class">
+        <div class="online-class-header">
+            <i class="fa fa-video-camera"></i>
+            <h3>Online Class Session</h3>
+        </div>
+        <div class="meeting-info">
+            <div class="info-item">
+                <strong>Meeting Time:</strong> {meeting_time}
+            </div>
+            <div class="info-item">
+                <strong>Duration:</strong> {duration}
+            </div>
+            {f'<div class="meeting-link"><a href="{meeting_link}" target="_blank" class="btn btn-primary btn-lg"><i class="fa fa-external-link"></i> Join Online Class</a></div>' if meeting_link else ''}
+        </div>
+    </div>
+    """
+
+    content_block = create_xblock(
+        parent_locator=str(unit.location),
+        user=user,
+        category='html',
+        display_name=content_data.get('title', 'Online Class')
+    )
+
+    # Update the HTML content and metadata
+    content_block.data = html_content
+    setattr(content_block, 'chalix_content_type', 'online_class')
+    setattr(content_block, 'meeting_link', meeting_link)
+    setattr(content_block, 'meeting_time', meeting_time)
+    setattr(content_block, 'duration', duration)
+
+    store = modulestore()
+    store.update_item(content_block, user.id)
+
+    return content_block
+
+
+def _create_chalix_unit_video_block(unit, content_data, user):
+    """Create a unit video content block within a unit."""
+    content_block = create_xblock(
+        parent_locator=str(unit.location),
+        user=user,
+        category='video',
+        display_name=content_data.get('title', 'Unit Video')
+    )
+
+    # Update video metadata
+    setattr(content_block, 'chalix_content_type', 'unit_video')
+    setattr(content_block, 'youtube_id_1_0', content_data.get('youtube_id', ''))
+    setattr(content_block, 'video_url', content_data.get('video_url', ''))
+    setattr(content_block, 'download_video', content_data.get('download_video', False))
+
+    store = modulestore()
+    store.update_item(content_block, user.id)
+
+    return content_block
+
+
+def _create_chalix_slide_block(unit, content_data, user):
+    """Create a slide content block within a unit."""
+    file_url = content_data.get('file_url', '')
+    file_type = content_data.get('file_type', 'pdf')
+
+    # Generate embed code based on file type
+    if file_type.lower() == 'pdf':
+        embed_html = f'<iframe src="{file_url}" width="100%" height="600px" frameborder="0"></iframe>'
+    else:
+        # For PPTX or other formats, use generic iframe
+        embed_html = f'<iframe src="{file_url}" width="100%" height="600px" frameborder="0"></iframe>'
+
+    html_content = f"""
+    <div class="chalix-slides">
+        <div class="slides-header">
+            <i class="fa fa-file-powerpoint-o"></i>
+            <h3>Lesson Slides</h3>
+        </div>
+        <div class="slides-content">
+            {embed_html if file_url else '<p class="no-slides">No slides available</p>'}
+        </div>
+    </div>
+    """
+
+    content_block = create_xblock(
+        parent_locator=str(unit.location),
+        user=user,
+        category='html',
+        display_name=content_data.get('title', 'Lesson Slides')
+    )
+
+    # Update the HTML content and metadata
+    content_block.data = html_content
+    setattr(content_block, 'chalix_content_type', 'slide')
+    setattr(content_block, 'file_url', file_url)
+    setattr(content_block, 'file_type', file_type)
+
+    store = modulestore()
+    store.update_item(content_block, user.id)
+
+    return content_block
+
+
+def _create_chalix_quiz_block(unit, content_data, user):
+    """Create a quiz content block within a unit."""
+    questions = content_data.get('questions', [])
+    instructions = content_data.get('instructions', 'Complete the following quiz:')
+
+    # Generate problem XML
+    problem_xml = '<problem>\n'
+    problem_xml += f'<p class="quiz-instructions">{instructions}</p>\n'
+
+    for i, question in enumerate(questions):
+        problem_xml += f"""
+        <multiplechoiceresponse>
+            <p class="question-text">{question.get('question', f'Question {i+1}')}</p>
+            <choicegroup type="MultipleChoice">
+        """
+
+        for choice in question.get('choices', []):
+            correct = 'correct="true"' if choice.get('correct', False) else ''
+            problem_xml += f'                <choice {correct}>{choice.get("text", "")}</choice>\n'
+
+        problem_xml += """
+            </choicegroup>
+        </multiplechoiceresponse>
+        """
+
+    problem_xml += '</problem>'
+
+    content_block = create_xblock(
+        parent_locator=str(unit.location),
+        user=user,
+        category='problem',
+        display_name=content_data.get('title', 'Unit Quiz')
+    )
+
+    # Update the problem data and metadata
+    content_block.data = problem_xml
+    setattr(content_block, 'chalix_content_type', 'quiz')
+    setattr(content_block, 'question_count', len(questions))
+
+    store = modulestore()
+    store.update_item(content_block, user.id)
+
+    return content_block
