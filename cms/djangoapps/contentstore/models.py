@@ -24,6 +24,47 @@ from openedx_learning.lib.fields import (
 )
 
 
+class CourseType(models.Model):
+    """
+    Model for managing different types of courses that can be selected
+    during course creation.
+    """
+    name = models.CharField(
+        max_length=100,
+        verbose_name=_("Course Type Name"),
+        help_text=_("The display name for this course type")
+    )
+
+    description = models.TextField(
+        blank=True,
+        verbose_name=_("Description"),
+        help_text=_("Optional description of this course type")
+    )
+
+    is_active = models.BooleanField(
+        default=True,
+        verbose_name=_("Is Active"),
+        help_text=_("Whether this course type is available for selection")
+    )
+
+    sort_order = models.PositiveIntegerField(
+        default=0,
+        verbose_name=_("Sort Order"),
+        help_text=_("Order in which this type appears in the dropdown (lower numbers first)")
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = _("Course Type")
+        verbose_name_plural = _("Course Types")
+        ordering = ['sort_order', 'name']
+
+    def __str__(self):
+        return self.name
+
+
 class VideoUploadConfig(ConfigurationModel):
     """
     Configuration for the video upload feature.

@@ -34,6 +34,7 @@ from rest_framework.decorators import api_view
 from openedx.core.lib.api.view_utils import view_auth_classes
 
 from cms.djangoapps.contentstore.xblock_storage_handlers.view_handlers import create_xblock_info
+from cms.djangoapps.contentstore.models import CourseType
 from cms.djangoapps.course_creators.views import add_user_with_status_unrequested, get_course_creator_status
 from cms.djangoapps.course_creators.models import CourseCreator
 from cms.djangoapps.models.settings.course_grading import CourseGradingModel
@@ -963,6 +964,7 @@ def _create_or_rerun_course(request):
         org = request.json.get('org')
         course = request.json.get('number', request.json.get('course'))
         display_name = request.json.get('display_name')
+        course_type = request.json.get('course_type', '')
         # force the start date for reruns and allow us to override start via the client
         start = request.json.get('start', CourseFields.start.default)
         end = request.json.get('end', CourseFields.end.default)
@@ -983,6 +985,8 @@ def _create_or_rerun_course(request):
         fields = {'start': start, 'end': end}
         if display_name is not None:
             fields['display_name'] = display_name
+        if course_type:
+            fields['course_type'] = course_type
 
         # Set a unique wiki_slug for newly created courses. To maintain active wiki_slugs for
         # existing xml courses this cannot be changed in CourseBlock.
@@ -1978,3 +1982,22 @@ def get_organizations(user):
         organizations = course_creator.organizations.all().values_list('short_name', flat=True)
 
     return organizations
+
+
+@login_required
+@ensure_csrf_cookie
+@require_http_methods(["GET"])
+def course_create_view(request):
+    """
+    View to render the course creation form with course types.
+    """
+    # Get all active course types
+    course_types = CourseType.objects.filter(is_active=True).order_by('sort_order', 'name')
+
+    context = {
+        'course_types': course_types,
+        'allow_unicode_course_id': settings.FEATURES.get('ALLOW_UNICODE_COURSE_ID', False),
+        'course_creator_status': get_course_creator_status(request.user),
+    }
+
+    return render_to_response('course-create.html', context)

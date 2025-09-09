@@ -1,10 +1,126 @@
-<%page expression_filter="h"/>
+<%page expression_filter="h" />
+<%namespace name='static' file='static_content.html' />
+<%! from django.utils.translation import gettext as _ 
+from openedx.core.djangolib.markup import HTML, Text %>
 
-<%!
-from django.utils.translation import gettext as _
-from openedx.core.djangolib.markup import HTML, Text
-%>
+<!-- Override heading-group constraints -->
+<style>
+.home > header .title > .heading-group {
+    width: 100vw !important;
+    max-width: none !important;
+    margin-left: calc(-50vw + 50%) !important;
+    position: relative !important;
+}
+</style>
 
-<h1>${Text(_(u"Welcome to {platform_name}")).format(platform_name=settings.PLATFORM_NAME)}</h1>
-## Translators: 'Open edX' is a registered trademark, please keep this untranslated. See https://openedx.org for more information.
-<p>${Text(_("Powered by the Chalix {registered_trademark} Platform")).format(registered_trademark=HTML("<sup style='font-size: 65%'>&reg;</sup>"))}</p>
+    <!-- Main Landing Page Content -->
+    <div class="landing-page" style="width: 100%; margin: 0 auto; background: rgba(255, 255, 255, 0.3); padding: 40px 0;">
+        <!-- Main title -->
+        <h2 class="landing-title" style="font-family: 'Inter', sans-serif; font-size: 20px; font-weight: 600; line-height: 24.2px; color: #0054a6; text-align: center; margin: 0 auto 20px auto; max-width: 1200px; padding: 0 20px;">Các tính năng nổi bật của phần mềm học tập thông minh dành cho CC, VC</h2>
+
+        <!-- Features Container -->
+        <div class="features-container" style="display: grid !important; grid-template-columns: repeat(3, 1fr) !important; gap: 40px 20px !important; padding: 20px; margin: 80px auto 60px auto; max-width: 1200px; justify-items: center;">
+            <!-- Feature 1: AI gợi ý khóa học phù hợp (center top) -->
+            <div class="feature-item feature-center-top" style="padding: 20px; text-align: center; display: flex; flex-direction: column; align-items: center;">
+                <img src="http://localhost:3845/assets/b741795af5084dab4a009ba99432aed86949029e.png"
+                    alt="AI khóa học phù hợp" class="feature-image" style="width: 280px; height: 160px; margin-bottom: 14px; border-radius: 8px; box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25); object-fit: cover;" />
+                <div class="feature-text" style="font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 500; line-height: 19.36px; color: #0054a6; margin: 0;">AI gợi ý khóa học phù hợp<br />với năng lực của CC, VC</div>
+            </div>
+
+            <!-- Feature 2: AI nhận diện cảm xúc (right top) -->
+            <div class="feature-item feature-right-top" style="padding: 20px; text-align: center; display: flex; flex-direction: column; align-items: center;">
+                <img src="http://localhost:3845/assets/d084960c46721e40414ae84382f7e4a7096cb9de.png"
+                    alt="AI nhận diện cảm xúc" class="feature-image" style="width: 280px; height: 160px; margin-bottom: 14px; border-radius: 8px; box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25); object-fit: cover;" />
+                <div class="feature-text" style="font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 500; line-height: 19.36px; color: #0054a6; margin: 0;">AI nhận diện cảm xúc người học<br />dựa trên khuôn mặt</div>
+            </div>
+
+            <!-- Feature 3: AI dự đoán năng lực (left top) -->
+            <div class="feature-item feature-left-top" style="padding: 20px; text-align: center; display: flex; flex-direction: column; align-items: center;">
+                <img src="http://localhost:3845/assets/62ab52a8c5f1580e04028a7155be46388f32b45a.png"
+                    alt="AI dự đoán năng lực" class="feature-image" style="width: 280px; height: 160px; margin-bottom: 14px; border-radius: 8px; box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25); object-fit: cover;" />
+                <div class="feature-text" style="font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 500; line-height: 19.36px; color: #0054a6; margin: 0;">AI dự đoán năng lực<br />người học</div>
+            </div>
+
+            <!-- Feature 4: Cá nhân hóa người học (left bottom) -->
+            <div class="feature-item feature-left-bottom" style="padding: 20px; text-align: center; display: flex; flex-direction: column; align-items: center;">
+                <img src="http://localhost:3845/assets/2af7e3e9fcb4079ec9b1eff6d146fb956b16b130.png"
+                    alt="Cá nhân hóa người học" class="feature-image" style="width: 280px; height: 160px; margin-bottom: 14px; border-radius: 8px; box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25); object-fit: cover;" />
+                <div class="feature-text" style="font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 500; line-height: 19.36px; color: #0054a6; margin: 0;">Cá nhân hóa người học</div>
+            </div>
+
+            <!-- Feature 5: Hệ thống gợi ý xây dựng (center bottom) -->
+            <div class="feature-item feature-center-bottom" style="padding: 20px; text-align: center; display: flex; flex-direction: column; align-items: center;">
+                <img src="http://localhost:3845/assets/9d2b36f90987cefdc740a03d3e5a2479a139fe7e.png"
+                    alt="Hệ thống gợi ý" class="feature-image" style="width: 280px; height: 160px; margin-bottom: 14px; border-radius: 8px; box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25); object-fit: cover;" />
+                <div class="feature-text" style="font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 500; line-height: 19.36px; color: #0054a6; margin: 0;">Hệ thống gợi ý xây dựng, điều<br />chỉnh chương trình học,<br />bài giảng
+                </div>
+            </div>
+
+            <!-- Feature 6: Diễn đàn trao đổi (right bottom) -->
+            <div class="feature-item feature-right-bottom" style="padding: 20px; text-align: center; display: flex; flex-direction: column; align-items: center;">
+                <img src="http://localhost:3845/assets/c2590d9115e2473a732bab8996d9f641b5db69fd.png"
+                    alt="Diễn đàn trao đổi" class="feature-image" style="width: 280px; height: 160px; margin-bottom: 14px; border-radius: 8px; box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25); object-fit: cover;" />
+                <div class="feature-text" style="font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 500; line-height: 19.36px; color: #0054a6; margin: 0;">Diễn đàn trao đổi, chia sẻ kiến thức</div>
+            </div>
+        </div>
+
+        <!-- Process Section Title -->
+        <h2 class="process-title" style="font-family: 'Inter', sans-serif; font-size: 20px; font-weight: 600; line-height: 24.2px; color: #0054a6; text-align: center; margin: 60px auto 40px auto;">Quy trình triển khai phần mềm học tập thông minh</h2>
+
+        <!-- Process Container -->
+                <!-- Process Section -->
+        <div class="process-container" style="display: flex; align-items: flex-start; justify-content: space-between; width: 100%; max-width: 1000px; margin: 80px auto 40px auto; padding: 0 20px; gap: 5px;">
+            <!-- Process Step 1: Bộ Xây dựng -->
+            <div class="process-step step-1" style="text-align: center; position: relative; flex: 1; min-width: 160px; max-width: 180px;">
+                <div class="step-circle" style="width: 60px; height: 60px; background: #3494c8; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px;">
+                    <span style="font-family: 'Inter', sans-serif; font-size: 24px; font-weight: bold; color: white;">1</span>
+                </div>
+                <div class="step-content" style="max-width: 160px; margin: 0 auto;">
+                    <h3 class="step-title" style="font-family: 'Inter', sans-serif; font-size: 18px; font-weight: bold; color: #0054a6; margin-bottom: 10px;">Bộ Xây dựng</h3>
+                    <p class="step-description" style="font-family: 'Inter', sans-serif; font-size: 16px; color: #0674b0; line-height: 1.3;">Bộ Xây dựng gửi thông báo cho cơ quan sử dụng phần mềm học tập thông minh</p>
+                </div>
+            </div>
+
+            <!-- Arrow 1 -->
+            <div style="width: 30px; height: 2px; background: #999; margin-top: 40px; flex-shrink: 0;"></div>
+
+            <!-- Process Step 2: Cơ quan -->
+            <div class="process-step step-2" style="text-align: center; position: relative; flex: 1; min-width: 160px; max-width: 180px;">
+                <div class="step-circle" style="width: 60px; height: 60px; background: #3494c8; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px;">
+                    <span style="font-family: 'Inter', sans-serif; font-size: 24px; font-weight: bold; color: white;">2</span>
+                </div>
+                <div class="step-content" style="max-width: 160px; margin: 0 auto;">
+                    <h3 class="step-title" style="font-family: 'Inter', sans-serif; font-size: 18px; font-weight: 600; color: #0054a6; margin-bottom: 10px;">Cơ quan</h3>
+                    <p class="step-description" style="font-family: 'Inter', sans-serif; font-size: 16px; color: #0674b0; line-height: 1.3;">Cơ quan thuộc Bộ Xây dựng gửi hướng dẫn sử dụng phần mềm và yêu cầu CC, VC hoàn thành nhiệm vụ học tập theo Nghị định NĐ171/2025/NĐ-CP</p>
+                </div>
+            </div>
+
+            <!-- Arrow 2 -->
+            <div style="width: 30px; height: 2px; background: #999; margin-top: 40px; flex-shrink: 0;"></div>
+
+            <!-- Process Step 3: CC, VC -->
+            <div class="process-step step-3" style="text-align: center; position: relative; flex: 1; min-width: 160px; max-width: 180px;">
+                <div class="step-circle" style="width: 60px; height: 60px; background: #3494c8; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px;">
+                    <span style="font-family: 'Inter', sans-serif; font-size: 24px; font-weight: bold; color: white;">3</span>
+                </div>
+                <div class="step-content" style="max-width: 160px; margin: 0 auto;">
+                    <h3 class="step-title" style="font-family: 'Inter', sans-serif; font-size: 18px; font-weight: 600; color: #0054a6; margin-bottom: 10px;">CC, VC</h3>
+                    <p class="step-description" style="font-family: 'Inter', sans-serif; font-size: 16px; color: #0674b0; line-height: 1.3;">CC, VC tham gia các khóa học phù hợp với sở thích, vị trí việc làm cá nhân, được học tập mọi lúc, mọi nơi, tiết kiệm được thời gian, hoàn thành nhiệm vụ học tập.</p>
+                </div>
+            </div>
+
+            <!-- Arrow 3 -->
+            <div style="width: 30px; height: 2px; background: #999; margin-top: 40px; flex-shrink: 0;"></div>
+
+            <!-- Process Step 4: Cá nhân hóa học tập -->
+            <div class="process-step step-4" style="text-align: center; position: relative; flex: 1; min-width: 160px; max-width: 200px;">
+                <div class="step-circle" style="width: 60px; height: 60px; background: #3494c8; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px;">
+                    <span style="font-family: 'Inter', sans-serif; font-size: 24px; font-weight: bold; color: white;">4</span>
+                </div>
+                <div class="step-content" style="max-width: 180px; margin: 0 auto;">
+                    <h3 class="step-title" style="font-family: 'Inter', sans-serif; font-size: 18px; font-weight: 600; color: #0054a6; margin-bottom: 10px;">Cá nhân hóa học tập</h3>
+                    <p class="step-description" style="font-family: 'Inter', sans-serif; font-size: 16px; color: #0674b0; line-height: 1.3;">AI gợi ý khóa học phù hợp với từng CC, VC theo thông tin cá nhân, cảm xúc, dữ liệu tương tác trực tuyến. AI dự đoán năng lực học tập của cá nhân, đo lường hoàn thành nhiệm vụ học tập tự động.</p>
+                </div>
+            </div>
+        </div>
+    </div>

@@ -15,6 +15,7 @@ from cms.djangoapps.contentstore.models import (
     CleanStaleCertificateAvailabilityDatesConfig,
     ComponentLink,
     ContainerLink,
+    CourseType,
     LearningContextLinksStatus,
     VideoUploadConfig,
 )
@@ -48,6 +49,8 @@ def regenerate_course_outlines_subset(modeladmin, request, queryset):
         regenerates=regenerates
     )
     modeladmin.message_user(request, msg)
+
+
 regenerate_course_outlines_subset.short_description = _("Regenerate selected course outlines")
 
 
@@ -57,6 +60,8 @@ def regenerate_course_outlines_all(modeladmin, request, queryset):  # pylint: di
     """
     update_all_outlines_from_modulestore_task.delay()
     modeladmin.message_user(request, _("All course outline regenerations successfully requested."))
+
+
 regenerate_course_outlines_all.short_description = _("Regenerate *all* course outlines")
 
 
@@ -190,6 +195,34 @@ class LearningContextLinksStatusAdmin(admin.ModelAdmin):
 
     def has_change_permission(self, request, obj=None):
         return False
+
+
+@admin.register(CourseType)
+class CourseTypeAdmin(admin.ModelAdmin):
+    """
+    Admin interface for CourseType model
+    """
+    list_display = ('name', 'is_active', 'sort_order', 'created_at', 'updated_at')
+    list_filter = ('is_active', 'created_at')
+    search_fields = ('name', 'description')
+    list_editable = ('is_active', 'sort_order')
+    ordering = ('sort_order', 'name')
+
+    fieldsets = (
+        (_('Basic Information'), {
+            'fields': ('name', 'description', 'is_active')
+        }),
+        (_('Display Options'), {
+            'fields': ('sort_order',)
+        }),
+    )
+
+    def has_delete_permission(self, request, obj=None):
+        """
+        Only allow deletion if the course type is not being used by any courses.
+        This can be extended later to check for actual course usage.
+        """
+        return True  # For now, allow deletion
 
 
 admin.site.register(BackfillCourseTabsConfig, ConfigurationModelAdmin)

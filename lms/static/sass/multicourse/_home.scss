@@ -2,18 +2,22 @@
 @import 'neat/neat'; // lib - Neat
 
 $title-left-margin: grid-width(3);
-$button-size: ($baseline*2.75);
-$course-search-input-height: ($button-size);
+$button-size: (
+  $baseline*2.75
+);
+$course-search-input-height: (
+  $button-size
+);
 
 .home {
   padding: 0;
 
-  > .container {
+  >.container {
     box-sizing: border-box;
     width: flex-grid(12);
   }
 
-  > header {
+  >header {
     @include linear-gradient($homepage__header--gradient__color--alpha, $homepage__header--gradient__color--bravo);
     @include clearfix();
 
@@ -80,7 +84,7 @@ $course-search-input-height: ($button-size);
         @include shift(0);
       }
 
-      > .heading-group {
+      >.heading-group {
         @include left(0);
 
         box-sizing: border-box;
@@ -261,6 +265,511 @@ $course-search-input-height: ($button-size);
     }
   }
 
+  // Landing Page Implementation with Responsive Grid Layout
+  .landing-page {
+    width: 100%;
+    max-width: 1440px;
+    height: auto;
+    position: relative;
+    background: rgba(255, 255, 255, 0.3);
+    margin: 0 auto;
+    padding: 40px 20px;
+
+    // Main title (responsive by default)
+    .landing-title {
+      position: relative;
+      left: auto;
+      top: auto;
+      width: 100%;
+      text-align: center;
+      margin: 40px auto 20px auto;
+      font-family: 'Inter', sans-serif;
+      font-size: 20px;
+      font-weight: 600;
+      line-height: 24.2px;
+      color: #0054a6;
+      white-space: normal;
+      padding: 0 20px;
+      max-width: 1200px;
+    }
+
+    // Features Container - Grid Layout (High Specificity)
+    .features-container {
+      display: grid !important;
+      grid-template-columns: repeat(3, 1fr) !important;
+      gap: 40px 20px !important;
+      height: auto !important;
+      margin: 80px auto 60px auto !important;
+      max-width: 1200px !important;
+      position: relative !important;
+      background: rgba(0, 255, 0, 0.1) !important;
+      /* Debug: light green background */
+
+      .feature-item,
+      .feature-left-top,
+      .feature-center-top,
+      .feature-right-top,
+      .feature-left-bottom,
+      .feature-center-bottom,
+      .feature-right-bottom {
+        position: relative !important;
+        width: 100% !important;
+        height: auto !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        text-align: center !important;
+        background: rgba(255, 0, 0, 0.1) !important;
+        /* Debug: light red background */
+        border: 2px solid blue !important;
+        /* Debug: blue border */
+
+        .feature-image {
+          width: 280px !important;
+          height: 160px !important;
+          margin-bottom: 14px !important;
+          border-radius: 8px !important;
+          box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25) !important;
+          object-fit: cover !important;
+        }
+
+        .feature-text {
+          width: 100% !important;
+          font-family: 'Inter', sans-serif !important;
+          font-size: 16px !important;
+          font-weight: 500 !important;
+          line-height: 19.36px !important;
+          color: #0054a6 !important;
+          margin: 0 !important;
+        }
+      }
+
+      // Specific order to match Figma design (top row: 1,2,3 bottom row: 4,5,6)
+      .feature-left-top {
+        order: 1 !important;
+      }
+
+      .feature-center-top {
+        order: 2 !important;
+      }
+
+      .feature-right-top {
+        order: 3 !important;
+      }
+
+      .feature-left-bottom {
+        order: 4 !important;
+      }
+
+      .feature-center-bottom {
+        order: 5 !important;
+      }
+
+      .feature-right-bottom {
+        order: 6 !important;
+      }
+    }
+
+    // Process Section Title
+    .process-title {
+      position: absolute;
+      left: 452px;
+      top: 625px;
+      font-family: 'Inter', sans-serif;
+      font-size: 20px;
+      font-weight: 600;
+      line-height: 24.2px;
+      text-align: center;
+      color: #0054a6;
+      margin: 0;
+      white-space: nowrap;
+    }
+
+    // Process Container
+    .process-container {
+      position: relative;
+      width: 100%;
+      height: 400px;
+
+      // Process Step 1: Bộ Xây dựng
+      .step-1 {
+        position: absolute;
+        left: 83px;
+        top: 756px;
+        width: 272px;
+        height: 139px;
+
+        .step-circle {
+          position: absolute;
+          width: 60px;
+          height: 60px;
+          left: 50px;
+          top: -93px;
+          background: #3494c8;
+          border-radius: 30px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-family: 'Inter', sans-serif;
+          font-size: 24px;
+          font-weight: bold;
+          color: white;
+        }
+
+        .step-content {
+          position: relative;
+          width: 272px;
+          height: 139px;
+
+          .step-title {
+            position: absolute;
+            left: 59px;
+            top: 0px;
+            font-family: 'Inter', sans-serif;
+            font-size: 20px;
+            font-weight: bold;
+            line-height: 24.2px;
+            color: #0054a6;
+            margin: 0;
+          }
+
+          .step-description {
+            position: absolute;
+            left: 10px;
+            top: 45px;
+            width: 247px;
+            font-family: 'Inter', sans-serif;
+            font-size: 18px;
+            font-weight: 400;
+            line-height: 21.78px;
+            color: #0674b0;
+            margin: 0;
+          }
+        }
+      }
+
+      // Arrow 1
+      .arrow-1 {
+        position: absolute;
+        left: 267px;
+        top: 693px;
+        width: 180px;
+        height: 15px;
+      }
+
+      // Process Step 2: Cơ quan
+      .step-2 {
+        position: absolute;
+        left: 427px;
+        top: 746px;
+        width: 272px;
+        height: 199px;
+
+        .step-circle {
+          position: absolute;
+          width: 60px;
+          height: 60px;
+          left: 86px;
+          top: -83px;
+          background: #3494c8;
+          border-radius: 30px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-family: 'Inter', sans-serif;
+          font-size: 24px;
+          font-weight: bold;
+          color: white;
+        }
+
+        .step-content {
+          position: relative;
+          width: 272px;
+          height: 199px;
+
+          .step-title {
+            position: absolute;
+            left: 98px;
+            top: 8px;
+            font-family: 'Inter', sans-serif;
+            font-size: 20px;
+            font-weight: 600;
+            line-height: 24.2px;
+            color: #0054a6;
+            margin: 0;
+
+            span {
+              font-weight: bold;
+            }
+          }
+
+          .step-description {
+            position: absolute;
+            left: -17px;
+            top: 56px;
+            width: 258px;
+            font-family: 'Inter', sans-serif;
+            font-size: 18px;
+            font-weight: 400;
+            line-height: 21.78px;
+            color: #0674b0;
+            margin: 0;
+          }
+        }
+      }
+
+      // Arrow 2
+      .arrow-2 {
+        position: absolute;
+        left: 611px;
+        top: 693px;
+        width: 202px;
+        height: 15px;
+      }
+
+      // Process Step 3: CC, VC
+      .step-3 {
+        position: absolute;
+        left: 748px;
+        top: 756px;
+        width: 272px;
+        height: 199px;
+
+        .step-circle {
+          position: absolute;
+          width: 60px;
+          height: 60px;
+          left: 104px;
+          top: -93px;
+          background: #3494c8;
+          border-radius: 30px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-family: 'Inter', sans-serif;
+          font-size: 24px;
+          font-weight: bold;
+          color: white;
+        }
+
+        .step-content {
+          position: relative;
+          width: 272px;
+          height: 199px;
+
+          .step-title {
+            position: absolute;
+            left: 98px;
+            top: 0px;
+            font-family: 'Inter', sans-serif;
+            font-size: 20px;
+            font-weight: 600;
+            line-height: 24.2px;
+            color: #0054a6;
+            margin: 0;
+          }
+
+          .step-description {
+            position: absolute;
+            left: 15px;
+            top: 43px;
+            width: 242px;
+            font-family: 'Inter', sans-serif;
+            font-size: 18px;
+            font-weight: 400;
+            line-height: 21.78px;
+            color: #0674b0;
+            margin: 0;
+          }
+        }
+      }
+
+      // Arrow 3
+      .arrow-3 {
+        position: absolute;
+        left: 958px;
+        top: 693px;
+        width: 180px;
+        height: 15px;
+      }
+
+      // Process Step 4: Cá nhân hóa học tập
+      .step-4 {
+        position: absolute;
+        left: 1069px;
+        top: 756px;
+        width: 272px;
+        height: 258px;
+
+        .step-circle {
+          position: absolute;
+          width: 60px;
+          height: 60px;
+          left: 106px;
+          top: -93px;
+          background: #3494c8;
+          border-radius: 30px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-family: 'Inter', sans-serif;
+          font-size: 24px;
+          font-weight: bold;
+          color: white;
+        }
+
+        .step-content {
+          position: relative;
+          width: 272px;
+          height: 258px;
+
+          .step-title {
+            position: absolute;
+            left: 51px;
+            top: 5px;
+            width: 170px;
+            font-family: 'Inter', sans-serif;
+            font-size: 20px;
+            font-weight: 600;
+            line-height: 24.2px;
+            color: #0054a6;
+            margin: 0;
+          }
+
+          .step-description {
+            position: absolute;
+            left: 10px;
+            top: 46px;
+            width: 252px;
+            font-family: 'Inter', sans-serif;
+            font-size: 18px;
+            font-weight: 400;
+            line-height: 21.78px;
+            color: #0674b0;
+            margin: 0;
+          }
+        }
+      }
+
+      // Arrows styling
+      .arrow {
+        display: block;
+        max-width: none;
+      }
+    }
+
+    // Responsive Design for Figma Landing Page
+    @media (max-width: 1440px) {
+      width: 100%;
+      height: auto;
+      padding: 20px;
+
+      .landing-title {
+        position: relative !important;
+        left: auto !important;
+        top: auto !important;
+        width: 100% !important;
+        text-align: center !important;
+        margin-bottom: 40px !important;
+        white-space: normal !important;
+      }
+
+      .process-title {
+        position: relative;
+        left: auto;
+        top: auto;
+        width: 100%;
+        text-align: center;
+        margin-bottom: 40px;
+      }
+
+      .process-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        height: auto;
+
+        .process-step,
+        .step-1,
+        .step-2,
+        .step-3,
+        .step-4 {
+          position: relative !important;
+          left: auto !important;
+          top: auto !important;
+          width: 100% !important;
+          max-width: 300px;
+          height: auto !important;
+          margin-bottom: 40px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+
+          .step-circle {
+            position: relative !important;
+            left: auto !important;
+            top: auto !important;
+            margin-bottom: 20px;
+          }
+
+          .step-content {
+            position: relative !important;
+            left: auto !important;
+            top: auto !important;
+            width: 100% !important;
+            height: auto !important;
+            text-align: center;
+
+            .step-title {
+              position: relative !important;
+              left: auto !important;
+              top: auto !important;
+              width: 100% !important;
+              height: auto !important;
+              margin-bottom: 15px;
+            }
+
+            .step-description {
+              position: relative !important;
+              left: auto !important;
+              top: auto !important;
+              width: 100% !important;
+              height: auto !important;
+            }
+          }
+        }
+
+        .arrow,
+        .arrow-1,
+        .arrow-2,
+        .arrow-3 {
+          display: none;
+        }
+      }
+    }
+
+    @media (max-width: 768px) {
+      .features-container {
+        grid-template-columns: 1fr;
+        gap: 30px;
+
+        .feature-item,
+        .feature-left-top,
+        .feature-center-top,
+        .feature-right-top,
+        .feature-left-bottom,
+        .feature-center-bottom,
+        .feature-right-bottom {
+          .feature-image {
+            width: 100% !important;
+            max-width: 280px !important;
+            height: 160px !important;
+          }
+        }
+      }
+    }
+  }
+
   .highlighted-courses {
     box-sizing: border-box;
     margin-bottom: ($baseline*2);
@@ -268,8 +777,8 @@ $course-search-input-height: ($button-size);
     width: flex-grid(12);
     z-index: 1;
 
-    > h2 {
-      @include background-image(linear-gradient(-90deg, rgb(250,250,250), rgb(230,230,230)));
+    >h2 {
+      @include background-image(linear-gradient(-90deg, rgb(250, 250, 250), rgb(230, 230, 230)));
 
       border: 1px solid $border-color-2;
       border-radius: 4px;
@@ -414,7 +923,7 @@ $course-search-input-height: ($button-size);
           width: 100%;
           z-index: 2;
 
-          > span {
+          >span {
             color: $body-color;
             font: 700 italic 1.4em/1.4em $font-family-sans-serif;
             text-shadow: 0 1px rgba(255, 255, 255, 0.6);
@@ -483,7 +992,7 @@ $course-search-input-height: ($button-size);
               height: auto;
             }
 
-            .name > span {
+            .name>span {
               font-size: 1em;
             }
 
@@ -505,7 +1014,7 @@ $course-search-input-height: ($button-size);
     width: flex-grid(12);
 
     header {
-      @include background-image(linear-gradient(-90deg, rgb(250,250,250), rgb(230,230,230)));
+      @include background-image(linear-gradient(-90deg, rgb(250, 250, 250), rgb(230, 230, 230)));
 
       border-bottom: 1px solid $border-color-2;
 
@@ -562,7 +1071,7 @@ $course-search-input-height: ($button-size);
 
         @include clearfix();
 
-        > article {
+        >article {
           border: 1px dotted transparent;
           border-color: $border-color-2;
           box-sizing: border-box;
@@ -601,7 +1110,6 @@ $course-search-input-height: ($button-size);
 
             overflow: hidden;
             width: flex-grid(4);
-            vertical-align: top;
 
             img {
               min-height: 100%;

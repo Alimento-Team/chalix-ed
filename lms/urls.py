@@ -200,6 +200,12 @@ urlpatterns = [
     # Current-and-future advertised URLs for this API will be under 'api/learner_home'
     path('api/dashboard/', include('openedx.core.djangoapps.programs.rest_api.urls', namespace='dashboard_api')),
 
+    # Learning Analytics API
+    path('api/learning_analytics/', include('lms.djangoapps.learning_analytics.urls', namespace='learning_analytics')),
+
+    # Chalix User Menu API
+    path('api/chalix/user-menu/', include('lms.djangoapps.chalix_user_menu.urls', namespace='chalix_user_menu')),
+
     path(
         'api/experiments/',
         include(

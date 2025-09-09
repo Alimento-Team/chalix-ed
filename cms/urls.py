@@ -109,6 +109,7 @@ urlpatterns = oauth2_urlpatterns + [
             contentstore_views.course_info_update_handler, name='course_info_update_handler'
             ),
     re_path(r'^home/?$', contentstore_views.course_listing, name='home'),
+    path('course/create/', contentstore_views.course_create_view, name='course_create'),
     re_path(r'^home_library/?$', contentstore_views.library_listing, name='home_library'),
     re_path(fr'^course/{settings.COURSE_KEY_PATTERN}/search_reindex?$',
             contentstore_views.course_search_index_handler,

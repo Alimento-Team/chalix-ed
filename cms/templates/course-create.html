@@ -1,0 +1,374 @@
+<%page expression_filter="h" />
+<%inherit file="base.html" />
+<%def name="online_help_token()">
+    <% return "course_create" %>
+</%def>
+<%! from django.utils.translation import gettext as _ from django.urls import reverse from
+    openedx.core.djangolib.js_utils import js_escaped_string %>
+
+    <%block name="title">${_("Tạo khóa học mới")}</%block>
+    <%block name="bodyclass">is-signedin view-course-create</%block>
+
+    <%block name="jsextra">
+        <script type="text/javascript">
+            var course_types = ${course_types | n};
+        </script>
+    </%block>
+    <%block name="requirejs">
+        require(["js/factories/course_create"], function (CourseCreateFactory) {
+        CourseCreateFactory();
+        });
+    </%block>
+
+    <%block name="content">
+        <div id="content">
+            <div class="wrapper-mast wrapper">
+                <header class="mast mast-wizard has-actions">
+                    <h1 class="page-header">
+                        <span class="page-header-sub">${_("Tạo khóa học mới")}</span>
+                    </h1>
+
+                    <nav class="nav-actions" aria-label="${_('Page Actions')}">
+                        <h3 class="sr">${_("Page Actions")}</h3>
+                        <ul>
+                            <li class="nav-item">
+                                <a href="" class="button cancel-button">${_("Hủy")}</a>
+                            </li>
+                        </ul>
+                    </nav>
+                </header>
+            </div>
+
+            <div class="wrapper-content wrapper">
+                <div class="inner-wrapper">
+                    <section class="content">
+                        <article class="content-primary">
+                            <div class="introduction">
+                                <div class="copy">
+                                    <p>
+                                        ${_("Cung cấp thông tin để tạo khóa học mới. Tổ chức, số khóa học và mã khóa học
+                                        phải xác định duy nhất khóa học này.")}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div class="wrapper-create-course">
+                                <form class="form-create create-course course-info" id="create-course-form"
+                                    name="create-course-form">
+                                    <!-- NOTE: this element's contents should be only included when they are needed and not kept in the DOM for all states -->
+                                    <div class="wrapper-error is-hidden">
+                                        <div id="course_creation_error" name="course_creation_error"
+                                            class="message message-status error" role="alert">
+                                        </div>
+                                    </div>
+
+                                    <div class="wrapper-form">
+                                        <fieldset>
+                                            <legend class="sr">${_("Thông tin bắt buộc để tạo khóa học")}</legend>
+
+                                            <ol class="list-input">
+                                                <!-- Course Template Selection -->
+                                                <li class="field select required" id="field-course-template">
+                                                    <label for="new-course-template">${_("Nhập mẫu")}</label>
+                                                    <select class="new-course-template" id="new-course-template"
+                                                        name="new-course-template" aria-required="true">
+                                                        <option value="">${_("Chọn mẫu khóa học...")}</option>
+                                                        <option value="basic">${_("Mẫu cơ bản")}</option>
+                                                        <option value="advanced">${_("Mẫu nâng cao")}</option>
+                                                        <option value="custom">${_("Mẫu tùy chỉnh")}</option>
+                                                    </select>
+                                                    <span class="tip">
+                                                        ${_("Chọn mẫu khóa học để bắt đầu với cấu trúc sẵn có.")}
+                                                    </span>
+                                                    <span class="tip tip-error is-hidden"></span>
+                                                </li>
+
+                                                <!-- Course Display Name -->
+                                                <li class="field text required" id="field-course-name">
+                                                    <label for="new-course-name">${_("Tên khóa học")}</label>
+                                                    <input class="new-course-name" id="new-course-name" type="text"
+                                                        name="new-course-name" aria-required="true"
+                                                        placeholder="${_('ví dụ: Giới thiệu về Khoa học Máy tính')}" />
+                                                    <span class="tip">
+                                                        ${_("Tên hiển thị công khai cho khóa học.")}
+                                                    </span>
+                                                    <span class="tip tip-error is-hidden"></span>
+                                                </li>
+
+                                                <!-- Course Code/Number -->
+                                                <li class="field text required" id="field-course-number">
+                                                    <label for="new-course-number">${_("Mã khóa học")}</label>
+                                                    <input class="new-course-number" id="new-course-number" type="text"
+                                                        name="new-course-number" aria-required="true"
+                                                        placeholder="${_('ví dụ: CS101')}" />
+                                                    <span class="tip">
+                                                        ${_("Mã định danh duy nhất cho khóa học trong tổ chức.")}
+                                                        <strong class="tip-note">${_("Lưu ý: Không được có khoảng trắng
+                                                            hoặc ký tự đặc biệt.")}</strong>
+                                                    </span>
+                                                    <span class="tip tip-error is-hidden"></span>
+                                                </li>
+
+                                                <!-- Course Type -->
+                                                <li class="field select required" id="field-course-type">
+                                                    <label for="new-course-type">${_("Loại khóa học")}</label>
+                                                    <select class="new-course-type" id="new-course-type"
+                                                        name="new-course-type" aria-required="true">
+                                                        <option value="">${_("Chọn loại khóa học...")}</option>
+                                                        % for course_type in course_types:
+                                                        <option value="${course_type.id}">${course_type.name}</option>
+                                                        % endfor
+                                                    </select>
+                                                    <span class="tip">
+                                                        ${_("Phân loại khóa học để quản lý và tổ chức tốt hơn.")}
+                                                    </span>
+                                                    <span class="tip tip-error is-hidden"></span>
+                                                </li>
+
+                                                <li class="row">
+                                                    <!-- Organization -->
+                                                    <div class="column field text required">
+                                                        <label for="new-course-org">${_("Tổ chức")}</label>
+                                                        <input class="new-course-org" id="new-course-org" type="text"
+                                                            name="new-course-org" aria-required="true"
+                                                            placeholder="${_('ví dụ: TrườngĐạihọcX')}" />
+                                                        <span class="tip">
+                                                            ${_("Tên tổ chức tài trợ cho khóa học.")}
+                                                            <strong class="tip-note">${_("Lưu ý: Không được có khoảng
+                                                                trắng hoặc ký tự đặc biệt.")}</strong>
+                                                        </span>
+                                                        <span class="tip tip-error is-hidden"></span>
+                                                    </div>
+
+                                                    <!-- Course Run -->
+                                                    <div class="column field text required" id="field-course-run">
+                                                        <label for="new-course-run">${_("Kỳ học")}</label>
+                                                        <input class="new-course-run" id="new-course-run" type="text"
+                                                            name="new-course-run" aria-required="true"
+                                                            placeholder="${_('ví dụ: 2024_Hè')}" />
+                                                        <span class="tip">
+                                                            ${_("Kỳ học mà khóa học sẽ diễn ra.")}
+                                                            <strong class="tip-note">${_("Lưu ý: Không được có khoảng
+                                                                trắng hoặc ký tự đặc biệt.")}</strong>
+                                                        </span>
+                                                        <span class="tip tip-error is-hidden"></span>
+                                                    </div>
+                                                </li>
+
+                                                <!-- Course Icon -->
+                                                <li class="field file" id="field-course-icon">
+                                                    <label for="new-course-icon">${_("Biểu tượng")}</label>
+                                                    <div class="upload-area">
+                                                        <input type="file" class="new-course-icon" id="new-course-icon"
+                                                            name="new-course-icon" accept="image/*" />
+                                                        <div class="upload-placeholder">
+                                                            <div class="upload-icon">📁</div>
+                                                            <div class="upload-text">${_("Kéo thả file vào đây hoặc")}
+                                                            </div>
+                                                            <button type="button"
+                                                                class="upload-button">${_("Browse")}</button>
+                                                        </div>
+                                                    </div>
+                                                    <span class="tip">
+                                                        ${_("Tải lên hình ảnh biểu tượng cho khóa học. Định dạng được
+                                                        khuyến nghị: PNG, JPG (tối đa 2MB).")}
+                                                    </span>
+                                                    <span class="tip tip-error is-hidden"></span>
+                                                </li>
+                                            </ol>
+
+                                            <input type="hidden" value="${allow_unicode_course_id}"
+                                                class="allow-unicode-course-id" />
+                                        </fieldset>
+                                    </div>
+
+                                    <div class="actions">
+                                        <button type="submit"
+                                            class="action action-primary create-course-save is-disabled"
+                                            aria-disabled="true">${_('Tạo khóa học')}</button>
+                                        <button type="button"
+                                            class="action action-secondary action-cancel create-course-cancel">${_('Hủy')}</button>
+                                    </div>
+                                </form>
+                            </div>
+
+                        </article>
+
+                        <aside class="content-supplementary" role="complementary">
+                            <div class="bit">
+                                <h3 class="title-3">${_("Khóa học sẽ bắt đầu khi nào?")}</h3>
+                                <ul class="list-details">
+                                    <li class="item-detail">${_("Khóa học mới được đặt để bắt đầu vào ngày 1 tháng 1 năm
+                                        2030 lúc nửa đêm (UTC).")}</li>
+                                </ul>
+                            </div>
+
+                            <div class="bit">
+                                <h3 class="title-3">${_("Bạn có thể thay đổi gì?")}</h3>
+                                <ul class="list-details">
+                                    <li class="item-detail">${_("Sau khi tạo, bạn có thể chỉnh sửa tên khóa học, thêm
+                                        nội dung, cài đặt ngày bắt đầu và kết thúc, và cấu hình các tùy chọn khác.")}
+                                    </li>
+                                </ul>
+                            </div>
+
+                            <div class="bit external-help">
+                                <a href="${get_online_help_info(online_help_token())['doc_url']}" rel="noopener"
+                                    target="_blank" class="button external-help-button">${_("Tìm hiểu thêm về việc tạo
+                                    khóa học")}</a>
+                            </div>
+                        </aside>
+
+                    </section>
+                </div>
+
+            </div>
+        </div>
+
+        <style>
+            /* Course creation form styling based on Figma design */
+            .wrapper-create-course {
+                margin: 2rem 0;
+            }
+
+            .form-create .list-input {
+                list-style: none;
+                padding: 0;
+                margin: 0;
+            }
+
+            .form-create .field {
+                margin-bottom: 2rem;
+            }
+
+            .form-create .field.row {
+                display: flex;
+                gap: 1rem;
+            }
+
+            .form-create .field.row .column {
+                flex: 1;
+            }
+
+            .form-create label {
+                display: block;
+                font-weight: 600;
+                margin-bottom: 0.5rem;
+                color: #1a1a1a;
+            }
+
+            .form-create input[type="text"],
+            .form-create select {
+                width: 100%;
+                padding: 0.75rem;
+                border: 1px solid #d0d0d0;
+                border-radius: 4px;
+                font-size: 1rem;
+                transition: border-color 0.2s ease;
+            }
+
+            .form-create input[type="text"]:focus,
+            .form-create select:focus {
+                outline: none;
+                border-color: #007bff;
+                box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+            }
+
+            .form-create .tip {
+                display: block;
+                margin-top: 0.5rem;
+                font-size: 0.875rem;
+                color: #666;
+            }
+
+            .form-create .tip-note {
+                color: #e74c3c;
+            }
+
+            .upload-area {
+                position: relative;
+                border: 2px dashed #d0d0d0;
+                border-radius: 8px;
+                padding: 2rem;
+                text-align: center;
+                transition: border-color 0.2s ease;
+            }
+
+            .upload-area:hover {
+                border-color: #007bff;
+            }
+
+            .upload-area input[type="file"] {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                opacity: 0;
+                cursor: pointer;
+            }
+
+            .upload-placeholder {
+                pointer-events: none;
+            }
+
+            .upload-icon {
+                font-size: 2rem;
+                margin-bottom: 0.5rem;
+            }
+
+            .upload-text {
+                margin-bottom: 0.5rem;
+                color: #666;
+            }
+
+            .upload-button {
+                background: #007bff;
+                color: white;
+                border: none;
+                padding: 0.5rem 1rem;
+                border-radius: 4px;
+                cursor: pointer;
+                pointer-events: auto;
+            }
+
+            .actions {
+                margin-top: 3rem;
+                display: flex;
+                gap: 1rem;
+            }
+
+            .action {
+                padding: 0.75rem 2rem;
+                border-radius: 4px;
+                font-size: 1rem;
+                cursor: pointer;
+                transition: all 0.2s ease;
+            }
+
+            .action-primary {
+                background: #007bff;
+                color: white;
+                border: none;
+            }
+
+            .action-primary:hover:not(.is-disabled) {
+                background: #0056b3;
+            }
+
+            .action-primary.is-disabled {
+                background: #ccc;
+                cursor: not-allowed;
+            }
+
+            .action-secondary {
+                background: white;
+                color: #007bff;
+                border: 1px solid #007bff;
+            }
+
+            .action-secondary:hover {
+                background: #f8f9fa;
+            }
+        </style>
+    </%block>

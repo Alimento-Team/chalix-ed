@@ -34,7 +34,10 @@ log = logging.getLogger(__name__)
 
 # Make '_' a no-op so we can scrape strings. Using lambda instead of
 #  `django.utils.translation.ugettext_noop` because Django cannot be imported in this file
-_ = lambda text: text
+
+
+def _(text): return text
+
 
 CATALOG_VISIBILITY_CATALOG_AND_ABOUT = "both"
 CATALOG_VISIBILITY_ABOUT = "about"
@@ -622,7 +625,7 @@ class CourseFields:  # lint-amnesty, pylint: disable=missing-class-docstring
         # Ensure that courses imported from XML keep their image
         default="images_course_image.jpg"
     )
-    ## Course level Certificate Name overrides.
+    # Course level Certificate Name overrides.
     cert_name_short = String(
         help=_(
             'Use this setting only when generating PDF certificates. '
@@ -1049,6 +1052,13 @@ class CourseFields:  # lint-amnesty, pylint: disable=missing-class-docstring
     course_wide_css = List(
         display_name=_("Course-wide Custom CSS"),
         help=_('Enter CSS resource URLs you want to be loaded globally throughout the course pages.'),
+        scope=Scope.settings,
+    )
+
+    course_type = String(
+        display_name=_("Course Type"),
+        help=_("The type of course (e.g., Regular Course, Specialized Course, etc.)"),
+        default="",
         scope=Scope.settings,
     )
 

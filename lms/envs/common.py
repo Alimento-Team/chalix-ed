@@ -40,6 +40,15 @@ Conventions
 # and throws spurious errors. Therefore, we disable invalid-name checking.
 # pylint: disable=invalid-name
 
+from openedx.core.djangoapps.plugins.constants import ProjectType, SettingsType  # pylint: disable=wrong-import-position
+from edx_django_utils.plugins import get_plugin_apps, add_plugins  # pylint: disable=wrong-import-position,wrong-import-order
+from openedx.core.djangoapps.ace_common.settings import common as ace_common_settings
+from openedx.core.lib.rooted_paths import rooted_glob  # pylint: disable=wrong-import-position
+from lms.djangoapps.course_wiki import settings as course_wiki_settings  # pylint: disable=wrong-import-position
+from xmodule.x_module import XModuleMixin  # lint-amnesty, pylint: disable=wrong-import-order, wrong-import-position
+from xmodule.modulestore.inheritance import InheritanceMixin  # lint-amnesty, pylint: disable=wrong-import-order, wrong-import-position
+from xmodule.modulestore.edit_info import EditInfoMixin  # lint-amnesty, pylint: disable=wrong-import-order, wrong-import-position
+import tempfile  # pylint: disable=wrong-import-position,wrong-import-order
 import importlib.util
 import sys
 import os
@@ -129,8 +138,8 @@ FEATURES = {
     # .. toggle_creation_date: 2012-07-24
     # .. toggle_warning: This will cause ALL courses to be immediately visible.
     # .. toggle_tickets: https://github.com/openedx/edx-platform/pull/17913
-    ## DO NOT SET TO True IN THIS FILE
-    ## Doing so will cause all courses to be released on production
+    # DO NOT SET TO True IN THIS FILE
+    # Doing so will cause all courses to be released on production
     'DISABLE_START_DATES': False,
 
     # .. toggle_name: FEATURES['ENABLE_DISCUSSION_SERVICE']
@@ -1311,7 +1320,6 @@ TPA_AUTOMATIC_LOGOUT_ENABLED = False
 
 ################################## TEMPLATE CONFIGURATION #####################################
 # Mako templating
-import tempfile  # pylint: disable=wrong-import-position,wrong-import-order
 MAKO_MODULE_DIR = os.path.join(tempfile.gettempdir(), 'mako_lms')
 MAKO_TEMPLATE_DIRS_BASE = [
     PROJECT_ROOT / 'templates',
@@ -1499,7 +1507,7 @@ DJFS = {
 # `common.djangoapps.util.date_utils.strftime_localized`.
 CERTIFICATE_DATE_FORMAT = "%B %-d, %Y"
 
-### Dark code. Should be enabled in local settings for devel.
+# Dark code. Should be enabled in local settings for devel.
 
 ENABLE_MULTICOURSE = False  # set to False to disable multicourse display (see lib.util.views.edXhome)
 
@@ -1639,9 +1647,6 @@ COURSE_LISTINGS = {}
 ############# XBlock Configuration ##########
 
 # Import after sys.path fixup
-from xmodule.modulestore.edit_info import EditInfoMixin  # lint-amnesty, pylint: disable=wrong-import-order, wrong-import-position
-from xmodule.modulestore.inheritance import InheritanceMixin  # lint-amnesty, pylint: disable=wrong-import-order, wrong-import-position
-from xmodule.x_module import XModuleMixin  # lint-amnesty, pylint: disable=wrong-import-order, wrong-import-position
 
 # These are the Mixins that will be added to every Blocklike upon instantiation.
 # DO NOT EXPAND THIS LIST!! We want it eventually to be EMPTY. Why? Because dynamically adding functions/behaviors to
@@ -1701,7 +1706,7 @@ DOC_STORE_CONFIG = {
     'ssl': False,
     # https://api.mongodb.com/python/2.9.1/api/pymongo/mongo_client.html#module-pymongo.mongo_client
     # default is never timeout while the connection is open,
-    #this means it needs to explicitly close raising pymongo.errors.NetworkTimeout
+    # this means it needs to explicitly close raising pymongo.errors.NetworkTimeout
     'socketTimeoutMS': 6000,
     'connectTimeoutMS': 2000,  # default is 20000, I believe raises pymongo.errors.ConnectionFailure
     # Not setting waitQueueTimeoutMS and waitQueueMultiple since pymongo defaults to nobody being allowed to wait
@@ -2062,6 +2067,8 @@ def _make_locale_paths(settings):  # pylint: disable=missing-function-docstring
         for locale_path in settings.COMPREHENSIVE_THEME_LOCALE_PATHS:
             locale_paths += (path(locale_path), )
     return locale_paths
+
+
 LOCALE_PATHS = Derived(_make_locale_paths)
 
 # Messages
@@ -2086,7 +2093,6 @@ SIMPLE_WIKI_REQUIRE_LOGIN_EDIT = True
 SIMPLE_WIKI_REQUIRE_LOGIN_VIEW = False
 
 ################################# WIKI ###################################
-from lms.djangoapps.course_wiki import settings as course_wiki_settings  # pylint: disable=wrong-import-position
 
 # .. toggle_name: WIKI_ACCOUNT_HANDLING
 # .. toggle_implementation: DjangoSetting
@@ -2274,7 +2280,7 @@ MIDDLEWARE = [
     'openedx.core.djangoapps.safe_sessions.middleware.SafeSessionMiddleware',
 
     # Instead of AuthenticationMiddleware, we use a cached backed version
-    #'django.contrib.auth.middleware.AuthenticationMiddleware',
+    # 'django.contrib.auth.middleware.AuthenticationMiddleware',
     'openedx.core.djangoapps.cache_toolbox.middleware.CacheBackedAuthenticationMiddleware',
 
     # Middleware to flush user's session in other browsers when their email is changed.
@@ -2379,7 +2385,6 @@ STATICFILES_FINDERS = [
     'pipeline.finders.PipelineFinder',
 ]
 
-from openedx.core.lib.rooted_paths import rooted_glob  # pylint: disable=wrong-import-position
 
 courseware_js = [
     'js/ajax-error.js',
@@ -3129,6 +3134,12 @@ INSTALLED_APPS = [
     # User tours
     'lms.djangoapps.user_tours',
 
+    # Learning analytics
+    'lms.djangoapps.learning_analytics',
+
+    # Chalix user menu
+    'lms.djangoapps.chalix_user_menu',
+
     # New (Learning-Core-based) XBlock runtime
     'openedx.core.djangoapps.xblock.apps.LmsXBlockAppConfig',
 
@@ -3152,12 +3163,12 @@ INSTALLED_APPS = [
     'lms.djangoapps.course_wiki',  # Our customizations
     'mptt',
     'sekizai',
-    #'wiki.plugins.attachments',
+    # 'wiki.plugins.attachments',
     'wiki.plugins.links',
     # Notifications were enabled, but only 11 people used it in three years. It
     # got tangled up during the Django 1.8 migration, so we are disabling it.
     # See TNL-3783 for details.
-    #'wiki.plugins.notifications',
+    # 'wiki.plugins.notifications',
     'lms.djangoapps.course_wiki.plugins.markdownedx',
 
     # For testing
@@ -3649,7 +3660,7 @@ SOCIAL_MEDIA_FOOTER_DISPLAY = {
     }
 }
 
-#################SOCAIL AUTH OAUTH######################
+################# SOCAIL AUTH OAUTH######################
 SOCIAL_AUTH_OAUTH_SECRETS = {}
 
 ################# Student Verification #################
@@ -4096,7 +4107,7 @@ ALL_LANGUAGES = [
 ]
 
 
-### Apps only installed in some instances
+# Apps only installed in some instances
 # The order of INSTALLED_APPS matters, so this tuple is the app name and the item in INSTALLED_APPS
 # that this app should be inserted *before*. A None here means it should be appended to the list.
 OPTIONAL_APPS = [
@@ -4157,10 +4168,10 @@ for app_name, insert_before in OPTIONAL_APPS:
     except (IndexError, ValueError):
         INSTALLED_APPS.append(app_name)
 
-### External auth usage -- prefixes for ENROLLMENT_DOMAIN
+# External auth usage -- prefixes for ENROLLMENT_DOMAIN
 SHIBBOLETH_DOMAIN_PREFIX = 'shib:'
 
-### Analytics API
+# Analytics API
 ANALYTICS_API_KEY = ""
 ANALYTICS_API_URL = "http://localhost:18100"
 ANALYTICS_DASHBOARD_URL = 'http://localhost:18110/courses'
@@ -4541,7 +4552,7 @@ EDX_DRF_EXTENSIONS = {
 
 RSS_PROXY_CACHE_TIMEOUT = 3600  # The length of time we cache RSS retrieved from remote URLs in seconds
 
-#### Custom Courses for EDX (CCX) configuration
+# Custom Courses for EDX (CCX) configuration
 
 # .. setting_name: CCX_MAX_STUDENTS_ALLOWED
 # .. setting_default: 200
@@ -5187,7 +5198,6 @@ ENFORCE_SESSION_EMAIL_MATCH = False
 ############### Settings for the ace_common plugin #################
 # Note that all settings are actually defined by the plugin
 # pylint: disable=wrong-import-position
-from openedx.core.djangoapps.ace_common.settings import common as ace_common_settings
 ACE_ROUTING_KEY = ace_common_settings.ACE_ROUTING_KEY
 
 ############### Settings swift #####################################
@@ -5221,8 +5231,6 @@ SYSTEM_WIDE_ROLE_CLASSES = []
 
 ############## Plugin Django Apps #########################
 
-from edx_django_utils.plugins import get_plugin_apps, add_plugins  # pylint: disable=wrong-import-position,wrong-import-order
-from openedx.core.djangoapps.plugins.constants import ProjectType, SettingsType  # pylint: disable=wrong-import-position
 INSTALLED_APPS.extend(get_plugin_apps(ProjectType.LMS))
 add_plugins(__name__, ProjectType.LMS, SettingsType.COMMON)
 
@@ -5475,6 +5483,7 @@ def _should_send_certificate_events(settings):
 
 def _should_send_learning_badge_events(settings):
     return settings.FEATURES['BADGES_ENABLED']
+
 
 # .. setting_name: EVENT_BUS_PRODUCER_CONFIG
 # .. setting_default: all events disabled
