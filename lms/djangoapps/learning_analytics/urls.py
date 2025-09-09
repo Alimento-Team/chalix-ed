@@ -6,14 +6,31 @@ from .views import (
     LearnerStatsAPIView,
     CourseProgressAPIView,
     RecommendationsAPIView,
-    LearningGoalsAPIView,
+    LearningHoursAPIView,
+    LearningHoursApprovalAPIView,
+    CourseCreditHoursAPIView,
+    StudentProgressUpdateAPIView,
+    LearningAnalyticsDashboardAPIView,
 )
 
 app_name = 'learning_analytics'
 
 urlpatterns = [
+    # Learner statistics and progress
     path('stats/', LearnerStatsAPIView.as_view(), name='learner_stats'),
     path('course-progress/', CourseProgressAPIView.as_view(), name='course_progress'),
     path('recommendations/', RecommendationsAPIView.as_view(), name='recommendations'),
-    path('goals/', LearningGoalsAPIView.as_view(), name='learning_goals'),
+
+    # Learning hours management
+    path('learning-hours/', LearningHoursAPIView.as_view(), name='learning_hours'),
+    path('learning-hours-approval/', LearningHoursApprovalAPIView.as_view(), name='learning_hours_approval'),
+
+    # Course credit hours management (for teachers/admins)
+    path('course-credit-hours/', CourseCreditHoursAPIView.as_view(), name='course_credit_hours'),
+
+    # Student progress updates (internal use)
+    path('student-progress/', StudentProgressUpdateAPIView.as_view(), name='student_progress_update'),
+
+    # Comprehensive dashboard
+    path('dashboard/', LearningAnalyticsDashboardAPIView.as_view(), name='learning_analytics_dashboard'),
 ]

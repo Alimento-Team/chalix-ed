@@ -5,7 +5,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('contentstore', '0040_add_alter_component_link_downstream_context_key'),
+        ('contentstore', '0011_enable_markdown_editor_flag_by_default'),
     ]
 
     operations = [

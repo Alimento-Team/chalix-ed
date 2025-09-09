@@ -48,11 +48,20 @@ class CourseImageTestCase(ModuleStoreTestCase):
             course_image_url(course)
         )
 
-    @override_settings(DEFAULT_COURSE_ABOUT_IMAGE_URL='test.png')
+    @override_settings(DEFAULT_COURSE_ABOUT_IMAGE_URL='test.png', LOGO_URL='https://example.com/logo.svg')
     def test_empty_image_name(self):
         """
         Verify that if a course has empty `course_image`, `course_image_url` returns
-        `DEFAULT_COURSE_ABOUT_IMAGE_URL` defined in the settings.
+        the platform LOGO_URL instead of DEFAULT_COURSE_ABOUT_IMAGE_URL.
+        """
+        course = CourseFactory.create(course_image='')
+        assert 'https://example.com/logo.svg' == course_image_url(course)
+
+    @override_settings(DEFAULT_COURSE_ABOUT_IMAGE_URL='test.png')
+    def test_empty_image_name_fallback_to_default(self):
+        """
+        Verify that if a course has empty `course_image` and no LOGO_URL is set,
+        `course_image_url` falls back to DEFAULT_COURSE_ABOUT_IMAGE_URL.
         """
         course = CourseFactory.create(course_image='')
         assert '/static/test.png' == course_image_url(course)

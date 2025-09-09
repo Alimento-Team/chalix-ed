@@ -16,12 +16,21 @@ from lms.djangoapps.certificates.models import GeneratedCertificate
 from lms.djangoapps.courseware.models import StudentModule
 from lms.djangoapps.grades.api import CourseGradeFactory
 
-from .models import LearnerBehavior, LearnerRecommendation, LearningGoal
+from .models import (
+    CourseCreditHours,
+    StudentCourseProgress,
+    LearningHoursRequirement,
+    LearningHoursApproval,
+    LearnerRecommendation
+)
+from .services import LearningHoursService
 from .serializers import (
     LearnerStatsSerializer,
     CourseProgressSerializer,
     LearnerRecommendationSerializer,
-    LearningGoalSerializer,
+    LearningHoursRequirementSerializer,
+    LearningHoursApprovalSerializer,
+    LearningHoursSummarySerializer,
 )
 
 
@@ -42,7 +51,7 @@ class LearnerStatsAPIView(APIView):
         completed_courses = 0
         certificates_earned = 0
         total_tests_completed = 0
-        total_time_spent = 0
+        total_credit_hours = 0
 
         for enrollment in enrollments:
             course_key = enrollment.course_id
@@ -58,6 +67,15 @@ class LearnerStatsAPIView(APIView):
                 completed_courses += 1
                 certificates_earned += 1
 
+                # Get credit hours earned for completed course
+                progress = StudentCourseProgress.objects.filter(
+                    user=user,
+                    course_id=str(course_key),
+                    status='completed'
+                ).first()
+                if progress:
+                    total_credit_hours += progress.credit_hours_earned
+
             # Get completed assignments/tests
             completed_modules = StudentModule.objects.filter(
                 student=user,
@@ -68,11 +86,6 @@ class LearnerStatsAPIView(APIView):
 
             total_tests_completed += completed_modules
 
-            # Get learner behavior data
-            behavior = LearnerBehavior.objects.filter(user=user, course_id=str(course_key)).first()
-            if behavior:
-                total_time_spent += behavior.total_time_spent
-
         # Get recent activity
         recent_enrollments = enrollments.filter(
             created__gte=timezone.now() - timedelta(days=30)
@@ -80,13 +93,13 @@ class LearnerStatsAPIView(APIView):
 
         # Calculate current month statistics
         current_month_start = timezone.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        monthly_behaviors = LearnerBehavior.objects.filter(
+        monthly_progress = StudentCourseProgress.objects.filter(
             user=user,
             updated_at__gte=current_month_start
         )
 
-        monthly_study_time = monthly_behaviors.aggregate(
-            total=Sum('total_time_spent')
+        monthly_credit_hours = monthly_progress.aggregate(
+            total=Sum('credit_hours_earned')
         )['total'] or 0
 
         stats_data = {
@@ -94,8 +107,8 @@ class LearnerStatsAPIView(APIView):
             'courses_completed': completed_courses,
             'certificates_earned': certificates_earned,
             'total_tests_completed': total_tests_completed,
-            'total_study_time_hours': round(total_time_spent / 60, 1),
-            'monthly_study_time_hours': round(monthly_study_time / 60, 1),
+            'total_credit_hours': round(total_credit_hours, 1),
+            'monthly_credit_hours': round(monthly_credit_hours, 1),
             'recent_enrollments': recent_enrollments,
             'completion_rate': round((completed_courses / total_enrolled * 100) if total_enrolled > 0 else 0, 1)
         }
@@ -158,9 +171,13 @@ class CourseProgressAPIView(APIView):
             if status_filter and course_status != status_filter:
                 continue
 
-            # Get learner behavior data
-            behavior = LearnerBehavior.objects.filter(user=user, course_id=str(course_key)).first()
-            study_time_hours = round(behavior.total_time_spent / 60, 1) if behavior else 0
+            # Get student progress data
+            progress = StudentCourseProgress.objects.filter(
+                user=user,
+                course_id=str(course_key)
+            ).first()
+
+            credit_hours_earned = progress.credit_hours_earned if progress else 0
 
             # Get assignments completed
             completed_assignments = StudentModule.objects.filter(
@@ -177,7 +194,7 @@ class CourseProgressAPIView(APIView):
                 'enrollment_date': enrollment.created,
                 'progress_percentage': progress_percentage,
                 'status': course_status,
-                'study_time_hours': study_time_hours,
+                'credit_hours_earned': credit_hours_earned,
                 'assignments_completed': completed_assignments,
                 'certificate_earned': bool(certificate),
                 'course_image_url': course_overview.course_image_url,
@@ -250,9 +267,9 @@ class RecommendationsAPIView(APIView):
         Generate recommendations based on user's completed courses and popular courses.
         """
         # Get user's completed courses
-        user_completed_courses = CourseEnrollment.objects.filter(
+        user_completed_courses = StudentCourseProgress.objects.filter(
             user=user,
-            is_active=True
+            status='completed'
         ).values_list('course_id', flat=True)
 
         # Get popular courses that user hasn't enrolled in
@@ -276,26 +293,231 @@ class RecommendationsAPIView(APIView):
             )
 
 
-class LearningGoalsAPIView(APIView):
+class LearningHoursAPIView(APIView):
     """
-    API view to manage learning goals.
+    API view to get and manage learning hours requirements.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        """Get learning hours summary for the current user."""
+        user = request.user
+        year = int(request.query_params.get('year', timezone.now().year))
+
+        # Get learning hours summary
+        summary = LearningHoursService.get_user_learning_hours_summary(user, year)
+
+        serializer = LearningHoursSummarySerializer(summary)
+        return Response(serializer.data)
+
+    def post(self, request):
+        """Create or update learning hours requirement."""
+        user = request.user
+        year = int(request.data.get('year', timezone.now().year))
+        required_hours = float(request.data.get('required_hours', 40))
+
+        requirement = LearningHoursService.create_learning_requirement(
+            user, required_hours, year
+        )
+
+        serializer = LearningHoursRequirementSerializer(requirement)
+        return Response(serializer.data)
+
+
+class LearningHoursApprovalAPIView(APIView):
+    """
+    API view to manage learning hours approval requests.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        """Get all approval requests for the current user."""
+        user = request.user
+        approvals = LearningHoursApproval.objects.filter(
+            requirement__user=user
+        ).order_by('-created_at')
+
+        serializer = LearningHoursApprovalSerializer(approvals, many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        """Create a new approval request."""
+        user = request.user
+        requested_hours = float(request.data.get('requested_hours', 0))
+        evidence_description = request.data.get('evidence_description', '')
+        evidence_files = request.data.get('evidence_files', [])
+
+        if requested_hours <= 0:
+            return Response(
+                {'error': 'Requested hours must be greater than 0'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        approval = LearningHoursService.request_hours_approval(
+            user, requested_hours, evidence_description, evidence_files
+        )
+
+        serializer = LearningHoursApprovalSerializer(approval)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class CourseCreditHoursAPIView(APIView):
+    """
+    API view to manage course credit hours (for teachers/admins).
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        """Get credit hours for courses."""
+        course_id = request.query_params.get('course_id')
+
+        if course_id:
+            # Get specific course credit hours
+            try:
+                course_credits = CourseCreditHours.objects.get(course_id=course_id)
+                return Response({
+                    'course_id': course_credits.course_id,
+                    'course_name': course_credits.course_name,
+                    'credit_hours': course_credits.credit_hours,
+                    'created_by': course_credits.created_by.username if course_credits.created_by else None,
+                    'created_at': course_credits.created_at,
+                    'updated_at': course_credits.updated_at
+                })
+            except CourseCreditHours.DoesNotExist:
+                return Response(
+                    {'error': 'Credit hours not set for this course'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+        else:
+            # Get all course credit hours
+            course_credits = CourseCreditHours.objects.all().order_by('course_name')
+            data = []
+            for credits in course_credits:
+                data.append({
+                    'course_id': credits.course_id,
+                    'course_name': credits.course_name,
+                    'credit_hours': credits.credit_hours,
+                    'created_by': credits.created_by.username if credits.created_by else None,
+                    'created_at': credits.created_at,
+                    'updated_at': credits.updated_at
+                })
+            return Response(data)
+
+    def post(self, request):
+        """Set credit hours for a course (teacher/admin action)."""
+        course_id = request.data.get('course_id')
+        credit_hours = float(request.data.get('credit_hours', 0))
+
+        if not course_id:
+            return Response(
+                {'error': 'course_id is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if credit_hours <= 0:
+            return Response(
+                {'error': 'Credit hours must be greater than 0'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        course_credits = LearningHoursService.set_course_credit_hours(
+            course_id, credit_hours, request.user
+        )
+
+        return Response({
+            'course_id': course_credits.course_id,
+            'course_name': course_credits.course_name,
+            'credit_hours': course_credits.credit_hours,
+            'created_by': course_credits.created_by.username if course_credits.created_by else None,
+            'created_at': course_credits.created_at,
+            'updated_at': course_credits.updated_at
+        }, status=status.HTTP_201_CREATED)
+
+
+class StudentProgressUpdateAPIView(APIView):
+    """
+    API view to update student course progress (internal use).
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        """Update student progress for a course."""
+        user = request.user
+        course_id = request.data.get('course_id')
+        status_value = request.data.get('status', 'in_progress')
+        progress_percentage = request.data.get('progress_percentage')
+
+        if not course_id:
+            return Response(
+                {'error': 'course_id is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if status_value not in ['not_started', 'in_progress', 'completed', 'failed']:
+            return Response(
+                {'error': 'Invalid status value'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        progress = LearningHoursService.update_student_course_progress(
+            user, course_id, status_value, progress_percentage
+        )
+
+        return Response({
+            'course_id': progress.course_id,
+            'status': progress.status,
+            'progress_percentage': progress.progress_percentage,
+            'credit_hours_earned': progress.credit_hours_earned,
+            'completion_date': progress.completion_date
+        })
+
+
+class LearningAnalyticsDashboardAPIView(APIView):
+    """
+    API view to get comprehensive learning analytics dashboard data.
     """
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         user = request.user
-        goals = LearningGoal.objects.filter(user=user).order_by('-created_at')
+        year = int(request.query_params.get('year', timezone.now().year))
 
-        serializer = LearningGoalSerializer(goals, many=True)
-        return Response(serializer.data)
+        # Get learning hours summary
+        hours_summary = LearningHoursService.get_user_learning_hours_summary(user, year)
 
-    def post(self, request):
-        user = request.user
-        data = request.data.copy()
-        data['user'] = user.id
+        # Get course progress summary
+        course_progress = StudentCourseProgress.objects.filter(user=user)
+        total_enrolled = course_progress.count()
+        completed_count = course_progress.filter(status='completed').count()
+        in_progress_count = course_progress.filter(status='in_progress').count()
 
-        serializer = LearningGoalSerializer(data=data)
-        if serializer.is_valid():
-            serializer.save(user=user)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        # Get credit hours breakdown by course
+        completed_courses = course_progress.filter(status='completed')
+        credit_hours_breakdown = []
+        for progress in completed_courses:
+            try:
+                course_overview = CourseOverview.objects.get(id=progress.course_id)
+                course_name = course_overview.display_name
+            except CourseOverview.DoesNotExist:
+                course_name = f"Course {progress.course_id}"
+
+            credit_hours_breakdown.append({
+                'course_id': progress.course_id,
+                'course_name': course_name,
+                'credit_hours': progress.credit_hours_earned,
+                'completion_date': progress.completion_date
+            })
+
+        dashboard_data = {
+            'learning_hours': hours_summary,
+            'course_summary': {
+                'total_enrolled': total_enrolled,
+                'completed': completed_count,
+                'in_progress': in_progress_count,
+                'completion_rate': round((completed_count / total_enrolled * 100), 1) if total_enrolled > 0 else 0
+            },
+            'credit_hours_breakdown': credit_hours_breakdown,
+            'year': year
+        }
+
+        return Response(dashboard_data)

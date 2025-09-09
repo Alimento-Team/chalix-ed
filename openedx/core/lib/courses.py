@@ -30,8 +30,14 @@ def course_image_url(course, image_key='course_image'):
         else:
             url += '/images/' + image_key + '.jpg'
     elif not getattr(course, image_key):
-        # if image_key is empty, use the default image url from settings
-        url = settings.STATIC_URL + settings.DEFAULT_COURSE_ABOUT_IMAGE_URL
+        # if image_key is empty, use the platform logo as fallback instead of default course image
+        if hasattr(settings, 'LOGO_URL') and settings.LOGO_URL:
+            url = settings.LOGO_URL
+        elif hasattr(settings, 'MFE_CONFIG') and settings.MFE_CONFIG.get('LOGO_URL'):
+            url = settings.MFE_CONFIG['LOGO_URL']
+        else:
+            # Fallback to default course about image if logo is not configured
+            url = settings.STATIC_URL + settings.DEFAULT_COURSE_ABOUT_IMAGE_URL
     else:
         loc = StaticContent.compute_location(course.id, getattr(course, image_key))
         url = StaticContent.serialize_asset_key_with_slash(loc)

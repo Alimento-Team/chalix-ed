@@ -139,7 +139,8 @@ __all__ = ['course_info_handler', 'course_handler', 'course_listing',
            'course_notifications_handler',
            'textbooks_list_handler', 'textbooks_detail_handler',
            'group_configurations_list_handler', 'group_configurations_detail_handler',
-           'get_course_and_check_access', 'bulk_enable_disable_discussions']
+           'get_course_and_check_access', 'bulk_enable_disable_discussions',
+           'course_create_view']
 
 
 class AccessListFallback(Exception):
