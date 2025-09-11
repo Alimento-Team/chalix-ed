@@ -156,7 +156,7 @@ function($, _, Backbone, gettext, BaseModal, ViewUtils, XBlockViewUtils, XBlockE
             var displayName = this.xblockInfo.get('display_name');
             if (!displayName) {
                 if (this.xblockInfo.isVertical()) {
-                    displayName = gettext('Unit');
+                    displayName = gettext('Chuyên Đề');
                 } else {
                     displayName = gettext('Component');
                 }

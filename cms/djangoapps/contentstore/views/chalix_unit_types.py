@@ -158,7 +158,7 @@ def create_chalix_unit(request, course_id):
 
         parent_locator = data.get('parent_locator')
         content_type = data.get('content_type')
-        display_name = data.get('display_name', 'New Unit')
+        display_name = data.get('display_name', 'Tạo Chuyên Đề')
         content_data = data.get('content_data', {})
 
         if not parent_locator:
@@ -578,6 +578,7 @@ def _update_quiz_block(content_block, content_data, user):
 
 
 @api_view(['POST'])
+@csrf_exempt
 def update_online_class_config(request, course_id):
     """
     Update online class configuration for a unit.
@@ -587,6 +588,23 @@ def update_online_class_config(request, course_id):
         return JsonResponse({'error': 'Authentication required'}, status=401)
 
     try:
+        log.info(f"Received request to update online class config for course: {course_id}")
+        log.info(f"Request method: {request.method}")
+        log.info(f"Request data: {getattr(request, 'data', None)}")
+        log.info(f"Request POST: {getattr(request, 'POST', None)}")
+        
+        # Handle different course_id formats
+        if not course_id.startswith('course-v1:'):
+            # If course_id doesn't have the prefix, try to construct it
+            # This handles cases where the prefix might be stripped
+            if '+' in course_id:
+                course_id = f'course-v1:{course_id}'
+            else:
+                # Try to parse as org/course/run format
+                course_id = course_id.replace('/', '+')
+                course_id = f'course-v1:{course_id}'
+        
+        log.info(f"Final course_id: {course_id}")
         course_key = CourseKey.from_string(course_id)
 
         # Check if user has access to edit this course
@@ -594,10 +612,16 @@ def update_online_class_config(request, course_id):
             return JsonResponse({'error': 'Permission denied'}, status=403)
 
         # Get the unit locator and configuration data
-        unit_locator_string = request.data.get('unit_locator')
-        meeting_link = request.data.get('meeting_link', '')
-        meeting_time = request.data.get('meeting_time', '')
-        duration = request.data.get('duration', '')
+        # Handle both JSON and form data
+        if hasattr(request, 'data') and request.data:
+            data = request.data
+        else:
+            data = request.POST
+            
+        unit_locator_string = data.get('unit_locator')
+        meeting_link = data.get('meeting_link', '')
+        meeting_time = data.get('meeting_time', '')
+        duration = data.get('duration', '')
 
         if not unit_locator_string:
             return JsonResponse({'error': 'unit_locator is required'}, status=400)

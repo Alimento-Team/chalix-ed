@@ -457,8 +457,8 @@ class ContainersTestCase(ContentLibrariesRestApiTest):
         assert data[3]['id'] == self.unit_with_components['id']
 
         # Replace with new units
-        new_unit_1 = self._create_container(self.lib["id"], "unit", display_name="New Unit 1", slug=None)
-        new_unit_2 = self._create_container(self.lib["id"], "unit", display_name="New Unit 2", slug=None)
+        new_unit_1 = self._create_container(self.lib["id"], "unit", display_name="Tạo Chuyên Đề 1", slug=None)
+        new_unit_2 = self._create_container(self.lib["id"], "unit", display_name="Tạo Chuyên Đề 2", slug=None)
         self._patch_container_components(
             self.subsection_with_units["id"],
             children_ids=[new_unit_1["id"], new_unit_2["id"]],

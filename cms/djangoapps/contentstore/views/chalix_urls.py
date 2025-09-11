@@ -37,8 +37,8 @@ urlpatterns = [
     ),
 
     # Update online class configuration
-    path(
-        'online-class/update/<str:course_id>',
+    re_path(
+        r'^online-class/update/(?P<course_id>.+)$',
         chalix_unit_types.update_online_class_config,
         name='chalix_update_online_class'
     ),

@@ -12,6 +12,7 @@ from cms.lib.xblock.upstream_sync import UpstreamLink
 from openedx.core.djangoapps.content_tagging.toggles import is_tagging_feature_disabled
 from django.middleware.csrf import get_token
 %>
+
 <%
 use_new_editor_text = use_new_text_editor(xblock.context_key)
 use_new_editor_video = use_new_video_editor(xblock.context_key)
@@ -26,7 +27,9 @@ messages = xblock.validate().to_json()
 has_not_configured_message = messages.get('summary',{}).get('type', None) == 'not-configured'
 block_is_unit = is_unit(xblock)
 csrf_token = get_token(request) if 'request' in locals() else ''
+%>
 
+<%
 # Detect Chalix online class units by checking child blocks metadata
 is_chalix_online_class_unit = False
 online_class_data = None
@@ -73,7 +76,22 @@ if xblock.category == 'vertical' and hasattr(xblock, 'children') and xblock.chil
                     is_chalix_online_class_unit = True
                         
                     # Extract meeting data for inline display
-                    if hasattr(child, 'data') and child.data:
+                    url_found = ""
+                    title_found = ""
+                    
+                    # First check metadata (for new Chalix components)
+                    if hasattr(child, 'metadata') and child.metadata:
+                        metadata_url = child.metadata.get('meeting_link', '')
+                        if metadata_url:
+                            url_found = metadata_url
+                        
+                        # Also check other metadata fields that might contain title
+                        metadata_title = child.metadata.get('meeting_title', '') or child.metadata.get('title', '')
+                        if metadata_title:
+                            title_found = metadata_title
+                    
+                    # If no URL found in metadata, try extracting from HTML content (legacy)
+                    if not url_found and hasattr(child, 'data') and child.data:
                         import re
                         # More comprehensive URL extraction patterns
                         url_patterns = [
@@ -84,37 +102,30 @@ if xblock.category == 'vertical' and hasattr(xblock, 'children') and xblock.chil
                             r'(zoom\.us/[^\s<>"\']+)',  # Zoom links
                         ]
                         
-                        url_found = ""
                         for pattern in url_patterns:
                             url_match = re.search(pattern, child.data, re.IGNORECASE)
                             if url_match:
                                 url_found = url_match.group(1)
                                 break
                         
-                        # Extract title - try multiple patterns
-                        title_patterns = [
-                            r'>([^<]+)</a>',  # Link text
-                            r'title["\']:\s*["\']([^"\']*)["\']',  # title: "value"
-                            r'<h[1-6][^>]*>([^<]+)</h[1-6]>',  # Header text
-                        ]
-                        
-                        title_found = ""
-                        for pattern in title_patterns:
-                            title_match = re.search(pattern, child.data, re.IGNORECASE)
-                            if title_match:
-                                title_found = title_match.group(1).strip()
-                                break
-                        
-                        online_class_data = {
-                            'url': url_found,
-                            'title': title_found if title_found else 'Lớp học trực tuyến'
-                        }
-                    else:
-                        # Set default data if no content yet
-                        online_class_data = {
-                            'url': '',
-                            'title': 'Lớp học trực tuyến'
-                        }
+                        # Extract title from HTML if not found in metadata
+                        if not title_found:
+                            title_patterns = [
+                                r'>([^<]+)</a>',  # Link text
+                                r'title["\']:\s*["\']([^"\']*)["\']',  # title: "value"
+                                r'<h[1-6][^>]*>([^<]+)</h[1-6]>',  # Header text
+                            ]
+                            
+                            for pattern in title_patterns:
+                                title_match = re.search(pattern, child.data, re.IGNORECASE)
+                                if title_match:
+                                    title_found = title_match.group(1).strip()
+                                    break
+                    
+                    online_class_data = {
+                        'url': url_found,
+                        'title': title_found if title_found else 'Lớp học trực tuyến'
+                    }
                     break
                 else:
                     continue
@@ -344,13 +355,13 @@ upstream_info = UpstreamLink.try_get_for_block(xblock, log_error=False)
                 <div class="meeting-url">
                     <span class="icon fa fa-video-camera" aria-hidden="true"></span>
                     <a href="${online_class_data['url']}" target="_blank" class="meeting-link">
-                        Tham gia cuộc họp
+                        Tham gia lớp học Online
                     </a>
                 </div>
                 % else:
                 <div class="meeting-url">
                     <span class="icon fa fa-video-camera" aria-hidden="true"></span>
-                    <span class="meeting-link-placeholder">Chưa có URL cuộc họp</span>
+                    <span class="meeting-link-placeholder">Chưa có Link học online</span>
                 </div>
                 % endif
             </div>
@@ -426,6 +437,12 @@ upstream_info = UpstreamLink.try_get_for_block(xblock, log_error=False)
     text-decoration: underline;
 }
 
+.meeting-link-placeholder {
+    color: #666;
+    font-style: italic;
+    font-size: 13px;
+}
+
 .chalix-edit-modal {
     position: fixed;
     top: 0;
@@ -452,12 +469,18 @@ upstream_info = UpstreamLink.try_get_for_block(xblock, log_error=False)
     color: #2d3748;
 }
 
-.chalix-edit-modal input {
+.chalix-edit-modal input, .chalix-edit-modal textarea {
     width: 100%;
     padding: 8px 12px;
     border: 1px solid #e2e8f0;
     border-radius: 4px;
     margin-bottom: 15px;
+    font-family: inherit;
+}
+
+.chalix-edit-modal textarea {
+    resize: vertical;
+    min-height: 60px;
 }
 
 .chalix-edit-modal-buttons {
@@ -524,6 +547,10 @@ function closeChalixEditModal() {
     $('#chalix-edit-modal').hide();
 }
 
+function closeChalixCreateModal() {
+    $('#chalix-create-modal').hide();
+}
+
 function saveChalixMeetingUrl() {
     var url = $('#chalix-meeting-url').val();
     var locator = window.currentChalixLocator;
@@ -549,16 +576,23 @@ function saveChalixMeetingUrl() {
     }
     
     // Call API to update meeting URL
+    console.debug('Chalix:update - calling update API', { courseId: courseId, unit_locator: locator, meeting_link: url });
     $.ajax({
         url: '/api/chalix/online-class/update/' + courseId,
         method: 'POST',
-        data: {
+        contentType: 'application/json',
+        headers: {
+            'X-CSRFToken': csrfToken
+        },
+        data: JSON.stringify({
             unit_locator: locator,
             meeting_link: url,
-            csrfmiddlewaretoken: csrfToken
-        }
+            meeting_time: '',
+            duration: ''
+        })
     })
     .done(function(response) {
+        console.debug('Chalix:update response', response);
         if (response.success) {
             alert('Đã lưu URL cuộc họp thành công!');
             // Reload the page to show updated content
@@ -568,9 +602,81 @@ function saveChalixMeetingUrl() {
         }
     })
     .fail(function(xhr, status, error) {
-        alert('Lỗi kết nối: ' + xhr.status + ' - ' + (xhr.responseText || error));
+    console.error('Chalix:update failed', { status: xhr.status, responseText: xhr.responseText, error: error });
+    alert('Lỗi kết nối: ' + xhr.status + ' - ' + (xhr.responseText || error));
     });
     
     closeChalixEditModal();
+}
+
+function createChalixOnlineClass() {
+    var title = $('#chalix-create-title').val().trim();
+    var meetingUrl = $('#chalix-create-url').val().trim();
+    var meetingTime = $('#chalix-create-time').val().trim();
+    var duration = $('#chalix-create-duration').val().trim();
+    
+    if (!title) {
+        alert('Vui lòng nhập tên lớp học');
+        return;
+    }
+    
+    var parentLocator = window.currentParentLocator;
+    if (!parentLocator) {
+        alert('Lỗi: Không tìm thấy thông tin vị trí cha');
+        return;
+    }
+    
+    // Extract course ID from parent locator
+    var parts = parentLocator.split('+');
+    var courseId = parts[0].replace('block-v1:', 'course-v1:') + '+' + parts[1] + '+' + parts[2];
+    
+    // Get CSRF token
+    var csrfToken = window.chalixCSRFToken || 
+                   $('[name=csrfmiddlewaretoken]').val() || 
+                   $('meta[name=csrf-token]').attr('content') ||
+                   $('#csrfmiddlewaretoken').val();
+    
+    if (!csrfToken) {
+        alert('Lỗi: Không tìm thấy CSRF token');
+        return;
+    }
+    
+    // Call Chalix creation API
+    console.debug('Chalix:create - calling create API', { courseId: courseId, parent_locator: parentLocator, content_data: { meeting_link: meetingUrl } });
+    $.ajax({
+        url: '/api/chalix/units/create/' + courseId,
+        method: 'POST',
+        contentType: 'application/json',
+        headers: {
+            'X-CSRFToken': csrfToken
+        },
+        data: JSON.stringify({
+            parent_locator: parentLocator,
+            content_type: 'online_class',
+            display_name: title,
+            content_data: {
+                meeting_link: meetingUrl,
+                meeting_time: meetingTime,
+                duration: duration,
+                title: title
+            }
+        })
+    })
+    .done(function(response) {
+        console.debug('Chalix:create response', response);
+        if (response.unit_locator) {
+            alert('Đã tạo lớp học trực tuyến thành công!');
+            // Reload the page to show the new unit
+            location.reload();
+        } else {
+            alert('Lỗi: ' + (response.error || 'Không thể tạo lớp học trực tuyến'));
+        }
+    })
+    .fail(function(xhr, status, error) {
+        console.error('Chalix:create failed', { status: xhr.status, responseText: xhr.responseText, error: error });
+        alert('Lỗi kết nối: ' + xhr.status + ' - ' + (xhr.responseText || error));
+    });
+    
+    closeChalixCreateModal();
 }
 </script>

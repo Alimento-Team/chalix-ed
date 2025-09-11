@@ -970,6 +970,60 @@ function($, _, Backbone, gettext, BasePage,
                 }
             }
 
+            // Check if this is a Chalix content type that should use the custom API
+            var chalixContentTypes = ['online_class', 'unit_video', 'slide', 'quiz'];
+            var isChalixContent = (template.chalix_content_type && chalixContentTypes.indexOf(template.chalix_content_type) !== -1) ||
+                                 (template.boilerplate && chalixContentTypes.indexOf(template.boilerplate) !== -1);
+            
+            // Get course ID from multiple possible sources
+            var courseId = this.model.get('course_key') || 
+                          this.model.get('course_id') ||
+                          window.courseInfo?.course_key ||
+                          window.course?.course_key;
+            
+            // If courseId is an object, extract the ID part
+            if (courseId && typeof courseId === 'object' && courseId.org && courseId.course && courseId.run) {
+                courseId = courseId.org + '+' + courseId.course + '+' + courseId.run;
+            }
+            
+            if (isChalixContent && courseId) {
+                // Use Chalix custom API for online_class, unit_video, slide, quiz
+                var chalixUrl = '/api/chalix/units/create/' + courseId;
+                var chalixData = {
+                    parent_locator: parentLocator,
+                    content_type: template.chalix_content_type || template.boilerplate,  // online_class, unit_video, etc.
+                    display_name: template.display_name || 'New ' + (template.chalix_content_type || template.boilerplate).replace('_', ' ')
+                };
+
+                return $.ajax({
+                    type: 'POST',
+                    url: chalixUrl,
+                    data: JSON.stringify(chalixData),
+                    dataType: 'json',
+                    contentType: 'application/json',
+                    headers: {
+                        'X-CSRFToken': $.cookie('csrftoken')
+                    }
+                })
+                .done(_.bind(this.onNewXBlock, this, placeholderElement, scrollOffset, false))
+                .always(function () {
+                    if (self.options.isIframeEmbed && self.isSplitTestContentPage) {
+                        self.postMessageToParent({
+                            type: 'hideProcessingNotification',
+                            message: 'Hide processing notification',
+                            payload: {}
+                        });
+                        return true;
+                    }
+                })
+                .fail(function(xhr, status, error) {
+                    console.error('Chalix API error:', error);
+                    console.error('Response:', xhr.responseText);
+                    // Remove the placeholder if the update failed
+                    placeholderElement.remove();
+                });
+            }
+
             return $.postJSON(this.getURLRoot() + '/', requestData,
                 _.bind(this.onNewXBlock, this, placeholderElement, scrollOffset, false))
                 .always(function () {

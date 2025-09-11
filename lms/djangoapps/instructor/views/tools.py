@@ -238,7 +238,7 @@ def dump_student_extensions(course, student):
     in a particular course.
     """
     data = []
-    header = [_("Unit"), _("Extended Due Date")]
+    header = [_("Chuyên Đề"), _("Extended Due Date")]
     units = get_units_with_due_date(course)
     units = {u.location: u for u in units}
     query = api.get_overrides_for_user(course.id, student)
@@ -250,7 +250,7 @@ def dump_student_extensions(course, student):
         due = due.strftime("%Y-%m-%d %H:%M")
         title = title_or_url(units[location])
         data.append(dict(list(zip(header, (title, due)))))
-    data.sort(key=operator.itemgetter(_("Unit")))
+    data.sort(key=operator.itemgetter(_("Chuyên Đề")))
     return {
         "header": header,
         "title": _("Due date extensions for {0} {1} ({2})").format(

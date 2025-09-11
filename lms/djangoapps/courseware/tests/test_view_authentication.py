@@ -148,7 +148,7 @@ class TestViewAuth(EnterpriseTestConsentRequired, ModuleStoreTestCase, LoginEnro
         )
         self.sub_welcome_unit = BlockFactory.create(
             parent_location=self.sub_welcome_section.location,
-            display_name='New Unit'
+            display_name='Tạo Chuyên Đề'
         )
         self.test_course = modulestore().get_course(self.test_course.id)
 

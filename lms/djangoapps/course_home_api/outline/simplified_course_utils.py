@@ -133,7 +133,7 @@ class SimplifiedCourseManager:
             unit = self.store.create_item(
                 unit_data.get('user_id'),
                 unit_location,
-                display_name=unit_data.get('title', 'New Unit'),
+                display_name=unit_data.get('title', 'Tạo Chuyên Đề'),
                 metadata={
                     'simplified_unit': True,
                     'content_type': content_type,

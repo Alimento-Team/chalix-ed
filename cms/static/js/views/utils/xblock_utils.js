@@ -52,6 +52,7 @@ function($, _, gettext, ViewUtils, ModuleUtils, XBlockInfo, StringUtils) {
         var parentLocator = target.data('parent'),
             category = target.data('category'),
             displayName = target.data('default-name');
+
         return ViewUtils.runOperationShowingMessage(gettext('Adding'),
             function() {
                 var addOperation = $.Deferred();
@@ -59,6 +60,8 @@ function($, _, gettext, ViewUtils, ModuleUtils, XBlockInfo, StringUtils) {
                     course: course_location_analytics,
                     display_name: displayName
                 });
+
+                // Use standard xblock creation for all types
                 $.postJSON(ModuleUtils.getUpdateUrl(),
                     {
                         parent_locator: parentLocator,
@@ -68,6 +71,7 @@ function($, _, gettext, ViewUtils, ModuleUtils, XBlockInfo, StringUtils) {
                         var locator = data.locator;
                         addOperation.resolve(locator);
                     });
+
                 return addOperation.promise();
             });
     };
@@ -350,7 +354,7 @@ function($, _, gettext, ViewUtils, ModuleUtils, XBlockInfo, StringUtils) {
         } else if (category === 'sequential') {
             xblockType = translate ? gettext('subsection') : 'subsection';
         } else if (category === 'vertical' && (!parentInfo || parentInfo.get('category') === 'sequential' || parentInfo.get('category') === 'course')) {
-            xblockType = translate ? gettext('unit') : 'unit';
+            xblockType = translate ? gettext('Chuyên Đề') : 'unit';
         }
         return xblockType;
     };

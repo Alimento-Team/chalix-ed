@@ -208,7 +208,7 @@ def xblock_type_display_name(xblock, default_display_name=None):
     elif category == 'sequential':
         return _('Subsection')
     elif category == 'vertical':
-        return _('Unit')
+        return _('Chuyên Đề')
     elif category == 'problem':
         # The problem XBlock's display_name.default is not helpful ("Blank Problem") but changing it could have
         # too many ripple effects in other places, so we have a special case for capa problems here.

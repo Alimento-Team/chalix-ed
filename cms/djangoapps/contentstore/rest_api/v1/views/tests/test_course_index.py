@@ -34,7 +34,7 @@ class CourseIndexViewTest(CourseTestCase, PermissionAccessMixin):
                 parent=self.chapter, display_name='Welcome'
             )
             self.unit = BlockFactory.create(
-                parent=self.section, display_name='New Unit'
+                parent=self.section, display_name='Tạo Chuyên Đề'
             )
             self.xblock = BlockFactory.create(
                 parent=self.unit,

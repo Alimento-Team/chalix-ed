@@ -43,7 +43,7 @@ class TestNavigation(SharedModuleStoreTestCase, LoginEnrollmentTestCase):
         cls.section9 = BlockFactory.create(parent=cls.chapter9,
                                            display_name='factory_section')
         cls.unit0 = BlockFactory.create(parent=cls.section0,
-                                        display_name='New Unit 0')
+                                        display_name='Tạo Chuyên Đề 0')
 
         cls.chapterchrome = BlockFactory.create(parent=cls.course,
                                                 display_name='Chrome')
@@ -239,7 +239,7 @@ class TestNavigation(SharedModuleStoreTestCase, LoginEnrollmentTestCase):
 
         BlockFactory.create(
             parent_location=subsection.location,
-            display_name='New Unit',
+            display_name='Tạo Chuyên Đề',
         )
         url = reverse(
             'courseware',

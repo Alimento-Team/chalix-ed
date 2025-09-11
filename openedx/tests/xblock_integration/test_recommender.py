@@ -52,7 +52,7 @@ class TestRecommender(SharedModuleStoreTestCase, LoginEnrollmentTestCase):
                 parent=cls.chapter, display_name='Welcome'
             )
             cls.unit = BlockFactory.create(
-                parent=cls.section, display_name='New Unit'
+                parent=cls.section, display_name='Tạo Chuyên Đề'
             )
             cls.xblock = BlockFactory.create(
                 parent=cls.unit,

@@ -26,7 +26,7 @@ define([
                 parentType: null,
                 childType: 'unit',
                 childCategory: 'vertical',
-                addChildLabel: 'New Unit',
+                addChildLabel: 'Tạo Chuyên Đề',
                 defaultNewChildName: 'Unit',
                 isCollapsed: isCollapsed,
                 includesChildren: this.shouldRenderChildren(),

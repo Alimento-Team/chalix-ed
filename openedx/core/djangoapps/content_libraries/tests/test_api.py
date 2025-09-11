@@ -959,7 +959,7 @@ class ContentLibraryContainersTest(ContentLibrariesRestApiTest):
     def test_call_container_update_signal_when_update_unit(self) -> None:
         container_update_event_receiver = mock.Mock()
         LIBRARY_CONTAINER_UPDATED.connect(container_update_event_receiver)
-        self._update_container(self.unit1.container_key, 'New Unit Display Name')
+        self._update_container(self.unit1.container_key, 'Tạo Chuyên Đề Display Name')
 
         assert container_update_event_receiver.call_count == 3
         self.assertDictContainsEntries(

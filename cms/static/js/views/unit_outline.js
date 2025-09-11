@@ -1,6 +1,6 @@
 /**
  * The UnitOutlineView is used to render the Unit Outline component on the unit page. It shows
- * the ancestors of the unit along with its direct siblings. It also has a single "New Unit"
+ * the ancestors of the unit along with its direct siblings. It also has a single "Tạo Chuyên Đề"
  * button to allow a new sibling unit to be added.
  */
 define(['underscore', 'js/views/xblock_outline', 'js/views/unit_outline_child'],

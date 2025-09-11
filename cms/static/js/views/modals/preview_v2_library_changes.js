@@ -73,7 +73,7 @@ function($, _, gettext, BaseModal, ViewUtils) {
             var displayName = this.xblockInfo.get('display_name');
             if (!displayName) {
                 if (this.xblockInfo.isVertical()) {
-                    displayName = gettext('Unit');
+                    displayName = gettext('Chuyên Đề');
                 } else {
                     displayName = gettext('Component');
                 }
