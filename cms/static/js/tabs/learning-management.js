@@ -66,10 +66,8 @@
     function ensureStyles() {
         if (document.getElementById('cms-learning-management-styles')) return;
         const css = `
-            .lm-wrap { display: flex; width: 100%; padding: 20px; box-sizing: border-box; }
+            .lm-wrap { display: flex; width: 100%; padding: 0; box-sizing: border-box; }
             .lm-card { width: 100%; max-width: none; background: transparent; padding: 0; text-align: center; }
-            .lm-title { font-size:28px; font-weight:700; margin: 0 0 8px; color:#222; }
-            .lm-desc { color:#6b7680; margin: 0 0 32px; font-size:16px; }
             
             .lm-subtabs { display:flex; justify-content:center; margin-bottom: 32px; border-bottom: 2px solid #e5e7eb; }
             .lm-subtab-btn { 
@@ -336,6 +334,73 @@
     function ensureEditModalStyles() {
         if (document.getElementById('lm-edit-modal-styles')) return;
         const css = `
+            .lm-modal-overlay {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0, 0, 0, 0.5);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 1000;
+            }
+            
+            .lm-modal {
+                background: white;
+                border-radius: 12px;
+                max-width: 90vw;
+                max-height: 90vh;
+                overflow: hidden;
+                box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+                display: flex;
+                flex-direction: column;
+            }
+            
+            .lm-modal-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 24px 24px 0;
+                border-bottom: 1px solid #e5e7eb;
+                margin-bottom: 24px;
+                flex-shrink: 0;
+            }
+            
+            .lm-modal-title {
+                font-size: 18px;
+                font-weight: 600;
+                margin: 0;
+                color: #1f2937;
+            }
+            
+            .lm-modal-close {
+                background: none;
+                border: none;
+                font-size: 24px;
+                cursor: pointer;
+                color: #6b7280;
+                width: 32px;
+                height: 32px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                border-radius: 50%;
+                transition: all 200ms;
+            }
+            
+            .lm-modal-close:hover {
+                background: #f3f4f6;
+                color: #374151;
+            }
+            
+            .lm-modal-body {
+                padding: 0 24px 24px;
+                overflow-y: auto;
+                flex: 1;
+            }
+            
             .lm-edit-modal {
                 max-width: 700px;
                 width: 100%;
@@ -613,9 +678,6 @@
         container.innerHTML = `
             <div class="lm-wrap">
                 <div class="lm-card">
-                    <h2 class="lm-title">${config.contentTitle}</h2>
-                    <p class="lm-desc">${config.contentDescription}</p>
-
                     <div class="lm-subtabs" role="tablist">
                         <button class="lm-subtab-btn active" role="tab" data-subtab="programs" aria-selected="true">
                             Danh sách chương trình học
@@ -795,14 +857,20 @@
                 {
                     id: 1,
                     title: "Khóa học Demo 1",
-                    description: "Mô tả khóa học demo 1 - API chưa sẵn sàng",
+                    short_description: "Mô tả khóa học demo 1 - API chưa sẵn sàng",
+                    course_key: "course-v1:chalix+demo1+2024",
+                    studio_url: "/course/course-v1:chalix+demo1+2024",
+                    course_type: "Demo",
                     created_at: new Date().toISOString(),
                     updated_at: new Date().toISOString()
                 },
                 {
                     id: 2,
                     title: "Khóa học Demo 2", 
-                    description: "Mô tả khóa học demo 2 - API chưa sẵn sàng",
+                    short_description: "Mô tả khóa học demo 2 - API chưa sẵn sàng",
+                    course_key: "course-v1:chalix+demo2+2024",
+                    studio_url: "/course/course-v1:chalix+demo2+2024",
+                    course_type: "Demo",
                     created_at: new Date().toISOString(),
                     updated_at: new Date().toISOString()
                 }
@@ -912,11 +980,13 @@
                 </div>
             `;
 
-            // Add click event to the card itself to trigger view mode
+            // Add click event to the card itself to open CMS studio in new tab
             card.addEventListener('click', (e) => {
                 // Only trigger if not clicking on action buttons
                 if (!e.target.closest('.lm-card-actions')) {
-                    viewCourseDetails(course.id);
+                    // Open CMS studio course edit UI in new tab
+                    const studioUrl = course.studio_url || `/course/${course.course_key}`;
+                    window.open(studioUrl, '_blank');
                 }
             });
 
@@ -995,14 +1065,19 @@
                 const topicsMatch = metaText.match(/(\d+)\s*chuyên đề/);
                 const topicsCount = topicsMatch ? parseInt(topicsMatch[1]) : 0;
                 
+                // If card stores topics in a data attribute, use those titles (set by updateProgramInDOM)
+                const topicsData = card.dataset.topics;
+                const topics = topicsData ? (() => {
+                    try { return JSON.parse(topicsData); } catch (e) { return null; }
+                })() : null;
+
                 programs.push({
                     id: id,
                     title: title,
                     short_description: descEl ? descEl.textContent : '',
-                    topics: Array.from({length: topicsCount}, (_, i) => ({
-                        id: i + 1,
-                        title: `Chuyên đề ${i + 1}`
-                    })),
+                    topics: topics && Array.isArray(topics) && topics.length > 0
+                        ? topics.map((t, i) => ({ id: t.id || (i+1), title: t.title || t.name || `Chuyên đề ${i+1}` }))
+                        : Array.from({length: topicsCount}, (_, i) => ({ id: i + 1, title: `Chuyên đề ${i + 1}` })),
                     icon: 'seed-of-life',
                     created_at: new Date().toISOString(),
                     created_by: 'Người dùng hiện tại'
@@ -1336,10 +1411,18 @@
                     console.log('Save successful:', response);
                     const successMessage = response.message || 'Đã lưu chương trình học thành công!';
                     messageDiv.innerHTML = `<div class="lm-message lm-success">${successMessage}</div>`;
-                    
+                    // Ensure visible list and any open details are updated with the new data
+                    try {
+                        updateProgramInDOM(programData);
+                        updateOpenProgramDetails(programData);
+                    } catch (e) { console.warn('Failed to update open program details', e); }
+
                     setTimeout(() => {
-                        closeModal();
-                        if (onSuccess) onSuccess();
+                        if (onSuccess && response.refresh === true) {
+                            onSuccess();
+                        } else {
+                            console.info('[LM] Skipping automatic list reload after save; UI updated locally.');
+                        }
                     }, 1500);
                 })
                 .catch(err => {
@@ -1417,10 +1500,12 @@
                         // Update DOM with new data for immediate visual feedback
                         updateProgramInDOM(programData);
                         
-                        resolve({ 
-                            success: true, 
+                        resolve({
+                            success: true,
+                            simulated: true,
+                            refresh: false,
                             message: 'Đã lưu thành công! (Chế độ mô phỏng - Cần tạo API endpoint)',
-                            data: programData 
+                            data: programData
                         });
                     }, 1200);
                 });
@@ -1485,7 +1570,7 @@
             
             if (titleEl && metaEl) {
                 const idMatch = metaEl.textContent.match(/ID:\s*(\d+)/);
-                if (idMatch && parseInt(idMatch[1]) === programData.id) {
+                if (idMatch && parseInt(idMatch[1], 10) == Number(programData.id)) {
                     // Update the card with new data
                     titleEl.textContent = programData.title;
                     if (descEl) {
@@ -1497,6 +1582,16 @@
                     if (iconEl && programData.icon) {
                         const iconSvg = getIconSvg(programData.icon);
                         iconEl.innerHTML = iconSvg ? iconSvg.outerHTML : '📚';
+                    }
+                    // Store topics on the card for future reads (so getAllProgramsFromDOM can pick up titles)
+                    try {
+                        if (programData.topics) {
+                            card.dataset.topics = JSON.stringify(programData.topics);
+                        } else {
+                            delete card.dataset.topics;
+                        }
+                    } catch (e) {
+                        console.warn('Failed to serialize topics for DOM storage', e);
                     }
                     
                     // Add visual feedback
@@ -1514,6 +1609,30 @@
                 }
             }
         });
+    }
+
+    function updateOpenProgramDetails(programData) {
+        // If a details overlay is open for this program, update its content
+        const overlay = document.querySelector('.lm-modal-overlay');
+        if (!overlay) return;
+        const titleEl = overlay.querySelector('.lm-detail-title h3');
+        const idSpan = overlay.querySelector('.lm-detail-item span');
+
+        // Try to detect details modal by matching title/id
+        if (titleEl && titleEl.textContent && String(programData.title) === String(titleEl.textContent)) {
+            // Update description
+            const descEl = overlay.querySelector('.lm-description');
+            if (descEl) descEl.textContent = programData.short_description || 'Chưa có mô tả';
+
+            // Update topics list
+            const topicsList = overlay.querySelector('.lm-topics-list');
+            if (topicsList && Array.isArray(programData.topics)) {
+                const topicsHtml = programData.topics.map((topic, index) => 
+                    `<div class="lm-topic-item"><span class="lm-topic-number">${index+1}.</span><span class="lm-topic-title">${escapeHtml(topic.title || topic.name || topic)}</span></div>`
+                ).join('');
+                topicsList.innerHTML = topicsHtml;
+            }
+        }
     }
 
     function getCookie(name) {
@@ -1635,7 +1754,7 @@
     }
 
     function showCourseDetailsModal(course) {
-        ensureModalStyles();
+        ensureDetailModalStyles();
         
         const overlay = document.createElement('div');
         overlay.className = 'lm-modal-overlay';
@@ -1834,21 +1953,21 @@
                                 <label class="lm-form-label" for="course-type">Loại khóa học</label>
                                 <select id="course-type" name="course_type" class="lm-form-input">
                                     <option value="">Chọn loại khóa học</option>
-                                    <option value="Cơ bản" ${course.course_type === 'Cơ bản' ? 'selected' : ''}>Cơ bản</option>
-                                    <option value="Nâng cao" ${course.course_type === 'Nâng cao' ? 'selected' : ''}>Nâng cao</option>
-                                    <option value="Chuyên sâu" ${course.course_type === 'Chuyên sâu' ? 'selected' : ''}>Chuyên sâu</option>
-                                    <option value="Thực hành" ${course.course_type === 'Thực hành' ? 'selected' : ''}>Thực hành</option>
-                                    <option value="Dự án" ${course.course_type === 'Dự án' ? 'selected' : ''}>Dự án</option>
+                                    <option value="Lý luận chính trị" ${course.course_type === 'Lý luận chính trị' ? 'selected' : ''}>Lý luận chính trị</option>
+                                    <option value="Kiến thức quốc phòng và an ninh" ${course.course_type === 'Kiến thức quốc phòng và an ninh' ? 'selected' : ''}>Kiến thức quốc phòng và an ninh</option>
+                                    <option value="Kiến thức, kỹ năng quản lý nhà nước" ${course.course_type === 'Kiến thức, kỹ năng quản lý nhà nước' ? 'selected' : ''}>Kiến thức, kỹ năng quản lý nhà nước</option>
+                                    <option value="Kiến thức, kỹ năng theo yêu cầu vị trí việc làm" ${course.course_type === 'Kiến thức, kỹ năng theo yêu cầu vị trí việc làm' ? 'selected' : ''}>Kiến thức, kỹ năng theo yêu cầu vị trí việc làm</option>
+                                    <option value="Kiến thức KHCN, đổi mới sáng tạo, kỹ năng số, công nghệ số" ${course.course_type === 'Kiến thức KHCN, đổi mới sáng tạo, kỹ năng số, công nghệ số' ? 'selected' : ''}>Kiến thức KHCN, đổi mới sáng tạo, kỹ năng số, công nghệ số</option>
                                 </select>
                             </div>
                             <div class="lm-form-group">
                                 <label class="lm-form-label" for="course-level">Trình độ</label>
                                 <select id="course-level" name="level" class="lm-form-input">
                                     <option value="">Chọn trình độ</option>
-                                    <option value="Người mới bắt đầu" ${course.level === 'Người mới bắt đầu' ? 'selected' : ''}>Người mới bắt đầu</option>
-                                    <option value="Trung cấp" ${course.level === 'Trung cấp' ? 'selected' : ''}>Trung cấp</option>
+                                    <option value="Cơ bản" ${course.level === 'Cơ bản' ? 'selected' : ''}>Cơ bản</option>
                                     <option value="Nâng cao" ${course.level === 'Nâng cao' ? 'selected' : ''}>Nâng cao</option>
-                                    <option value="Chuyên gia" ${course.level === 'Chuyên gia' ? 'selected' : ''}>Chuyên gia</option>
+                                    <option value="Chuyên ngành" ${course.level === 'Chuyên ngành' ? 'selected' : ''}>Chuyên ngành</option>
+                                    <option value="Chuyên sâu" ${course.level === 'Chuyên sâu' ? 'selected' : ''}>Chuyên sâu</option>
                                 </select>
                             </div>
                         </div>
@@ -2091,8 +2210,58 @@
         });
     }
 
+    // Implemented: Create Program modal UI and handlers.
+    // Previously showed a placeholder alert; now builds and opens a full modal.
     function openCreateProgramModal(onSuccess) {
-        alert('Create program modal - to be implemented');
+        ensureEditModalStyles();
+
+        const overlay = document.createElement('div');
+        overlay.className = 'lm-modal-overlay';
+
+        overlay.innerHTML = `
+            <div class="lm-modal lm-edit-modal">
+                <div class="lm-modal-header">
+                    <h3 class="lm-modal-title">Tạo chương trình học mới</h3>
+                    <button class="lm-modal-close" aria-label="Đóng">&times;</button>
+                </div>
+                <div class="lm-modal-body">
+                    <form class="lm-edit-form" id="create-program-form">
+                        <div class="lm-form-group">
+                            <label class="lm-form-label" for="new-program-title">Tiêu đề chương trình *</label>
+                            <input type="text" id="new-program-title" name="title" class="lm-form-input" placeholder="Nhập tiêu đề chương trình..." required>
+                        </div>
+
+                        <div class="lm-form-group">
+                            <label class="lm-form-label" for="new-program-short-desc">Mô tả ngắn</label>
+                            <textarea id="new-program-short-desc" name="short_description" class="lm-form-input lm-form-textarea" placeholder="Mô tả ngắn gọn về chương trình..."></textarea>
+                        </div>
+
+                        <div class="lm-form-group">
+                            <label class="lm-form-label">Biểu tượng</label>
+                            <div class="lm-icon-picker" id="create-icon-picker"></div>
+                            <input type="hidden" name="icon" id="create-selected-icon" value="seed-of-life">
+                        </div>
+
+                        <div class="lm-form-group">
+                            <label class="lm-form-label">Danh sách chuyên đề</label>
+                            <div class="lm-topics-editor" id="create-topics-editor">
+                                <div id="create-topics-list"></div>
+                                <button type="button" class="lm-add-topic-btn" id="add-create-topic-btn">+ Thêm chuyên đề</button>
+                            </div>
+                        </div>
+                    </form>
+
+                    <div class="lm-modal-message" id="create-program-modal-message" style="display: none;"></div>
+                </div>
+                <div class="lm-modal-actions">
+                    <button type="button" class="lm-btn secondary" id="cancel-create-program-btn">Hủy</button>
+                    <button type="button" class="lm-btn primary" id="create-program-btn">Tạo chương trình</button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(overlay);
+        setupCreateProgramModalHandlers(overlay, onSuccess);
     }
 
     function openCreateCourseModal(onSuccess) {
@@ -2114,11 +2283,11 @@
                             <div class="lm-form-row">
                                 <label class="lm-radio-option">
                                     <input type="radio" name="creation_type" value="blank" checked>
-                                    <span>Tạo trống</span>
+                                    <span>Tạo khoá học mới hoàn toàn</span>
                                 </label>
                                 <label class="lm-radio-option">
                                     <input type="radio" name="creation_type" value="from_program">
-                                    <span>Từ chương trình học</span>
+                                    <span>Từ kho chương trình học có sẵn</span>
                                 </label>
                             </div>
                         </div>
@@ -2142,21 +2311,21 @@
                                 <label class="lm-form-label" for="new-course-type">Loại khóa học</label>
                                 <select id="new-course-type" name="course_type" class="lm-form-input">
                                     <option value="">Chọn loại khóa học</option>
-                                    <option value="Cơ bản">Cơ bản</option>
-                                    <option value="Nâng cao">Nâng cao</option>
-                                    <option value="Chuyên sâu">Chuyên sâu</option>
-                                    <option value="Thực hành">Thực hành</option>
-                                    <option value="Dự án">Dự án</option>
+                                    <option value="Lý luận chính trị">Lý luận chính trị</option>
+                                    <option value="Kiến thức quốc phòng và an ninh">Kiến thức quốc phòng và an ninh</option>
+                                    <option value="Kiến thức, kỹ năng quản lý nhà nước">Kiến thức, kỹ năng quản lý nhà nước</option>
+                                    <option value="Kiến thức, kỹ năng theo yêu cầu vị trí việc làm">Kiến thức, kỹ năng theo yêu cầu vị trí việc làm</option>
+                                    <option value="Kiến thức KHCN, đổi mới sáng tạo, kỹ năng số, công nghệ số">Kiến thức KHCN, đổi mới sáng tạo, kỹ năng số, công nghệ số</option>
                                 </select>
                             </div>
                             <div class="lm-form-group">
                                 <label class="lm-form-label" for="new-course-level">Trình độ</label>
                                 <select id="new-course-level" name="level" class="lm-form-input">
                                     <option value="">Chọn trình độ</option>
-                                    <option value="Người mới bắt đầu">Người mới bắt đầu</option>
-                                    <option value="Trung cấp">Trung cấp</option>
-                                    <option value="Nâng cao">Nâng cao</option>
-                                    <option value="Chuyên gia">Chuyên gia</option>
+                                    <option value="Cơ bản">Cơ bản</option>
+                                    <option value="Nâng cao">Nâng cao</option> 
+                                    <option value="Chuyên ngành">Chuyên ngành</option>
+                                    <option value="Chuyên sâu">Chuyên sâu</option>
                                 </select>
                             </div>
                         </div>
@@ -2283,6 +2452,151 @@
         
         // Initialize with blank creation mode
         manualUnits.style.display = 'block';
+    }
+
+    function setupCreateProgramModalHandlers(overlay, onSuccess) {
+        const closeBtn = overlay.querySelector('.lm-modal-close');
+        const cancelBtn = overlay.querySelector('#cancel-create-program-btn');
+        const createBtn = overlay.querySelector('#create-program-btn');
+        const messageDiv = overlay.querySelector('#create-program-modal-message');
+        const form = overlay.querySelector('#create-program-form');
+        const topicsEditor = overlay.querySelector('#create-topics-editor');
+        const addTopicBtn = overlay.querySelector('#add-create-topic-btn');
+        const iconPicker = overlay.querySelector('#create-icon-picker');
+        const selectedIconInput = overlay.querySelector('#create-selected-icon');
+
+        // Close handlers
+        const closeModal = () => overlay.remove();
+        closeBtn.addEventListener('click', closeModal);
+        cancelBtn.addEventListener('click', closeModal);
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
+
+        // Initialize icon picker options
+        const iconOptions = ['seed-of-life', 'flower-of-life', 'tree-of-life', 'lotus', 'mandala', 'sacred-geometry'];
+        iconPicker.innerHTML = iconOptions.map(icon => {
+            const svg = getIconSvg(icon);
+            const html = svg ? svg.outerHTML : icon;
+            const selected = icon === (selectedIconInput.value || 'seed-of-life') ? 'selected' : '';
+            return `<div class="lm-icon-option ${selected}" data-icon="${icon}" title="${icon}">${html}</div>`;
+        }).join('');
+
+        iconPicker.addEventListener('click', (e) => {
+            const opt = e.target.closest('.lm-icon-option');
+            if (!opt) return;
+            iconPicker.querySelectorAll('.lm-icon-option').forEach(o => o.classList.remove('selected'));
+            opt.classList.add('selected');
+            selectedIconInput.value = opt.dataset.icon;
+        });
+
+        // Add topic handler
+        addTopicBtn.addEventListener('click', () => {
+            const div = document.createElement('div');
+            div.className = 'lm-edit-topic-item';
+            div.innerHTML = `
+                <input type="text" class="lm-topic-input" placeholder="Tên chuyên đề">
+                <button type="button" class="lm-remove-topic">&times;</button>
+            `;
+            topicsEditor.insertBefore(div, addTopicBtn);
+            div.querySelector('.lm-remove-topic').addEventListener('click', () => div.remove());
+            div.querySelector('.lm-topic-input').focus();
+        });
+
+        // Remove handlers for existing (none at start)
+        topicsEditor.querySelectorAll('.lm-remove-topic').forEach(btn => {
+            btn.addEventListener('click', (e) => e.target.closest('.lm-edit-topic-item').remove());
+        });
+
+        // Create handler
+        createBtn.addEventListener('click', () => {
+            const formData = new FormData(form);
+            const title = formData.get('title') || '';
+            const short_description = formData.get('short_description') || '';
+            const icon = selectedIconInput.value || 'seed-of-life';
+
+            const topics = Array.from(topicsEditor.querySelectorAll('.lm-topic-input'))
+                .map(input => ({ title: input.value.trim() }))
+                .filter(t => t.title.length > 0);
+
+            if (!title.trim()) {
+                messageDiv.style.display = 'block';
+                messageDiv.innerHTML = '<div class="lm-message lm-error">Vui lòng nhập tiêu đề chương trình</div>';
+                return;
+            }
+
+            if (topics.length === 0) {
+                messageDiv.style.display = 'block';
+                messageDiv.innerHTML = '<div class="lm-message lm-error">Vui lòng thêm ít nhất một chuyên đề</div>';
+                return;
+            }
+
+            // Disable button and show loading
+            createBtn.disabled = true;
+            messageDiv.style.display = 'block';
+            messageDiv.innerHTML = '<div class="lm-message lm-loading">Đang tạo chương trình...</div>';
+
+            const payload = {
+                title: title.trim(),
+                short_description: short_description.trim(),
+                icon: icon,
+                topics: topics
+            };
+
+            // Try to call API
+            fetch('/api/chalix/dashboard/create-program/', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken'),
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            })
+            .then(resp => {
+                if (!resp.ok) {
+                    return resp.text().then(text => { throw new Error('Server error: ' + resp.status + ' - ' + text); });
+                }
+                return resp.json();
+            })
+            .then(data => {
+                messageDiv.innerHTML = '<div class="lm-message lm-success">Đã tạo chương trình học thành công!</div>';
+                setTimeout(() => {
+                    overlay.remove();
+                    if (onSuccess) onSuccess();
+                }, 900);
+            })
+            .catch(err => {
+                console.error('Create program failed:', err);
+                // If 404, simulate creation
+                if (err.message.includes('404')) {
+                    console.warn('Create endpoint missing, simulating create-program');
+                    setTimeout(() => {
+                        // Simulate adding program to DOM for feedback
+                        const contentArea = document.querySelector('#lm-programs-tab .lm-content-area');
+                        const simulatedProgram = {
+                            id: Math.floor(Math.random() * 100000) + 100,
+                            title: payload.title,
+                            short_description: payload.short_description,
+                            icon: payload.icon,
+                            topics: payload.topics
+                        };
+                        // Append to DOM by reloading list (since we don't have persistent storage)
+                        updateProgramInDOM(simulatedProgram);
+                        messageDiv.innerHTML = '<div class="lm-message lm-success">Đã tạo chương trình (mô phỏng)</div>';
+                        setTimeout(() => {
+                            overlay.remove();
+                            if (onSuccess) onSuccess();
+                        }, 900);
+                    }, 800);
+                } else {
+                    messageDiv.innerHTML = '<div class="lm-message lm-error">Có lỗi khi tạo chương trình: ' + escapeHtml(err.message) + '</div>';
+                    createBtn.disabled = false;
+                }
+            });
+        });
+
+        // Submit on Enter
+        form.addEventListener('submit', (e) => { e.preventDefault(); createBtn.click(); });
     }
 
     function loadProgramsForSelection(selectElement) {

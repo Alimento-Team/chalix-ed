@@ -41,9 +41,33 @@ urlpatterns = [
         name='chalix_create_program'
     ),
     path(
+        'dashboard/update-program/',
+        chalix_dashboard.update_program_api,
+        name='chalix_update_program'
+    ),
+    path(
         'dashboard/list-programs/',
         chalix_dashboard.list_local_programs_api,
         name='chalix_list_local_programs'
+    ),
+
+    # Course and program detail endpoints
+    re_path(
+        r'^dashboard/course-detail/(?P<course_key_string>.+)/$',
+        chalix_dashboard.course_detail_api,
+        name='chalix_course_detail'
+    ),
+    path(
+        'dashboard/program-detail/<int:cid>/',
+        chalix_dashboard.program_detail_api,
+        name='chalix_program_detail'
+    ),
+
+    # Update course endpoint
+    path(
+        'dashboard/update-course/',
+        chalix_dashboard.update_course_api,
+        name='chalix_update_course'
     ),
 
     # Get available content types
