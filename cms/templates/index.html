@@ -24,6 +24,41 @@
         margin-right: 8px;
       }
 
+      /* Tab functionality */
+      .tab-button {
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 12px 16px;
+        border-radius: 6px 6px 0 0;
+        margin-right: 4px;
+        transition: background-color 0.2s;
+      }
+      
+      .tab-button:hover {
+        background-color: rgba(0, 0, 0, 0.05);
+      }
+      
+      .tab-button.active {
+        background-color: #fff;
+        border-bottom: 2px solid #007cba;
+      }
+
+      .tab-panels {
+        background: #fff;
+        border-radius: 0 8px 8px 8px;
+        padding: 20px;
+        margin-top: 0;
+      }
+
+      .tab-panel {
+        display: none;
+      }
+
+      .tab-panel.active {
+        display: block;
+      }
+
       /* Override existing CMS styles for cleaner interface */
       .chalix-cms .content-wrapper,
       .chalix-cms .wrapper-header.wrapper {
@@ -36,12 +71,40 @@
         padding: 0;
         margin: 0;
       }
+
+      /* Ensure modal overlay is always on top */
+      .lm-modal-overlay {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        z-index: 999999 !important;
+        background: rgba(3, 11, 19, 0.5) !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+      }
+
+      /* Hide any potential legacy form elements */
+      .wrapper-create-course,
+      .wrapper-create-library {
+        display: none !important;
+      }
     </style>
   </%block>
 
   <%block name="requirejs">
     require(["js/factories/index"], function (IndexFactory) {
-    IndexFactory();
+        IndexFactory();
+        // Load our custom CMS interface after the legacy system
+        setTimeout(function() {
+            // Ensure our custom JavaScript takes precedence
+            if (window.ChalixCMS) {
+                // Re-initialize if already loaded
+                window.ChalixCMS.activateTab(0);
+            }
+        }, 100);
     });
   </%block>
 
@@ -53,21 +116,21 @@
         <!-- Tab Navigation -->
         <div class="cms-tabs">
           <div class="tab-container">
-            <div class="tab-item">
+            <button class="tab-button active" role="tab" aria-selected="true" tabindex="0">
               <span class="tab-label">Thống kê</span>
-            </div>
-            <div class="tab-item">
+            </button>
+            <button class="tab-button" role="tab" aria-selected="false" tabindex="-1">
               <span class="tab-label">Tạo tài khoản cán bộ</span>
-            </div>
-            <div class="tab-item">
+            </button>
+            <button class="tab-button" role="tab" aria-selected="false" tabindex="-1">
               <span class="tab-label">Quản lý</span>
-            </div>
-            <div class="tab-item active">
+            </button>
+            <button class="tab-button" role="tab" aria-selected="false" tabindex="-1">
               <span class="tab-label">Nhập tài liệu học tập</span>
-            </div>
-            <div class="tab-item">
+            </button>
+            <button class="tab-button" role="tab" aria-selected="false" tabindex="-1">
               <span class="tab-label">Phê duyệt yêu cầu</span>
-            </div>
+            </button>
           </div>
         </div>
 
@@ -80,13 +143,47 @@
             </a>
             % endif
 
-            <button class="action-button secondary-action">
+            <button class="action-button secondary-action" data-action="create-program">
               <span class="button-text">Tạo chương trình học</span>
             </button>
 
             <button class="action-button outline-action">
               <span class="button-text">Tạo lớp học</span>
             </button>
+          </div>
+        </div>
+
+        <!-- Tab Panels -->
+        <div class="tab-panels">
+          <div class="tab-panel active" id="statistics-panel" role="tabpanel">
+            <div class="panel-content">
+              <!-- Statistics content will be loaded here -->
+              <p>Nội dung thống kê sẽ được hiển thị ở đây...</p>
+            </div>
+          </div>
+          <div class="tab-panel" id="user-creation-panel" role="tabpanel">
+            <div class="panel-content">
+              <!-- User creation form content -->
+              <p>Form tạo tài khoản cán bộ sẽ được hiển thị ở đây...</p>
+            </div>
+          </div>
+          <div class="tab-panel" id="management-panel" role="tabpanel">
+            <div class="panel-content">
+              <!-- Management content -->
+              <div id="learning-management-container"></div>
+            </div>
+          </div>
+          <div class="tab-panel" id="document-upload-panel" role="tabpanel">
+            <div class="panel-content">
+              <!-- Document upload content -->
+              <p>Nội dung nhập tài liệu học tập sẽ được hiển thị ở đây...</p>
+            </div>
+          </div>
+          <div class="tab-panel" id="approval-panel" role="tabpanel">
+            <div class="panel-content">
+              <!-- Approval requests content -->
+              <p>Nội dung phê duyệt yêu cầu sẽ được hiển thị ở đây...</p>
+            </div>
           </div>
         </div>
       </div>
@@ -256,184 +353,6 @@
       % endif
     </div>
   </%block>
-
-  % if course_creator_status=='granted':
-  <div class="wrapper-create-element wrapper-create-course">
-    <form class="form-create create-course course-info" id="create-course-form" name="create-course-form">
-      <div class="wrap-error">
-        <div id="course_creation_error" name="course_creation_error" class="message message-status message-status error"
-          role="alert">
-          <p>${_("Please correct the highlighted fields below.")}</p>
-        </div>
-      </div>
-
-      <div class="wrapper-form">
-        <h3 class="title">${_("Create a New Course")}</h3>
-
-        <fieldset>
-          <legend class="sr">${_("Required Information to Create a New Course")}</legend>
-
-          <ol class="list-input">
-            <li class="field text required" id="field-course-name">
-              <label for="new-course-name">${_("Course Name")}</label>
-              ## Translators: This is an example name for a new course, seen when
-              ## filling out the form to create a new course.
-              <input class="new-course-name" id="new-course-name" type="text" name="new-course-name" required
-                placeholder="${_('e.g. Introduction to Computer Science')}"
-                aria-describedby="tip-new-course-name tip-error-new-course-name" />
-              <span class="tip" id="tip-new-course-name">${_("The public display name for your course. This cannot be
-                changed, but you can set a different display name in Advanced Settings later.")}</span>
-              <span class="tip tip-error is-hiding" id="tip-error-new-course-name"></span>
-            </li>
-            <li class="field text required">
-              <label for="new-course-org">${_("Organization")}</label>
-              ## Translators: This is an example for the name of the organization sponsoring a course, seen when filling
-              out the form to create a new course. The organization name cannot contain spaces.
-              ## Translators: "e.g. UniversityX or OrganizationX" is a placeholder displayed when user put no data into
-              this field.
-              % if can_create_organizations:
-              <input class="new-course-org" id="new-course-org" type="text" name="new-course-org" required
-                placeholder="${_('e.g. UniversityX or OrganizationX')}"
-                aria-describedby="tip-new-course-org tip-error-new-course-org" />
-              % else:
-              <select class="new-course-org" id="new-course-org" name="new-course-org" required
-                aria-describedby="tip-new-course-org tip-error-new-course-org">
-                % for org in allowed_organizations:
-                <option value="${org}">${org}</option>
-                % endfor
-              </select>
-              % endif
-              <span class="tip" id="tip-new-course-org">${Text(_("The name of the organization sponsoring the course.
-                {strong_start}Note: The organization name is part of the course URL.{strong_end} This cannot be changed,
-                but you can set a different display name in Advanced Settings later.")).format(
-                strong_start=HTML('<strong>'),
-                  strong_end=HTML('</strong>'),
-                )}</span>
-              <span class="tip tip-error is-hiding" id="tip-error-new-course-org"></span>
-            </li>
-
-            <li class="field text required" id="field-course-number">
-              <label for="new-course-number">${_("Course Number")}</label>
-              ## Translators: This is an example for the number used to identify a course,
-              ## seen when filling out the form to create a new course. The number here is
-              ## short for "Computer Science 101". It can contain letters but cannot contain spaces.
-              <input class="new-course-number" id="new-course-number" type="text" name="new-course-number" required
-                placeholder="${_('e.g. CS101')}" aria-describedby="tip-new-course-number tip-error-new-course-number" />
-              <span class="tip" id="tip-new-course-number">${Text(_("The unique number that identifies your course
-                within your organization. {strong_start}Note: This is part of your course URL, so no spaces or special
-                characters are allowed and it cannot be changed.{strong_end}")).format(
-                strong_start=HTML('<strong>'),
-                  strong_end=HTML('</strong>'),
-                )}</span>
-              <span class="tip tip-error is-hiding" id="tip-error-new-course-number"></span>
-            </li>
-
-            <li class="field text required" id="field-course-run">
-              <label for="new-course-run">${_("Course Run")}</label>
-              ## Translators: This is an example for the "run" used to identify different
-              ## instances of a course, seen when filling out the form to create a new course.
-              <input class="new-course-run" id="new-course-run" type="text" name="new-course-run" required
-                placeholder="${_('e.g. 2014_T1')}" aria-describedby="tip-new-course-run tip-error-new-course-run" />
-              <span class="tip" id="tip-new-course-run">${Text(_("The term in which your course will run.
-                {strong_start}Note: This is part of your course URL, so no spaces or special characters are allowed and
-                it cannot be changed.{strong_end}")).format(
-                strong_start=HTML('<strong>'),
-                  strong_end=HTML('</strong>'),
-                )}</span>
-              <span class="tip tip-error is-hiding" id="tip-error-new-course-run"></span>
-            </li>
-          </ol>
-
-        </fieldset>
-      </div>
-
-      <div class="actions">
-        <input type="hidden" value="${allow_unicode_course_id}" class="allow-unicode-course-id" />
-        <input type="submit" value="${_('Create')}" class="action action-primary new-course-save" />
-        <input type="button" value="${_('Cancel')}" class="action action-secondary action-cancel new-course-cancel" />
-      </div>
-    </form>
-  </div>
-
-  % endif
-
-  %if libraries_enabled and show_new_library_button:
-  <div class="wrapper-create-element wrapper-create-library">
-    <form class="form-create create-library library-info" id="create-library-form" name="create-library-form">
-      <div class="wrap-error">
-        <div id="library_creation_error" name="library_creation_error"
-          class="message message-status message-status error" role="alert">
-          <p>${_("Please correct the highlighted fields below.")}</p>
-        </div>
-      </div>
-
-      <div class="wrapper-form">
-        <h3 class="title">${_("Create a New Library")}</h3>
-
-        <fieldset>
-          <legend class="sr">${_("Required Information to Create a New Library")}</legend>
-
-          <ol class="list-input">
-            <li class="field text required" id="field-library-name">
-              <label for="new-library-name">${_("Library Name")}</label>
-              ## Translators: This is an example name for a new content library, seen when
-              ## filling out the form to create a new library.
-              ## (A library is a collection of content or problems.)
-              <input class="new-library-name" id="new-library-name" type="text" name="new-library-name" required
-                placeholder="${_('e.g. Computer Science Problems')}"
-                aria-describedby="tip-new-library-name tip-error-new-library-name" />
-              <span class="tip" id="tip-new-library-name">${_("The public display name for your library.")}</span>
-              <span class="tip tip-error is-hiding" id="tip-error-new-library-name"></span>
-            </li>
-            <li class="field text required">
-              <label for="new-library-org">${_("Organization")}</label>
-              % if can_create_organizations:
-              <input class="new-library-org" id="new-library-org" type="text" name="new-library-org" required
-                placeholder="${_('e.g. UniversityX or OrganizationX')}"
-                aria-describedby="tip-new-library-org tip-error-new-library-org" />
-              % else:
-              <select class="new-library-org" id="new-library-org" name="new-library-org" required
-                aria-describedby="tip-new-library-org tip-error-new-library-org">
-                % for org in allowed_organizations_for_libraries:
-                <option value="${org}">${org}</option>
-                % endfor
-              </select>
-              % endif
-              <span class="tip" id="tip-new-library-org">${_("The public organization name for your library.")}
-                ${_("This cannot be changed.")}</span>
-              <span class="tip tip-error is-hiding" id="tip-error-new-library-org"></span>
-            </li>
-
-            <li class="field text required" id="field-library-number">
-              <label for="new-library-number">${_("Library Code")}</label>
-              ## Translators: This is an example for the "code" used to identify a library,
-              ## seen when filling out the form to create a new library. This example is short
-              ## for "Computer Science Problems". The example number may contain letters
-              ## but must not contain spaces.
-              <input class="new-library-number" id="new-library-number" type="text" name="new-library-number" required
-                placeholder="${_('e.g. CSPROB')}"
-                aria-describedby="tip-new-library-number tip-error-new-library-number" />
-              <span class="tip" id="tip-new-library-number">${Text(_("The unique code that identifies this library.
-                {strong_start}Note: This is part of your library URL, so no spaces or special characters are
-                allowed.{strong_end} This cannot be changed.")).format(
-                strong_start=HTML('<strong>'),
-                  strong_end=HTML('</strong>'),
-                )}</span>
-              <span class="tip tip-error is-hiding" id="tip-error-new-library-number"></span>
-            </li>
-          </ol>
-
-        </fieldset>
-      </div>
-
-      <div class="actions">
-        <input type="hidden" value="${allow_unicode_course_id}" class="allow-unicode-course-id" />
-        <input type="submit" value="${_('Create')}" class="action action-primary new-library-save" />
-        <input type="button" value="${_('Cancel')}" class="action action-secondary action-cancel new-library-cancel" />
-      </div>
-    </form>
-  </div>
-  % endif
 
   %if optimization_enabled:
   <div class="optimization-form">
@@ -906,5 +825,7 @@
 
   <%block name="jsextra">
     <!-- Vietnamese CMS Interface JavaScript -->
-    <script type="text/javascript" src="${static.url('js/chalix-cms-interface.js')}"></script>
+  <!-- Load Chalix CMS interface with cache-busting version to ensure latest JS is fetched -->
+          <script src="${static.url('js/chalix-cms-interface.js')}?v=2.3.0"></script>
+  <script type="text/javascript" src="${static.url('js/tabs/learning-management.js')}"></script>
   </%block>

@@ -2,6 +2,7 @@
 
 from .assets import *
 from .checklists import *
+from .chalix_dashboard import *
 from .component import *
 from .course import *  # lint-amnesty, pylint: disable=redefined-builtin
 from .entrance_exam import *

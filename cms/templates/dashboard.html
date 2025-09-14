@@ -1,0 +1,501 @@
+<%page expression_filter="h" />
+<%! 
+from django.utils.translation import gettext as _ 
+from django.urls import reverse 
+from openedx.core.djangolib.markup import HTML, Text 
+from openedx.core.djangolib.js_utils import ( dump_js_escaped_json ) 
+from django.conf import settings
+
+# Resolve platform name programmatically; fall back to common settings or a sensible default
+platform_name = getattr(settings, 'PLATFORM_NAME', None) or getattr(settings, 'LMS_NAME', None) or 'Chalix Dev Platform'
+%>
+
+<%inherit file="base.html" />
+<%namespace name='static' file='static_content.html' />
+
+<%def name="online_help_token()">
+<% return "dashboard" %>
+</%def>
+
+<%block name="title">${_("CMS Dashboard")}</%block>
+<%block name="bodyclass">is-signedin dashboard view-dashboard chalix-cms</%block>
+
+<%block name="header_extras">
+    <!-- Chalix CMS Dashboard Styles -->
+    <link rel="stylesheet" type="text/css" href="${static.url('css/chalix-dashboard.css')}" />
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto:wght@400;500;600;700&display=swap" rel="stylesheet">
+        <style>
+            /* Page-specific overrides: only blue header, remove white nav strip */
+            .cms-header { height: 120px; }
+            .cms-header .header-nav { display: block !important; }
+            .cms-content { min-height: calc(100vh - 120px - 140px); }
+    /* Hide white bottom nav and top account strip from global header on this page */
+    body.view-dashboard .chalix-header .header-bottom { display: none !important; }
+    /* Hide the global top header (logo/header strip) so only the page's blue header remains */
+    body.view-dashboard .chalix-header { display: none !important; }
+    /* Also hide the header wrapper and other global header containers that may render above the page header */
+    body.view-dashboard .chalix-header-wrapper, 
+    body.view-dashboard #view-top, 
+    body.view-dashboard .global-header, 
+    body.view-dashboard header.chalix-header { display: none !important; }
+    body.view-dashboard .nav-account, 
+    body.view-dashboard .nav-not-signedin, 
+    body.view-dashboard .user-language-selector { display: none !important; }
+    /* Hide any global/footer templates when on the dashboard page, keep only the page's .cms-footer */
+    body.view-dashboard footer:not(.cms-footer) { display: none !important; }
+    /* Additional selectors to be safe */
+    body.view-dashboard .chalix-footer, body.view-dashboard footer.primary, body.view-dashboard #company-info, body.view-dashboard .wrapper-messages-primary { display: none !important; }
+    
+    /* Style for the username link */
+    .user-link {
+        color: inherit;
+        text-decoration: none;
+    }
+    .user-link:hover {
+        text-decoration: underline;
+    }
+
+    /* Header styling */
+    .cms-header {
+        background: white;
+        position: relative;
+    }
+    .header-top {
+        height: 60px;
+        background: #3494c8;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0; /* inner padding moved to .header-inner to allow centered max-width */
+        color: white;
+    }
+    .header-inner {
+        max-width: 1240px; /* match content-container */
+        width: 100%;
+        margin: 0 auto;
+        padding: 0 10px; /* keep the same horizontal padding as before */
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        box-sizing: border-box;
+    }
+    .header-branding {
+        flex: 1;
+    }
+    .header-title {
+        font-family: 'Roboto', sans-serif;
+        font-weight: 600;
+        font-size: 18px;
+        line-height: 24px;
+        letter-spacing: 0.5px;
+    }
+    .header-subtitle {
+        font-family: 'Roboto', sans-serif;
+        font-weight: 600;
+        font-size: 18px;
+        line-height: 24px;
+        letter-spacing: 0.5px;
+        margin-top: 5px;
+    }
+    .header-user-section {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+    }
+    .user-org {
+        font-family: 'Roboto', sans-serif;
+        font-weight: 600;
+        font-size: 20px;
+        line-height: 24px;
+        letter-spacing: 0.5px;
+    }
+    .user-avatar {
+        width: 50px;
+        height: 50px;
+        background: #99abc8;
+        border-radius: 30px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: opacity 0.2s ease;
+    }
+    .user-avatar-link {
+        text-decoration: none;
+    }
+    .user-avatar-link:hover .user-avatar {
+        opacity: 0.8;
+    }
+    .notification-icon {
+        background: none;
+        border: none;
+        cursor: pointer;
+    }
+
+    /* Navigation styling */
+    .header-nav {
+        height: 60px;
+        position: relative;
+        border-bottom: 2px solid #b2b2b2;
+    }
+    .nav-items {
+        position: relative;
+        height: 100%;
+    }
+    .nav-item {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        height: 43px;
+        width: 172px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: 'Roboto', sans-serif;
+        font-weight: 600;
+        font-size: 20px;
+        line-height: 24px;
+        letter-spacing: 0.5px;
+        color: #394047;
+        text-decoration: none;
+        border-right: 1px solid #394047;
+    }
+    .nav-item:hover {
+        background: rgba(52, 148, 200, 0.1);
+    }
+    .nav-home {
+        left: 12px;
+    }
+    .nav-category {
+        left: 246px;
+    }
+    .nav-learning {
+        left: 444px;
+    }
+    .nav-personalization {
+        left: 646px;
+    }
+    .nav-icon {
+        margin-right: 7px;
+    }
+
+    /* Search bar styling */
+    .search-bar {
+        position: absolute;
+        left: 993px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 398px;
+        height: 40px;
+        border: 2px solid #99abc8;
+        border-radius: 28px;
+        display: flex;
+        align-items: center;
+        padding: 0 16px;
+    }
+    .search-input {
+        flex: 1;
+        border: none;
+        outline: none;
+        font-family: 'Roboto', sans-serif;
+        font-weight: 400;
+        font-size: 16px;
+        line-height: 24px;
+        letter-spacing: 0.5px;
+        color: rgba(73, 69, 79, 0.8);
+        background: transparent;
+    }
+    .search-input::placeholder {
+        color: rgba(73, 69, 79, 0.8);
+    }
+    .search-icon {
+        background: none;
+        border: none;
+        cursor: pointer;
+        margin-left: 8px;
+    }
+    /* Reduce gap between header navigation and tab bar, and style tabs to match Figma */
+    /* Ensure the main content fits the viewport and does not overflow horizontally */
+    .cms-content {
+        padding: 24px 0;
+    }
+    .cms-dashboard {
+        box-sizing: border-box;
+        overflow-x: hidden; /* prevent accidental horizontal scroll from absolute/large elements */
+    }
+    .content-container {
+        max-width: 1240px;
+        width: 100%; /* allow container to shrink on smaller viewports */
+        margin: 12px auto; /* center horizontally */
+        padding: 6px 38px; /* align with header-inner padding */
+        box-sizing: border-box;
+    }
+    /* Bring tabs up closer to the header */
+    .cms-tabs {
+        margin-top: 6px;
+        padding: 0;
+    }
+    .cms-tabs .tab-container {
+        display: flex;
+        gap: 0; /* tabs flush against each other */
+        align-items: stretch;
+        border: 1px solid #cfcfcf;
+        border-bottom: none;
+        background: transparent;
+        height: 48px; /* overall height for the tab row */
+    }
+    /* Generic selector for generated tabs - make them stretch horizontally and vertically */
+    .cms-tabs .tab-container > * {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 1 1 auto; /* let tabs distribute space evenly */
+        padding: 0 18px;
+        height: 100%;
+        box-sizing: border-box;
+        border-right: 1px solid #d0d0d0;
+        background: #f6f7f8;
+        font-family: 'Roboto', sans-serif;
+        font-weight: 600;
+        font-size: 16px;
+        color: #333;
+    }
+    /* Active tab appearance - matches Figma blue */
+    .cms-tabs .tab-container > *.active,
+    .cms-tabs .tab-container > *.selected {
+        background: #3494c8;
+        color: #ffffff;
+        border-bottom: 4px solid #3494c8; /* visually connect with content area */
+    }
+    /* Remove last tab right border for a cleaner edge */
+    .cms-tabs .tab-container > *:last-child {
+        border-right: none;
+    }
+    /* Styles for Create Account tab content (Figma-inspired) */
+    .create-account-wrap {
+        display: flex;
+        justify-content: center;
+        padding: 40px 0 80px;
+    }
+    .create-account-card {
+        width: 820px;
+        background: #ffffff;
+        border-radius: 6px;
+        padding: 48px 56px;
+        box-shadow: 0 1px 0 rgba(0,0,0,0.04);
+        border: 1px solid #e6e6e6;
+        text-align: center;
+    }
+    .create-account-title {
+        font-size: 28px;
+        margin: 0 0 8px;
+        color: #222;
+        font-weight: 700;
+    }
+    .create-account-desc {
+        color: #6b6b6b;
+        margin: 0 0 28px;
+    }
+    .create-account-actions {
+        display: flex;
+        gap: 18px;
+        justify-content: center;
+        margin-bottom: 28px;
+        flex-wrap: wrap;
+    }
+    .action-card {
+        background: #3494c8;
+        color: #fff;
+        border: none;
+        padding: 12px 22px;
+        border-radius: 4px;
+        font-weight: 600;
+        cursor: pointer;
+        box-shadow: none;
+    }
+    .action-card.secondary {
+        background: #2b84b4;
+    }
+    .action-card.outline {
+        background: transparent;
+        color: #333;
+        border: 1px solid #d0d0d0;
+    }
+    .create-account-placeholder {
+        margin-top: 18px;
+        padding: 22px;
+        background: #f8f9fa;
+        border-radius: 8px;
+        color: #6c757d;
+        border: 1px solid #dee2e6;
+    }
+        </style>
+</%block>
+
+<%block name="content">
+<div class="cms-dashboard">
+    <!-- Header Section -->
+    <header class="cms-header">
+        <!-- Top Header with Blue Background -->
+        <div class="header-top">
+            <div class="header-inner">
+                <div class="header-branding">
+                    <div class="header-title">
+                        PHẦN MỀM HỌC TẬP THÔNG MINH DÀNH CHO CÔNG CHỨC, VIÊN CHỨC
+                    </div>
+                    <div class="header-subtitle">
+                        ${organization_name or 'CỤC HÀNG HẢI VÀ ĐƯỜNG THỦY NỘI ĐỊA VIỆT NAM'}
+                    </div>
+                </div>
+
+                <div class="header-user-section">
+                    % if user_info.get('username'):
+                        <a href="${account_url if user.is_authenticated else '/login'}" class="user-avatar-link" style="display:flex;align-items:center;color:white;text-decoration:none;">
+                            <div class="user-avatar">
+                                <svg width="30" height="30" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M15 15C18.315 15 21 12.315 21 9C21 5.685 18.315 3 15 3C11.685 3 9 5.685 9 9C9 12.315 11.685 15 15 15ZM15 18C11.01 18 3 19.995 3 24V27H27V24C27 19.995 18.99 18 15 18Z" fill="white"/>
+                                </svg>
+                            </div>
+                        </a>
+                    % else:
+                        <span style="display:flex;align-items:center;">
+                            <div class="user-avatar">
+                                <svg width="30" height="30" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M15 15C18.315 15 21 12.315 21 9C21 5.685 18.315 3 15 3C11.685 3 9 5.685 9 9C9 12.315 11.685 15 15 15ZM15 18C11.01 18 3 19.995 3 24V27H27V24C27 19.995 18.99 18 15 18Z" fill="white"/>
+                                </svg>
+                            </div>
+                        </span>
+                    % endif
+
+                    <button class="notification-icon">
+                        <svg width="35" height="35" viewBox="0 0 35 35" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M17.5 30C19.43 30 21 28.43 21 26.5H14C14 28.43 15.57 30 17.5 30ZM26.25 21V14C26.25 9.205 23.555 5.18 19.25 4.095V3C19.25 1.62 18.13 0.5 16.75 0.5C15.37 0.5 14.25 1.62 14.25 3V4.095C9.945 5.18 7.25 9.205 7.25 14V21L4.5 23.75V25.25H28.5V23.75L26.25 21Z" fill="white"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Bottom Header with Navigation -->
+        <div class="header-nav">
+            <div class="nav-items">
+                <a href="#" class="nav-item nav-home">
+                    <svg class="nav-icon" width="30" height="30" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 18V22H18V18H26V12H20L16 6L12 12H6V18H12ZM2 22H10V16H4V10H10L16 2L22 10H26V16H20V22H28V24H2V22Z" fill="#394047"/>
+                    </svg>
+                    Trang chủ
+                </a>
+                
+                <a href="#" class="nav-item nav-category">
+                    <svg class="nav-icon" width="30" height="30" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M4 10H8V14H4V10ZM10 10H14V14H10V10ZM16 10H20V14H16V10ZM22 10H26V14H22V10ZM4 16H8V20H4V16ZM10 16H14V20H10V16ZM16 16H20V20H16V16ZM22 16H26V20H22V16Z" fill="#394047"/>
+                    </svg>
+                    Danh mục
+                </a>
+                
+                <a href="#" class="nav-item nav-learning">
+                    <svg class="nav-icon" width="30" height="30" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3ZM19 19H5V5H19V19ZM7 7H17V9H7V7ZM7 11H17V13H7V11ZM7 15H14V17H7V15Z" fill="#394047"/>
+                    </svg>
+                    Học tập
+                </a>
+                
+                <a href="#" class="nav-item nav-personalization">
+                    <svg class="nav-icon" width="30" height="30" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M15 2C8.37 2 3 7.37 3 14C3 20.63 8.37 26 15 26C21.63 26 27 20.63 27 14C27 7.37 21.63 2 15 2ZM15 4C20.55 4 25 8.45 25 14C25 19.55 20.55 24 15 24C9.45 24 5 19.55 5 14C5 8.45 9.45 4 15 4ZM14 7V15L20 18L21 16L16 13.5V7H14Z" fill="#394047"/>
+                    </svg>
+                    Cá nhân hóa
+                </a>
+            </div>
+            
+            <div class="search-bar">
+                <input type="text" class="search-input" placeholder="Nhập từ khóa tìm kiếm">
+                <button class="search-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M15.5 14H14.71L14.43 13.73C15.41 12.59 16 11.11 16 9.5C16 5.91 13.09 3 9.5 3C5.91 3 3 5.91 3 9.5C3 13.09 5.91 16 9.5 16C11.11 16 12.59 15.41 13.73 14.43L14 14.71V15.5L19 20.49L20.49 19L15.5 14ZM9.5 14C7.01 14 5 11.99 5 9.5C5 7.01 7.01 5 9.5 5C11.99 5 14 7.01 14 9.5C14 11.99 11.99 14 9.5 14Z" fill="#49454F"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="cms-content">
+        <div class="content-container">
+            <!-- Tab Navigation -->
+            <nav class="cms-tabs" role="tablist">
+                <div class="tab-container">
+                    <!-- Tabs will be dynamically generated by JavaScript -->
+                </div>
+            </nav>
+            
+            <!-- Tab Content Area -->
+            <div class="tab-content" role="tabpanel">
+                <!-- Content will be dynamically loaded by JavaScript -->
+                <div class="tab-content-placeholder">
+                    <h2>Chào mừng đến với CMS Dashboard</h2>
+                    <p>Vui lòng chọn một tab để bắt đầu.</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer Section -->
+    <footer class="cms-footer">
+        <div class="footer-content">
+            <div>Chịu trách nhiệm nội dung bởi - ${platform_name}</div>
+            <div>Copyright@2025</div>
+        </div>
+    </footer>
+</div>
+</%block>
+
+<%block name="requirejs">
+    <!-- Dashboard JS is included via the jsextra block so that tab modules load first. -->
+</%block>
+
+<%block name="jsextra">
+    <!-- Pass role-based data to JavaScript -->
+    <script type="text/javascript">
+        // Pass role-based context to JavaScript
+        window.CMS_ROLE_DATA = {
+            user_role: '${user_role or ""}',
+            organization_name: '${organization_name or ""}'
+        };
+    </script>
+
+    <!-- Chalix CMS Dashboard JavaScript -->
+    <script type="text/javascript" src="${static.url('js/tabs/learning-management.js')}"></script>
+    <script type="text/javascript" src="${static.url('js/tabs/create-account.js')}"></script>
+    <script type="text/javascript" src="${static.url('js/chalix-dashboard.js')}"></script>
+    <!-- Ensure our Chalix CMS interface script is loaded for the dashboard (cache-busted) -->
+        <script src="${static.url('js/chalix-cms-interface.js')}?v=2.3.0"></script>
+
+    <!-- Diagnostic: log registered tab modules on page load -->
+    <script type="text/javascript">
+        (function () {
+            function runDiag() {
+                try {
+                    var registry = window.CMS_TABS || {};
+                    var keys = Object.keys(registry);
+                    console.info('[CMS DIAG] Registered CMS_TABS modules:', keys);
+                    console.info('[CMS DIAG] Role data:', window.CMS_ROLE_DATA);
+                    ['learning-management','create-account','statistics'].forEach(function(k){
+                        console.info('[CMS DIAG] module', k, 'registered=', !!registry[k]);
+                    });
+                } catch (err) {
+                    console.error('[CMS DIAG] error checking CMS_TABS', err);
+                }
+            }
+
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', function () { setTimeout(runDiag, 50); });
+            } else {
+                setTimeout(runDiag, 50);
+            }
+        })();
+    </script>
+</%block>

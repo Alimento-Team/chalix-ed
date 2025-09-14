@@ -5,41 +5,134 @@
 
 (function() {
     'use strict';
+    // Lightweight version marker and early boot log to help browser verification
+    const CHALIX_CMS_INTERFACE_VERSION = 'v2.3.0'; // Fixed layout with exact Figma positioning
+    try {
+        console.log('Chalix CMS Interface: boot ->', CHALIX_CMS_INTERFACE_VERSION, 'timestamp:', new Date().toISOString());
+        // Try to inject styles early (ensureProgramModalStyles is a hoisted function)
+        if (typeof ensureProgramModalStyles === 'function') {
+            try { ensureProgramModalStyles(); console.log('Chalix CMS Interface: early style injection succeeded'); } catch (e) { console.warn('Chalix CMS Interface: early style injection failed', e); }
+        } else {
+            console.log('Chalix CMS Interface: ensureProgramModalStyles not yet available at boot');
+        }
+        // Expose version for quick checks
+        window.ChalixCMS_interface_version = CHALIX_CMS_INTERFACE_VERSION;
+    } catch (e) {
+        console.warn('Chalix CMS Interface: boot logging failed', e);
+    }
 
     // Wait for DOM to be ready
     document.addEventListener('DOMContentLoaded', function() {
+        console.log('Chalix CMS Interface: Initializing...');
         initializeTabs();
         initializeActionButtons();
         loadTabData();
-    });
+
+    // Canonical Figma-accurate modal styles (single consolidated function)
+    function ensureProgramModalStyles() {
+        if (document.getElementById('chalix-program-modal-styles')) return;
+        const css = `
+            /* Consolidated Chalix modal styles - high specificity to avoid theme overrides */
+            body .chalix-modal-overlay, body .chalix-program-modal-overlay {
+                position: fixed !important;
+                inset: 0 !important;
+                background: rgba(0,0,0,0.45) !important;
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                z-index: 2147483647 !important;
+                opacity: 0 !important;
+                transition: opacity 200ms ease-in-out !important;
+            }
+
+            body .chalix-modal-overlay.show, body .chalix-program-modal-overlay.show { opacity: 1 !important; }
+
+            body .chalix-modal, body .chalix-program-modal {
+                width: 640px !important;
+                max-width: calc(100% - 64px) !important;
+                background: #ffffff !important;
+                border-radius: 8px !important;
+                box-shadow: 0 12px 30px rgba(11,22,33,0.25) !important;
+                position: relative !important;
+                overflow: hidden !important;
+                transform: translateY(-8px) scale(0.995) !important;
+                transition: transform 220ms ease, opacity 180ms ease !important;
+                font-family: 'Inter', sans-serif !important;
+                box-sizing: border-box !important;
+            }
+
+            body .chalix-modal-overlay.show .chalix-modal, body .chalix-program-modal-overlay.show .chalix-program-modal { transform: translateY(0) scale(1) !important; }
+
+            body .chalix-modal-header { padding: 22px 28px 18px 28px !important; position: relative !important; }
+            body .chalix-modal-title { margin:0 !important; font-weight:600 !important; font-size:18px !important; letter-spacing:0.3px !important; color:#111827 !important; }
+
+            body .chalix-modal-close, body .modal-close { position:absolute !important; right:18px !important; top:16px !important; width:34px !important; height:34px !important; border-radius:6px !important; background:transparent !important; border:1px solid rgba(17,24,39,0.08) !important; color:#111827 !important; font-size:18px !important; display:flex !important; align-items:center !important; justify-content:center !important; cursor:pointer !important; }
+
+            body .chalix-modal-content { padding:18px 32px 24px 32px !important; }
+            body .chalix-form-item { display:flex !important; align-items:center !important; gap:18px !important; margin-bottom:14px !important; }
+            body .chalix-form-item label { width:130px !important; color:#374151 !important; font-size:14px !important; }
+
+            body .chalix-input-title { flex:1 !important; height:44px !important; background:#f3f4f6 !important; border:none !important; border-radius:6px !important; padding:10px 14px !important; font-size:13px !important; color:#111827 !important; }
+
+            body .chalix-icon-selector { display:flex !important; align-items:center !important; gap:12px !important; }
+            body .chalix-icon-preview { width:52px !important; height:52px !important; border-radius:8px !important; display:flex !important; align-items:center !important; justify-content:center !important; background:#f3f4f6 !important; border:1px solid rgba(17,24,39,0.04) !important; font-size:22px !important; }
+
+            body .chalix-switch-field { display:flex !important; align-items:center !important; gap:12px !important; }
+            body .chalix-switch-input { display:none !important; }
+            body .chalix-switch-slider { width:44px !important; height:26px !important; border-radius:20px !important; background:#e6eef6 !important; position:relative !important; cursor:pointer !important; }
+            body .chalix-switch-slider::after { content:'' !important; width:20px !important; height:20px !important; background:#fff !important; border-radius:50% !important; position:absolute !important; left:3px !important; top:3px !important; transition:transform .18s ease !important; box-shadow:0 2px 6px rgba(16,24,40,0.08) !important; } 
+            body .chalix-switch-input:checked + .chalix-switch-slider { background:#29a3ff !important; }
+            body .chalix-switch-input:checked + .chalix-switch-slider::after { transform: translateX(18px) !important; }
+
+            /* Topics: ensure they flow normally inside modal */
+            body .chalix-topics-section { margin-top:12px !important; padding: 0 !important; }
+            body .chalix-topics-list { display:flex !important; flex-direction:column !important; gap:10px !important; }
+            body .chalix-topic-item { background:#f3f4f6 !important; border-radius:6px !important; padding:12px 14px !important; display:flex !important; align-items:center !important; justify-content:space-between !important; }
+            body .chalix-topic-text { font-size:14px !important; color:#111827 !important; }
+
+            body .chalix-add-topic-btn, body .add-topic-button { display:block !important; margin:18px 0 !important; background:#10b981 !important; color:#fff !important; border:none !important; padding:12px 22px !important; border-radius:6px !important; font-weight:600 !important; font-size:14px !important; cursor:pointer !important; }
+
+            body .chalix-modal-buttons { display:flex !important; justify-content:flex-end !important; gap:12px !important; padding:16px 32px 24px 32px !important; }
+            body .chalix-btn-cancel { background:#fff !important; border:1px solid #60a5d9 !important; color:#2563eb !important; padding:10px 20px !important; border-radius:6px !important; cursor:pointer !important; }
+            body .chalix-btn-submit { background:#1e90ff !important; border:none !important; color:#fff !important; padding:10px 20px !important; border-radius:6px !important; cursor:pointer !important; }
+
+            /* Ensure modal scrolls internally and not on body */
+            body .chalix-program-modal, body .chalix-modal { overflow-y: auto !important; max-height: calc(100vh - 96px) !important; }
+        `;
+
+        const s = document.createElement('style');
+        s.id = 'chalix-program-modal-styles';
+        s.appendChild(document.createTextNode(css));
+        document.head.appendChild(s);
+    }
 
     /**
-     * Initialize tab functionality
+     * Redirect to library creation
      */
-    function initializeTabs() {
-        const tabButtons = document.querySelectorAll('.tab-button');
-        const tabPanels = document.querySelectorAll('.tab-panel');
-
-        // Set up click handlers for tab buttons
-        tabButtons.forEach(function(button, index) {
-            button.addEventListener('click', function() {
-                activateTab(index);
-            });
-
-            // Add keyboard support
-            button.addEventListener('keydown', function(e) {
-                if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    activateTab(index);
-                }
-            });
-        });
-
-        // Activate first tab by default
-        if (tabButtons.length > 0) {
-            activateTab(0);
+    function redirectToLibraryCreation() {
+        // Try to find the original library creation URL
+        const createLibraryLink = document.querySelector('a[href*="library"]');
+        if (createLibraryLink) {
+            window.location.href = createLibraryLink.href;
+        } else {
+            // Fallback to standard library creation path
+            window.location.href = '/library/';
         }
     }
+
+    /**
+     * Redirect to program creation
+     */
+    function redirectToProgramCreation() {
+        // This function is no longer used - program creation now opens modal directly
+        openCreateProgramModalDirectly();
+    }
+
+
+
+    // End consolidated styles (removed duplicate/legacy style blocks)
+
+    // Duplicate module block removed: single canonical module retained above
 
     /**
      * Activate specific tab
@@ -78,16 +171,29 @@
      * Initialize action buttons
      */
     function initializeActionButtons() {
+        console.log('Chalix CMS Interface: Initializing action buttons (non-aggressive mode)');
+        
+        // Only initialize basic action buttons, don't patch create-program buttons aggressively
         const actionButtons = document.querySelectorAll('.action-button');
         
+        // Don't run aggressive patching by default - let tabs handle their own buttons
+        // The openCreateProgramModalDirectly function is still available for tabs that want to use it
+
         actionButtons.forEach(function(button) {
             // Add click handlers for course creation actions
             button.addEventListener('click', function(e) {
+                // If this is the create-program button, let the above handler run only
+                if (button.getAttribute('data-action') === 'create-program') return;
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
                 const action = button.getAttribute('data-action');
-                
                 if (action) {
-                    e.preventDefault();
                     handleActionButtonClick(action, button);
+                } else {
+                    if (button.classList.contains('new-course-button')) {
+                        handleActionButtonClick('create-course', button);
+                    }
                 }
             });
 
@@ -108,28 +214,48 @@
      * @param {Element} button - Button element
      */
     function handleActionButtonClick(action, button) {
-        // Show loading state
-        const originalText = button.querySelector('.button-text').textContent;
-        const loadingSpinner = '<span class="loading"></span>';
-        
-        button.querySelector('.button-text').innerHTML = loadingSpinner + ' Đang xử lý...';
-        button.disabled = true;
-
         // Handle different actions
         switch (action) {
             case 'create-course':
+                // Show loading state briefly
+                showLoadingState(button, 'Đang chuyển hướng...');
                 redirectToCourseCreation();
                 break;
             case 'create-program':
-                redirectToProgramCreation();
+                // Directly open modal without loading state to avoid conflicts
+                openCreateProgramModalDirectly();
+                break;
+            case 'create-library':
+                // Show loading state briefly
+                showLoadingState(button, 'Đang tạo thư viện...');
+                redirectToLibraryCreation();
                 break;
             case 'create-class':
+                // Show loading state briefly
+                showLoadingState(button, 'Đang xử lý...');
                 redirectToClassCreation();
                 break;
             default:
                 console.log('Unknown action:', action);
-                resetButtonState(button, originalText);
         }
+    }
+
+    /**
+     * Show loading state for button
+     * @param {Element} button - Button element
+     * @param {string} text - Loading text
+     */
+    function showLoadingState(button, text) {
+        const originalText = button.querySelector('.button-text').textContent;
+        const loadingSpinner = '<span class="loading"></span>';
+        
+        button.querySelector('.button-text').innerHTML = loadingSpinner + ' ' + text;
+        button.disabled = true;
+
+        // Reset after a short delay
+        setTimeout(() => {
+            resetButtonState(button, originalText);
+        }, 2000);
     }
 
     /**
@@ -147,13 +273,294 @@
     }
 
     /**
+     * Redirect to library creation
+     */
+    function redirectToLibraryCreation() {
+        // Try to find the original library creation URL
+        const createLibraryLink = document.querySelector('a[href*="library"]');
+        if (createLibraryLink) {
+            window.location.href = createLibraryLink.href;
+        } else {
+            // Fallback to standard library creation path
+            window.location.href = '/library/';
+        }
+    }
+
+    /**
      * Redirect to program creation
      */
     function redirectToProgramCreation() {
-        // Handle program creation logic
-        console.log('Creating new program...');
-        // This would typically open a modal or redirect to program creation page
-        alert('Tính năng tạo chương trình học đang được phát triển.');
+        // This function is no longer used - program creation now opens modal directly
+        openCreateProgramModalDirectly();
+    }
+
+    /**
+     * Open program creation modal directly
+     */
+    function openCreateProgramModalDirectly() {
+        const overlay = document.createElement('div');
+        overlay.className = 'chalix-modal-overlay';
+        
+        // Create modal with restored chalix-modal structure
+        overlay.innerHTML = `
+            <div class="chalix-modal">
+                <div class="chalix-modal-header">
+                    <h2 class="chalix-modal-title">TẠO CHƯƠNG TRÌNH HỌC</h2>
+                    <button class="chalix-modal-close" aria-label="Close">×</button>
+                </div>
+                <div class="chalix-modal-content">
+                    <div class="chalix-form-item title-field">
+                        <label>Tiêu đề</label>
+                        <input type="text" name="title" class="chalix-input-title" placeholder="Tiêu đề chương trình" />
+                    </div>
+                    
+                    <div class="chalix-form-item icon-field">
+                        <label>Biểu tượng</label>
+                        <div class="chalix-icon-selector">
+                            <div class="chalix-icon-grid">
+                                <div class="chalix-icon-option selected" data-icon="🌱">
+                                    <div class="chalix-icon-preview">🌱</div>
+                                </div>
+                                <div class="chalix-icon-option" data-icon="📚">
+                                    <div class="chalix-icon-preview">📚</div>
+                                </div>
+                                <div class="chalix-icon-option" data-icon="🎓">
+                                    <div class="chalix-icon-preview">🎓</div>
+                                </div>
+                                <div class="chalix-icon-option" data-icon="📜">
+                                    <div class="chalix-icon-preview">📜</div>
+                                </div>
+                                <div class="chalix-icon-option" data-icon="💡">
+                                    <div class="chalix-icon-preview">💡</div>
+                                </div>
+                                <div class="chalix-icon-option" data-icon="🎯">
+                                    <div class="chalix-icon-preview">🎯</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="chalix-switch-field">
+                        <label class="chalix-switch-label" for="update-topics">Cập nhật các chuyên đề</label>
+                        <div class="chalix-switch-container">
+                            <input type="checkbox" id="update-topics" name="update_topics" class="chalix-switch-input" />
+                            <label for="update-topics" class="chalix-switch-slider"></label>
+                        </div>
+                    </div>
+                    
+                    <div class="chalix-topics-section">
+                        <h4 class="chalix-topics-title">Thêm chuyên đề</h4>
+                        <div class="chalix-topics-list">
+                            <div class="chalix-topic-item">
+                                <span class="chalix-topic-text">Tổng quan về đơn vị sự nghiệp công lập và chức năng, nhiệm vụ, quyền hạn</span>
+                                <button type="button" class="chalix-topic-remove">
+                                    <img src="http://localhost:3000/api/figma/images/7b1d96bb0b8a4c5bb29c69bb9c7ab5c993be64fe" alt="Remove" />
+                                </button>
+                            </div>
+                            <div class="chalix-topic-item">
+                                <span class="chalix-topic-text">Pháp luật về quản lý dự án đầu tư xây dựng và quản lý dự án đường bộ</span>
+                                <button type="button" class="chalix-topic-remove">
+                                    <img src="http://localhost:3000/api/figma/images/7b1d96bb0b8a4c5bb29c69bb9c7ab5c993be64fe" alt="Remove" />
+                                </button>
+                            </div>
+                        </div>
+                        <button type="button" class="chalix-add-topic-btn">+ Thêm mới</button>
+                    </div>
+                </div>
+                <div class="chalix-modal-buttons">
+                    <button class="chalix-btn-cancel">Hủy</button>
+                    <button class="chalix-btn-submit">Tạo chương trình học</button>
+                </div>
+            </div>
+        `;
+
+        ensureProgramModalStyles();
+        document.body.appendChild(overlay);
+
+        // Show modal with animation
+        requestAnimationFrame(() => overlay.classList.add('show'));
+
+        const closeModal = () => {
+            overlay.classList.remove('show');
+            setTimeout(() => overlay.remove(), 300);
+        };
+
+        // Event handlers with correct class names
+        overlay.querySelector('.chalix-modal-close').addEventListener('click', closeModal);
+        overlay.querySelector('.chalix-btn-cancel').addEventListener('click', closeModal);
+
+        // Icon selection functionality
+        const iconOptions = overlay.querySelectorAll('.chalix-icon-option');
+        iconOptions.forEach(option => {
+            option.addEventListener('click', () => {
+                // Remove selected class from all options
+                iconOptions.forEach(opt => opt.classList.remove('selected'));
+                // Add selected class to clicked option
+                option.classList.add('selected');
+            });
+        });
+
+        // Switch functionality
+        const switchSlider = overlay.querySelector('.chalix-switch-slider');
+        const switchInput = overlay.querySelector('.chalix-switch-input');
+        
+        switchSlider.addEventListener('click', () => {
+            switchInput.checked = !switchInput.checked;
+        });
+
+        // Topic removal
+        overlay.addEventListener('click', (e) => {
+            if (e.target.classList.contains('chalix-topic-remove')) {
+                e.target.closest('.chalix-topic-item').remove();
+            }
+        });
+
+        // Add topic functionality (inline input instead of prompt)
+        const addTopicBtn = overlay.querySelector('.chalix-add-topic-btn');
+        const topicsSection = overlay.querySelector('.chalix-topics-section');
+        
+        addTopicBtn.addEventListener('click', () => {
+            // Prevent multiple input rows
+            if (topicsSection.querySelector('.chalix-topic-input-row')) return;
+
+            // Hide the add button while editing
+            addTopicBtn.style.display = 'none';
+
+            // Create input field container using existing CSS classes
+            const inputContainer = document.createElement('div');
+            inputContainer.className = 'chalix-topic-input-container';
+            inputContainer.innerHTML = `
+                <div class="chalix-topic-input-row">
+                    <input type="text" class="chalix-topic-input" placeholder="Nhập tên chuyên đề..." maxlength="200" />
+                    <div class="chalix-topic-input-actions">
+                        <button type="button" class="chalix-topic-save" title="Lưu">✓</button>
+                        <button type="button" class="chalix-topic-cancel" title="Hủy">✕</button>
+                    </div>
+                </div>
+            `;
+
+            // Insert the input row before the add button
+            topicsSection.insertBefore(inputContainer, addTopicBtn);
+
+            const input = inputContainer.querySelector('.chalix-topic-input');
+            const saveBtn = inputContainer.querySelector('.chalix-topic-save');
+            const cancelBtn = inputContainer.querySelector('.chalix-topic-cancel');
+
+            input.focus();
+
+            const cleanup = () => {
+                inputContainer.remove();
+                addTopicBtn.style.display = 'block';
+            };
+
+            const saveTopic = () => {
+                const topicText = input.value.trim();
+                if (topicText) {
+                    const topicItem = document.createElement('div');
+                    topicItem.className = 'chalix-topic-item';
+                    topicItem.innerHTML = `
+                        <span class="chalix-topic-text">${escapeHtml(topicText)}</span>
+                        <button type="button" class="chalix-topic-remove">
+                            <img src="http://localhost:3000/api/figma/images/7b1d96bb0b8a4c5bb29c69bb9c7ab5c993be64fe" alt="Remove" />
+                        </button>
+                    `;
+
+                    // Append to the topics list container so flow and spacing are consistent
+                    const topicsList = topicsSection.querySelector('.chalix-topics-list') || topicsSection;
+                    topicsList.appendChild(topicItem);
+                }
+
+                cleanup();
+            };
+
+            saveBtn.addEventListener('click', saveTopic);
+            cancelBtn.addEventListener('click', cleanup);
+
+            // Keyboard: Enter to save, Escape to cancel
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    saveTopic();
+                } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    cleanup();
+                }
+            });
+        });
+
+        // Form submission
+        overlay.querySelector('.chalix-btn-submit').addEventListener('click', (e) => {
+            const title = overlay.querySelector('.chalix-input-title').value.trim();
+            const updateTopics = overlay.querySelector('.chalix-switch-input').checked;
+            const selectedIcon = overlay.querySelector('.chalix-icon-option.selected')?.dataset.icon || '🌱';
+            
+            // Collect topics
+            const topics = Array.from(topicsSection.querySelectorAll('.chalix-topic-text'))
+                .map(el => el.textContent.trim())
+                .filter(text => text.length > 0);
+
+            if (!title) {
+                alert('Vui lòng nhập tiêu đề chương trình học.');
+                return;
+            }
+
+            // Show loading state on button
+            const submitButton = overlay.querySelector('.chalix-btn-submit');
+            showLoadingState(submitButton, 'Đang tạo chương trình học...');
+
+            // POST to backend API
+            const url = '/api/chalix/dashboard/create-program/';
+            const csrftoken = getCookie('csrftoken');
+
+            fetch(url, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrftoken,
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({ 
+                    title: title, 
+                    icon: selectedIcon,
+                    update_topics: updateTopics,
+                    topics: topics
+                })
+            }).then(resp => {
+                if (!resp.ok) throw resp;
+                return resp.json();
+            }).then(data => {
+                    alert('Chương trình học đã được tạo thành công!');
+                    closeModal();
+                    // Optionally, refresh the program list or take other actions
+            }).catch(err => {
+                err.text && err.text().then(t => { 
+                    let errorMsg = 'Lỗi khi tạo chương trình học';
+                    try {
+                        const errorData = JSON.parse(t);
+                        errorMsg = errorData.error || errorMsg;
+                    } catch (e) {
+                        // Keep default message
+                    }
+                    alert(errorMsg); 
+                }).catch(() => { 
+                    alert('Lỗi khi tạo chương trình học'); 
+                });
+            });
+        });
+    }
+
+    // Duplicate function removed - using the corrected version above
+
+    function getCookie(name) {
+        const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+        return v ? v.pop() : '';
+    }
+
+    function escapeHtml(str){ 
+        return String(str).replace(/[&<>"'`]/g, function(s){
+            return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;","`":"&#x60;"}[s]; 
+        }); 
     }
 
     /**
@@ -195,6 +602,45 @@
                     activateTab(tabIndex);
                 }
             }
+        }
+
+        // Render program list into a placeholder element (used after creating a program)
+        function renderProgramListInPlaceholder(placeholder) {
+            if (!placeholder) return;
+            const listContainerId = 'lm-program-list';
+            let listContainer = placeholder.querySelector('#' + listContainerId);
+            if (!listContainer) {
+                listContainer = document.createElement('div');
+                listContainer.id = listContainerId;
+                listContainer.style.textAlign = 'left';
+                listContainer.innerHTML = '<div style="color:#546470">Đang tải danh sách chương trình học...</div>';
+                placeholder.innerHTML = '<h3 style="margin:0 0 8px;">Danh sách chương trình học</h3>';
+                placeholder.appendChild(listContainer);
+            }
+
+            fetch('/api/chalix/dashboard/list-programs/', { credentials: 'same-origin', headers: { 'Accept': 'application/json' }})
+                .then(resp => { if (!resp.ok) throw resp; return resp.json(); })
+                .then(data => {
+                    const programs = data.programs || [];
+                    if (programs.length === 0) {
+                        listContainer.innerHTML = '<div style="color:#546470">Chưa có chương trình học nào.</div>';
+                        return;
+                    }
+                    const html = ['<ul style="list-style:none;padding:0;margin:0">'];
+                    for (const p of programs) {
+                        const topicsList = (p.topics || []).map(t => escapeHtml(t.title)).join(', ');
+                        html.push(`<li style="padding:10px 0;border-bottom:1px solid #eef6fa">
+                            <strong>${escapeHtml(p.title)}</strong>
+                            <div style="color:#6b7680;font-size:13px;margin:4px 0">${escapeHtml(p.icon || '')} • ${p.update_topics ? 'Tự động cập nhật' : 'Cố định'}</div>
+                            <div style="color:#6b7680;font-size:13px;margin:4px 0"><strong>Chuyên đề:</strong> ${topicsList || 'Không có'}</div>
+                            <div style="color:#94a3ad;font-size:12px;margin-top:6px">ID: ${p.id} • ${((p.topics&&p.topics.length)||0)} chuyên đề • Tạo bởi: ${escapeHtml(p.created_by || '—')} • ${new Date(p.created_at).toLocaleString()}</div>
+                        </li>`);
+                    }
+                    html.push('</ul>');
+                    listContainer.innerHTML = html.join('');
+                }).catch(() => {
+                    listContainer.innerHTML = '<div style="color:#c23">Lỗi khi tải danh sách chương trình học.</div>';
+                });
         }
     }
 
@@ -340,8 +786,15 @@
      * Load management data
      */
     function loadManagementData() {
-        // This would load course management data, user lists, etc.
-        console.log('Loading management data...');
+        // Load management content in the proper tab panel, not at the bottom
+        const managementContainer = document.getElementById('learning-management-container');
+        if (managementContainer && window.CMS_TABS && window.CMS_TABS['learning-management']) {
+            // Render learning management content in the tab panel only
+            window.CMS_TABS['learning-management'].render(managementContainer, {
+                contentTitle: 'Quản lý học tập',
+                contentDescription: 'Tạo và quản lý các chương trình học và khóa học'
+            });
+        }
     }
 
     /**
@@ -406,7 +859,14 @@
     // Expose some functions globally for external use
     window.ChalixCMS = {
         activateTab: activateTab,
-        loadTabData: loadTabData
+        loadTabData: loadTabData,
+        openCreateProgramModalDirectly: openCreateProgramModalDirectly
     };
+    // Notify other scripts that ChalixCMS is ready
+    try {
+        window.dispatchEvent(new Event('ChalixCMS:ready'));
+    } catch (e) {
+        console.warn('Could not dispatch ChalixCMS:ready event', e);
+    }
 
 })();

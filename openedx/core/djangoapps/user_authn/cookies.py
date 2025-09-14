@@ -244,11 +244,14 @@ def _get_user_info_cookie_data(request, user):
     # To handle this, we don't add the URLs if we can't reverse them.
     # External sites will need to have fallback mechanisms to handle this case
     # (most likely just hiding the links).
-    try:
-        header_urls['account_settings'] = settings.ACCOUNT_MICROFRONTEND_URL
-        header_urls['learner_profile'] = urljoin(settings.PROFILE_MICROFRONTEND_URL, f'/u/{user.username}')
-    except NoReverseMatch:
-        pass
+    account_mfe = getattr(settings, 'ACCOUNT_MICROFRONTEND_URL', None)
+    profile_mfe = getattr(settings, 'PROFILE_MICROFRONTEND_URL', None)
+
+    # Only include URLs if configured; avoid AttributeError/TypeError in Studio
+    if account_mfe:
+        header_urls['account_settings'] = account_mfe
+    if profile_mfe:
+        header_urls['learner_profile'] = urljoin(profile_mfe, f'/u/{user.username}')
 
     # Add 'resume course' last completed block
     try:

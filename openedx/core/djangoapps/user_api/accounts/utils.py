@@ -20,6 +20,7 @@ from openedx.core.djangoapps.site_configuration.models import SiteConfiguration
 from openedx.core.djangoapps.theming.helpers import get_config_value_from_site_or_settings, get_current_site
 from openedx.core.djangolib.oauth2_retirement_utils import retire_dot_oauth2_models
 from xmodule.modulestore.django import modulestore  # lint-amnesty, pylint: disable=wrong-import-order
+from xmodule.modulestore.exceptions import ItemNotFoundError
 
 from ..models import UserRetirementStatus
 
@@ -169,10 +170,17 @@ def retrieve_last_sitewide_block_completed(user):
 
     try:
         item = modulestore().get_item(candidate_block_key, depth=1)
+    except ItemNotFoundError as err:
+        LOGGER.warning(
+            '[PROD-2877] Resume block not found for user %s. Block key: %s, Course: %s. '
+            'This suggests orphaned completion data that should be cleaned up. Error: %r',
+            user.username, candidate_block_key, candidate_course, err,
+        )
+        item = None
     except Exception as err:  # pylint: disable=broad-except
         LOGGER.exception(
-            '[PROD-2877] Error retrieving resume block for user %s with raw error %r',
-            user.username, err,
+            '[PROD-2877] Unexpected error retrieving resume block for user %s with block key %s. Error: %r',
+            user.username, candidate_block_key, err,
         )
         item = None
 
@@ -184,6 +192,59 @@ def retrieve_last_sitewide_block_completed(user):
         course_key=str(item.location.course_key),
         location=str(item.location),
     )
+
+
+def cleanup_orphaned_completion_records(user, dry_run=True):
+    """
+    Clean up orphaned BlockCompletion records for a user where the referenced
+    blocks no longer exist in the modulestore.
+    
+    :param user: User object to clean up completion records for
+    :param dry_run: If True, only log what would be deleted without actually deleting
+    :return: Number of orphaned records found
+    """
+    if not ENABLE_COMPLETION_TRACKING_SWITCH.is_enabled():
+        LOGGER.info("Completion tracking is disabled, skipping cleanup for user %s", user.username)
+        return 0
+
+    latest_completions_by_course = BlockCompletion.latest_blocks_completed_all_courses(user)
+    orphaned_count = 0
+    
+    for course, [modified_date, block_key] in latest_completions_by_course.items():
+        try:
+            # Try to get the item from modulestore
+            modulestore().get_item(block_key, depth=0)
+        except ItemNotFoundError:
+            orphaned_count += 1
+            LOGGER.warning(
+                "Found orphaned completion record for user %s: block_key=%s, course=%s, modified_date=%s",
+                user.username, block_key, course, modified_date
+            )
+            
+            if not dry_run:
+                # Delete the orphaned completion records
+                deleted_count = BlockCompletion.objects.filter(
+                    user=user,
+                    block_key=block_key
+                ).delete()[0]
+                LOGGER.info(
+                    "Deleted %d orphaned completion record(s) for user %s, block_key=%s",
+                    deleted_count, user.username, block_key
+                )
+        except Exception as err:  # pylint: disable=broad-except
+            LOGGER.warning(
+                "Unexpected error checking completion record for user %s, block_key=%s: %r",
+                user.username, block_key, err
+            )
+    
+    if dry_run and orphaned_count > 0:
+        LOGGER.info(
+            "DRY RUN: Found %d orphaned completion records for user %s. "
+            "Run with dry_run=False to actually delete them.",
+            orphaned_count, user.username
+        )
+    
+    return orphaned_count
 
 
 def is_secondary_email_feature_enabled():

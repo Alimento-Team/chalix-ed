@@ -6,6 +6,7 @@ Models for contentstore
 from datetime import datetime, timezone
 
 from config_models.models import ConfigurationModel
+from django.conf import settings
 from django.db import models
 from django.db.models import Count, F, Q, QuerySet, Max
 from django.db.models.fields import IntegerField, TextField
@@ -521,3 +522,185 @@ class LearningContextLinksStatus(models.Model):
         self.status = status
         self.updated = updated or datetime.now(tz=timezone.utc)
         self.save()
+
+
+class LocalCourse(models.Model):
+    """
+    Lightweight model to store courses created from the Chalix dashboard (for prototyping).
+    """
+    title = models.CharField(max_length=255)
+    short_description = models.TextField(blank=True)
+    template_program = models.ForeignKey(
+        'contentstore.LocalProgram',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='template_courses',
+        help_text="Program template used to create this course"
+    )
+    course_type = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Type of course (bat-buoc, tuy-chon, co-quan)"
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='local_courses'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Local Course"
+        verbose_name_plural = "Local Courses"
+
+    def __str__(self):
+        return self.title
+
+
+class LocalProgram(models.Model):
+    """
+    Model to store learning programs created from the Chalix dashboard.
+    Programs contain multiple topics/subjects and can have courses associated.
+    """
+    title = models.CharField(max_length=255)
+    icon = models.CharField(max_length=100, blank=True, default='seed-of-life')  # Icon identifier
+    update_topics = models.BooleanField(default=False, help_text="Whether to automatically update topics")
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='local_programs'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Local Program"
+        verbose_name_plural = "Local Programs"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return self.title
+
+
+class ProgramTopic(models.Model):
+    """
+    Topics/subjects within a learning program.
+    """
+    program = models.ForeignKey(
+        LocalProgram,
+        on_delete=models.CASCADE,
+        related_name='topics'
+    )
+    title = models.CharField(max_length=255)
+    order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Program Topic"
+        verbose_name_plural = "Program Topics"
+        ordering = ['program', 'order', 'title']
+        unique_together = ['program', 'order']
+
+    def __str__(self):
+        return f"{self.program.title} - {self.title}"
+
+
+class ChalixOrganization(models.Model):
+    """
+    Organization model for Chalix role system.
+    Links users to organizations with proper hierarchy.
+    """
+    name = models.CharField(max_length=255, unique=True)
+    display_name = models.CharField(max_length=255)
+    code = models.CharField(max_length=50, unique=True)
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    parent = models.ForeignKey(
+        'self',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='children'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Chalix Organization"
+        verbose_name_plural = "Chalix Organizations"
+        ordering = ['display_name']
+
+    def __str__(self):
+        return self.display_name
+
+
+class ChalixUserRole(models.Model):
+    """
+    User role model for Chalix system.
+    Defines 4 role types with proper permissions and organization association.
+    """
+    ROLE_CHOICES = [
+        ('bo', 'Tài khoản Bộ'),  # Ministry level
+        ('co_quan', 'Tài khoản Cơ quan'),  # Organization level
+        ('giang_vien', 'Tài khoản Giảng viên'),  # Teacher level
+        ('cong_chuc', 'Tài khoản Công chức/Viên chức'),  # Learner/Student level
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='chalix_roles'
+    )
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES)
+    organization = models.ForeignKey(
+        ChalixOrganization,
+        on_delete=models.CASCADE,
+        related_name='user_roles',
+        null=True,
+        blank=True
+    )
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='created_user_roles'
+    )
+
+    class Meta:
+        verbose_name = "Chalix User Role"
+        verbose_name_plural = "Chalix User Roles"
+        unique_together = ['user', 'role', 'organization']
+
+    def __str__(self):
+        return f"{self.user.username} - {self.get_role_display()} - {self.organization}"
+
+    @property
+    def can_access_cms(self):
+        """Check if user role allows CMS access"""
+        return self.role in ['bo', 'co_quan', 'giang_vien']
+
+    @property
+    def can_see_all_tabs(self):
+        """Check if user can see all dashboard tabs"""
+        return self.role == 'co_quan'
+
+    @property
+    def available_tabs(self):
+        """Get list of available tabs for this role"""
+        if self.role == 'bo':
+            return ['statistics', 'management']
+        elif self.role == 'co_quan':
+            return ['statistics', 'create-account', 'management', 'learning-management', 'approve-requests']
+        elif self.role == 'giang_vien':
+            return ['statistics', 'learning-management']
+        else:  # cong_chuc
+            return []

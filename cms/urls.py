@@ -23,6 +23,7 @@ from cms.djangoapps.contentstore import views as contentstore_views
 from cms.djangoapps.contentstore.views.course import simplified_course_outline
 from cms.djangoapps.contentstore.views.block import xblock_edit_view
 from cms.djangoapps.contentstore.views.organization import OrganizationListView
+from cms.djangoapps.contentstore.views.chalix_dashboard import cms_dashboard
 from openedx.core.apidocs import api_info
 from openedx.core.djangoapps.password_policy import compliance as password_policy_compliance
 from openedx.core.djangoapps.password_policy.forms import PasswordPolicyAwareAdminAuthForm
@@ -108,7 +109,8 @@ urlpatterns = oauth2_urlpatterns + [
     re_path(fr'^course_info_update/{settings.COURSE_KEY_PATTERN}/(?P<provided_id>\d+)?$',
             contentstore_views.course_info_update_handler, name='course_info_update_handler'
             ),
-    re_path(r'^home/?$', contentstore_views.course_listing, name='home'),
+    re_path(r'^home/?$', cms_dashboard, name='home'),
+    re_path(r'^courses/?$', contentstore_views.course_listing, name='course_listing'),
     path('course/create/', contentstore_views.course_create_view, name='course_create'),
     re_path(r'^home_library/?$', contentstore_views.library_listing, name='home_library'),
     re_path(fr'^course/{settings.COURSE_KEY_PATTERN}/search_reindex?$',
