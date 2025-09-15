@@ -934,3 +934,100 @@ def update_course_api(request):
         return JsonResponse({
             'error': 'Có lỗi xảy ra khi cập nhật khóa học. Vui lòng thử lại.'
         }, status=500)
+
+
+@login_required
+@require_POST
+def delete_course_api(request):
+    """Delete an OpenEDX course by course key or local id.
+
+    Expects JSON: { "course_id": <local id> } OR { "course_key": "course-v1:org+num+run" }
+    Only users with studio write access or staff may delete a course.
+    """
+    try:
+        payload = json.loads(request.body.decode('utf-8'))
+    except Exception:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    course_id = payload.get('course_id')
+    course_key_string = payload.get('course_key')
+
+    # If local DB model used for LocalCourse, attempt to delete by PK
+    if course_id:
+        try:
+            lc = LocalCourse.objects.get(pk=course_id)
+        except LocalCourse.DoesNotExist:
+            return JsonResponse({'error': 'Course not found'}, status=404)
+
+        # Permission check: only creator or staff can delete LocalCourse
+        if not (request.user.is_staff or getattr(lc.created_by, 'id', None) == request.user.id):
+            return JsonResponse({'error': 'Bạn không có quyền xóa khóa học này'}, status=403)
+
+        lc.delete()
+        return JsonResponse({'success': True, 'message': 'Đã xóa khóa học thành công'})
+
+    # Otherwise try to delete by course key using modulestore
+    if not course_key_string:
+        return JsonResponse({'error': 'Course identifier required'}, status=400)
+
+    try:
+        course_key = CourseKey.from_string(course_key_string)
+    except Exception:
+        return JsonResponse({'error': 'Invalid course key format'}, status=400)
+
+    # Permission: require studio write access to delete course
+    if not has_studio_write_access(request.user, course_key):
+        return JsonResponse({'error': 'Bạn không có quyền xóa khóa học này'}, status=403)
+
+    try:
+        store = modulestore()
+        course = store.get_course(course_key)
+        if not course:
+            return JsonResponse({'error': 'Course not found'}, status=404)
+
+        # Use modulestore to delete course
+        store.delete_course(course_key, request.user.id)
+
+        return JsonResponse({'success': True, 'message': 'Đã xóa khóa học thành công'})
+
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.exception(f"Failed to delete course {course_key_string}: {str(e)}")
+        return JsonResponse({'error': 'Không thể xóa khóa học, vui lòng thử lại'}, status=500)
+
+
+@login_required
+@require_POST
+def delete_program_api(request):
+    """Delete a LocalProgram by id.
+
+    Expects JSON: { "program_id": <id> }
+    Only staff or creator can delete.
+    """
+    try:
+        payload = json.loads(request.body.decode('utf-8'))
+    except Exception:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    program_id = payload.get('program_id')
+    if not program_id:
+        return JsonResponse({'error': 'Program ID is required'}, status=400)
+
+    try:
+        prog = LocalProgram.objects.get(pk=program_id)
+    except LocalProgram.DoesNotExist:
+        return JsonResponse({'error': 'Program not found'}, status=404)
+
+    # Permission check
+    if not (request.user.is_staff or getattr(prog.created_by, 'id', None) == request.user.id):
+        return JsonResponse({'error': 'Bạn không có quyền xóa chương trình này'}, status=403)
+
+    try:
+        prog.delete()
+        return JsonResponse({'success': True, 'message': 'Đã xóa chương trình học thành công'})
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.exception(f"Failed to delete program {program_id}: {str(e)}")
+        return JsonResponse({'error': 'Không thể xóa chương trình, vui lòng thử lại'}, status=500)

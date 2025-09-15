@@ -962,21 +962,24 @@
             const card = document.createElement('div');
             card.className = 'lm-card-item';
             
+            // Use course.id when available, otherwise fall back to course_key (OpenEDX identifier)
+            const courseIdentifier = (course.id !== undefined && course.id !== null) ? course.id : course.course_key;
+
             card.innerHTML = `
                 <div class="lm-card-header">
                     <div class="lm-card-icon">📚</div>
                     <h4 class="lm-card-title">${escapeHtml(course.title)}</h4>
                 </div>
                 <div class="lm-card-meta">
-                    ID: ${course.id} • ${course.course_type || 'Chưa phân loại'}
+                    ID: ${courseIdentifier} • ${course.course_type || 'Chưa phân loại'}
                 </div>
                 <div class="lm-card-desc">
                     ${escapeHtml(course.short_description || 'Chưa có mô tả')}
                 </div>
                 <div class="lm-card-actions">
-                    <button class="lm-card-btn view" data-action="view-course" data-id="${course.id}">Xem</button>
-                    <button class="lm-card-btn edit" data-action="edit-course" data-id="${course.id}">Sửa</button>
-                    <button class="lm-card-btn delete" data-action="delete-course" data-id="${course.id}">Xóa</button>
+                    <button class="lm-card-btn view" data-action="view-course" data-id="${courseIdentifier}">Xem</button>
+                    <button class="lm-card-btn edit" data-action="edit-course" data-id="${courseIdentifier}">Sửa</button>
+                    <button class="lm-card-btn delete" data-action="delete-course" data-id="${courseIdentifier}">Xóa</button>
                 </div>
             `;
 
@@ -993,17 +996,17 @@
             // Add event listeners for actions
             card.querySelector('[data-action="view-course"]').addEventListener('click', (e) => {
                 e.stopPropagation();
-                viewCourseDetails(course.id);
+                viewCourseDetails(courseIdentifier);
             });
 
             card.querySelector('[data-action="edit-course"]').addEventListener('click', (e) => {
                 e.stopPropagation();
-                editCourse(course.id, () => loadCoursesList(contentArea));
+                editCourse(courseIdentifier, () => loadCoursesList(contentArea));
             });
 
             card.querySelector('[data-action="delete-course"]').addEventListener('click', (e) => {
                 e.stopPropagation();
-                deleteCourse(course.id, () => loadCoursesList(contentArea));
+                deleteCourse(courseIdentifier, () => loadCoursesList(contentArea));
             });
 
             grid.appendChild(card);
@@ -1651,34 +1654,38 @@
     }
 
     function deleteProgram(programId, onSuccess) {
-        if (!confirm('Bạn có chắc chắn muốn xóa chương trình học này? Hành động này không thể hoàn tác.')) {
-            return;
-        }
-        
-        // Try to delete via API
-        fetch(`/api/chalix/dashboard/delete-program/`, {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': getCookie('csrftoken')
-            },
-            body: JSON.stringify({ program_id: programId })
-        })
-        .then(resp => {
-            if (!resp.ok) throw resp;
-            return resp.json();
-        })
-        .then(result => {
-            alert('Đã xóa chương trình học thành công!');
-            if (onSuccess) onSuccess();
-        })
-        .catch(err => {
-            console.error('Failed to delete program:', err);
-            // Fallback: simulate success for now
-            if (confirm('API chưa sẵn sàng. Bạn có muốn tiếp tục mô phỏng xóa không?')) {
-                alert('Đã xóa chương trình học (mô phỏng - API chưa sẵn sàng)');
-                if (onSuccess) onSuccess();
+        showConfirmModal({
+            title: 'Xóa chương trình học',
+            message: 'Bạn có chắc chắn muốn xóa chương trình học này? Hành động này không thể hoàn tác.',
+            confirmText: 'Xóa',
+            cancelText: 'Hủy',
+            danger: true,
+            onConfirm: (modal) => {
+                // Try to delete via API
+                fetch(`/api/chalix/dashboard/delete-program/`, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    },
+                    body: JSON.stringify({ program_id: programId })
+                })
+                .then(resp => {
+                    if (!resp.ok) return resp.text().then(text => { throw new Error(text || resp.statusText); });
+                    return resp.json();
+                })
+                .then(result => {
+                    modal.showMessage('Đã xóa chương trình học thành công!', 'success');
+                    setTimeout(() => {
+                        modal.close();
+                        if (onSuccess) onSuccess();
+                    }, 900);
+                })
+                .catch(err => {
+                    console.error('Failed to delete program:', err);
+                    modal.showMessage('Không thể xóa chương trình. ' + (err.message || ''), 'error');
+                });
             }
         });
     }
@@ -1868,6 +1875,8 @@
                     loadCoursesList(coursesContent);
                 }
             };
+            // Use numeric id when available, otherwise fall back to course_key
+            const courseIdentifier = (course.id !== undefined && course.id !== null) ? course.id : course.course_key;
             showEditCourseModal(course, onSuccess);
         });
         
@@ -1888,7 +1897,8 @@
                     loadCoursesList(coursesContent);
                 }
             };
-            deleteCourse(course.id, onSuccess);
+            const courseIdentifier = (course.id !== undefined && course.id !== null) ? course.id : course.course_key;
+            deleteCourse(courseIdentifier, onSuccess);
         });
     }
 
@@ -2178,36 +2188,112 @@
     }
 
     function deleteCourse(courseId, onSuccess) {
-        if (!confirm('Bạn có chắc chắn muốn xóa khóa học này? Hành động này không thể hoàn tác.')) {
-            return;
-        }
-        
-        // Try to delete via API
-        fetch(`/api/chalix/dashboard/delete-course/`, {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': getCookie('csrftoken')
-            },
-            body: JSON.stringify({ course_id: courseId })
-        })
-        .then(resp => {
-            if (!resp.ok) throw resp;
-            return resp.json();
-        })
-        .then(result => {
-            alert('Đã xóa khóa học thành công!');
-            if (onSuccess) onSuccess();
-        })
-        .catch(err => {
-            console.error('Failed to delete course:', err);
-            // Fallback: simulate success for now
-            if (confirm('API chưa sẵn sàng. Bạn có muốn tiếp tục mô phỏng xóa không?')) {
-                alert('Đã xóa khóa học (mô phỏng - API chưa sẵn sàng)');
-                if (onSuccess) onSuccess();
+        showConfirmModal({
+            title: 'Xóa khóa học',
+            message: 'Bạn có chắc chắn muốn xóa khóa học này? Hành động này không thể hoàn tác.',
+            confirmText: 'Xóa',
+            cancelText: 'Hủy',
+            danger: true,
+            onConfirm: (modal) => {
+                // Defensive checks: ensure we have an identifier to send
+                if (courseId === undefined || courseId === null) {
+                    modal.showMessage('Không tìm thấy mã khóa học để xóa.', 'error');
+                    return;
+                }
+
+                // Determine whether to send a local DB id or an OpenEDX course_key
+                let payload;
+                if (typeof courseId === 'string' && courseId.indexOf('course-v1:') !== -1) {
+                    payload = { course_key: courseId };
+                } else {
+                    payload = { course_id: courseId };
+                }
+
+                fetch(`/api/chalix/dashboard/delete-course/`, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    },
+                    body: JSON.stringify(payload)
+                })
+                .then(resp => {
+                    if (!resp.ok) return resp.text().then(text => { throw new Error(text || resp.statusText); });
+                    return resp.json();
+                })
+                .then(result => {
+                    modal.showMessage('Đã xóa khóa học thành công!', 'success');
+                    setTimeout(() => {
+                        modal.close();
+                        if (onSuccess) onSuccess();
+                    }, 900);
+                })
+                .catch(err => {
+                    console.error('Failed to delete course:', err);
+                    modal.showMessage('Không thể xóa khóa học. ' + (err.message || ''), 'error');
+                });
             }
         });
+    }
+
+    // Reusable confirm modal using existing modal styles
+    function showConfirmModal(opts) {
+        const title = opts.title || 'Confirm';
+        const message = opts.message || '';
+        const confirmText = opts.confirmText || 'OK';
+        const cancelText = opts.cancelText || 'Cancel';
+        const danger = !!opts.danger;
+
+        ensureDetailModalStyles();
+        const overlay = document.createElement('div');
+        overlay.className = 'lm-modal-overlay';
+
+        overlay.innerHTML = `
+            <div class="lm-modal lm-detail-modal">
+                <div class="lm-modal-header">
+                    <h3 class="lm-modal-title">${escapeHtml(title)}</h3>
+                    <button class="lm-modal-close" aria-label="Đóng">&times;</button>
+                </div>
+                <div class="lm-modal-body">
+                    <div style="padding: 8px 0 16px; color: #374151;">${escapeHtml(message)}</div>
+                    <div class="lm-modal-message" style="display:block"></div>
+                </div>
+                <div class="lm-modal-actions" style="padding: 12px 24px;">
+                    <button class="lm-btn secondary lm-cancel-confirm">${escapeHtml(cancelText)}</button>
+                    <button class="lm-btn ${danger ? 'danger' : 'primary'} lm-confirm-btn">${escapeHtml(confirmText)}</button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(overlay);
+
+        const modal = {
+            close: () => overlay.remove(),
+            showMessage: (text, type) => {
+                const msgDiv = overlay.querySelector('.lm-modal-message');
+                if (!msgDiv) return;
+                if (type === 'success') {
+                    msgDiv.innerHTML = `<div class="lm-message lm-success">${escapeHtml(text)}</div>`;
+                } else if (type === 'error') {
+                    msgDiv.innerHTML = `<div class="lm-message lm-error">${escapeHtml(text)}</div>`;
+                } else {
+                    msgDiv.innerHTML = `<div class="lm-message lm-loading">${escapeHtml(text)}</div>`;
+                }
+            }
+        };
+
+        overlay.querySelector('.lm-modal-close').addEventListener('click', () => modal.close());
+        overlay.querySelector('.lm-cancel-confirm').addEventListener('click', () => modal.close());
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) modal.close(); });
+        overlay.querySelector('.lm-confirm-btn').addEventListener('click', () => {
+            // Show loading state
+            modal.showMessage('Đang xử lý...', 'loading');
+            // Call provided handler
+            if (typeof opts.onConfirm === 'function') opts.onConfirm(modal);
+        });
+
+        return modal;
     }
 
     // Implemented: Create Program modal UI and handlers.

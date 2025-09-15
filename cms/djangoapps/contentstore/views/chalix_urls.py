@@ -69,6 +69,18 @@ urlpatterns = [
         chalix_dashboard.update_course_api,
         name='chalix_update_course'
     ),
+    # Delete course endpoint
+    path(
+        'dashboard/delete-course/',
+        chalix_dashboard.delete_course_api,
+        name='chalix_delete_course'
+    ),
+    # Delete program endpoint
+    path(
+        'dashboard/delete-program/',
+        chalix_dashboard.delete_program_api,
+        name='chalix_delete_program'
+    ),
 
     # Get available content types
     path(
