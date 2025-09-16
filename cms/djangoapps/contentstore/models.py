@@ -543,6 +543,8 @@ class LocalCourse(models.Model):
         blank=True,
         help_text="Type of course (bat-buoc, tuy-chon, co-quan)"
     )
+    # Persist the modulestore CourseKey string so we can link back to the course
+    course_key = models.CharField(max_length=255, blank=True, null=True, help_text="Modulestore CourseKey string")
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -566,6 +568,7 @@ class LocalProgram(models.Model):
     Programs contain multiple topics/subjects and can have courses associated.
     """
     title = models.CharField(max_length=255)
+    short_description = models.TextField(blank=True, help_text="Short description of the program")
     icon = models.CharField(max_length=100, blank=True, default='seed-of-life')  # Icon identifier
     update_topics = models.BooleanField(default=False, help_text="Whether to automatically update topics")
     created_by = models.ForeignKey(

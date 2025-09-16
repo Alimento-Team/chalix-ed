@@ -28,8 +28,8 @@
         initializeActionButtons();
         loadTabData();
 
-    // Canonical Figma-accurate modal styles (single consolidated function)
-    function ensureProgramModalStyles() {
+        // Canonical Figma-accurate modal styles (single consolidated function)
+        function ensureProgramModalStyles() {
         if (document.getElementById('chalix-program-modal-styles')) return;
         const css = `
             /* Consolidated Chalix modal styles - high specificity to avoid theme overrides */
@@ -868,5 +868,7 @@
     } catch (e) {
         console.warn('Could not dispatch ChalixCMS:ready event', e);
     }
+
+    }); // Close DOMContentLoaded listener
 
 })();

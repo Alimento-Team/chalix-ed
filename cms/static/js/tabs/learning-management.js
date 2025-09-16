@@ -904,7 +904,7 @@
                     <h4 class="lm-card-title">${escapeHtml(program.title)}</h4>
                 </div>
                 <div class="lm-card-meta">
-                    ID: ${program.id} • ${program.topics ? program.topics.length : 0} chuyên đề
+                    ID: ${program.id} • ${program.topics_count || (program.topics ? program.topics.length : 0)} chuyên đề
                 </div>
                 <div class="lm-card-desc">
                     ${escapeHtml(program.short_description || 'Chưa có mô tả')}
@@ -1018,28 +1018,28 @@
 
     // Detailed view functions
     function viewProgramDetails(programId) {
-        // First try to get the program from the list we already have
-        const existingPrograms = getAllProgramsFromDOM();
-        const program = existingPrograms.find(p => p.id == programId);
-        
-        if (program) {
-            // Show details from cached data
+        // Always fetch fresh data from API to ensure topics are current
+        fetch(`/api/chalix/dashboard/program-detail/${programId}/`, {
+            credentials: 'same-origin',
+            headers: { 'Accept': 'application/json' }
+        })
+        .then(resp => {
+            if (!resp.ok) throw resp;
+            return resp.json();
+        })
+        .then(program => {
             showProgramDetailsModal(program);
-        } else {
-            // Try to fetch from API
-            fetch(`/api/chalix/dashboard/program-detail/${programId}/`, {
-                credentials: 'same-origin',
-                headers: { 'Accept': 'application/json' }
-            })
-            .then(resp => {
-                if (!resp.ok) throw resp;
-                return resp.json();
-            })
-            .then(program => {
+        })
+        .catch(err => {
+            console.error('Failed to load program details:', err);
+            // Fallback: try to get basic data from DOM but without fake topics
+            const existingPrograms = getAllProgramsFromDOM();
+            const program = existingPrograms.find(p => p.id == programId);
+            if (program) {
+                // Remove fake topics and show modal with loading message
+                program.topics = [];
                 showProgramDetailsModal(program);
-            })
-            .catch(err => {
-                console.error('Failed to load program details:', err);
+            } else {
                 // Fallback: show basic modal with available info
                 showProgramDetailsModal({
                     id: programId,
@@ -1048,8 +1048,8 @@
                     topics: [],
                     icon: 'seed-of-life'
                 });
-            });
-        }
+            }
+        });
     }
 
     function getAllProgramsFromDOM() {
@@ -1079,8 +1079,8 @@
                     title: title,
                     short_description: descEl ? descEl.textContent : '',
                     topics: topics && Array.isArray(topics) && topics.length > 0
-                        ? topics.map((t, i) => ({ id: t.id || (i+1), title: t.title || t.name || `Chuyên đề ${i+1}` }))
-                        : Array.from({length: topicsCount}, (_, i) => ({ id: i + 1, title: `Chuyên đề ${i + 1}` })),
+                        ? topics
+                        : [], // Don't generate fake topics - let API provide real data
                     icon: 'seed-of-life',
                     created_at: new Date().toISOString(),
                     created_by: 'Người dùng hiện tại'
@@ -1097,14 +1097,7 @@
         const iconSvg = getIconSvg(program.icon || 'seed-of-life');
         const iconHtml = iconSvg ? iconSvg.outerHTML : '📚';
         
-        const topicsList = program.topics && program.topics.length > 0 
-            ? program.topics.map((topic, index) => 
-                `<div class="lm-topic-item">
-                    <span class="lm-topic-number">${index + 1}.</span>
-                    <span class="lm-topic-title">${escapeHtml(topic.title)}</span>
-                </div>`
-            ).join('')
-            : '<div class="lm-no-topics">Chưa có chuyên đề nào</div>';
+        const topicsList = generateTopicsListHtml(program.topics);
 
         overlay.innerHTML = `
             <div class="lm-modal lm-detail-modal">
@@ -1205,30 +1198,22 @@
     }
 
     function editProgram(programId, onSuccess) {
-        // Get program data for editing
-        const existingPrograms = getAllProgramsFromDOM();
-        const program = existingPrograms.find(p => p.id == programId);
-        
-        if (program) {
+        // Always fetch fresh data from API to ensure topics are current
+        fetch(`/api/chalix/dashboard/program-detail/${programId}/`, {
+            credentials: 'same-origin',
+            headers: { 'Accept': 'application/json' }
+        })
+        .then(resp => {
+            if (!resp.ok) throw resp;
+            return resp.json();
+        })
+        .then(program => {
             showEditProgramModal(program, onSuccess);
-        } else {
-            // Try to fetch from API
-            fetch(`/api/chalix/dashboard/program-detail/${programId}/`, {
-                credentials: 'same-origin',
-                headers: { 'Accept': 'application/json' }
-            })
-            .then(resp => {
-                if (!resp.ok) throw resp;
-                return resp.json();
-            })
-            .then(program => {
-                showEditProgramModal(program, onSuccess);
-            })
-            .catch(err => {
-                console.error('Failed to load program for editing:', err);
-                alert('Không thể tải thông tin chương trình học để chỉnh sửa.');
-            });
-        }
+        })
+        .catch(err => {
+            console.error('Failed to load program for editing:', err);
+            alert('Không thể tải thông tin chương trình học để chỉnh sửa.');
+        });
     }
 
     function showEditProgramModal(program, onSuccess) {
@@ -1580,7 +1565,8 @@
                         descEl.textContent = programData.short_description || 'Chưa có mô tả';
                     }
                     if (metaEl) {
-                        metaEl.textContent = `ID: ${programData.id} • ${programData.topics ? programData.topics.length : 0} chuyên đề`;
+                        const topicsCount = programData.topics_count || (programData.topics ? programData.topics.length : 0);
+                        metaEl.textContent = `ID: ${programData.id} • ${topicsCount} chuyên đề`;
                     }
                     if (iconEl && programData.icon) {
                         const iconSvg = getIconSvg(programData.icon);
@@ -1630,12 +1616,38 @@
             // Update topics list
             const topicsList = overlay.querySelector('.lm-topics-list');
             if (topicsList && Array.isArray(programData.topics)) {
-                const topicsHtml = programData.topics.map((topic, index) => 
-                    `<div class="lm-topic-item"><span class="lm-topic-number">${index+1}.</span><span class="lm-topic-title">${escapeHtml(topic.title || topic.name || topic)}</span></div>`
-                ).join('');
-                topicsList.innerHTML = topicsHtml;
+                topicsList.innerHTML = generateTopicsListHtml(programData.topics);
             }
         }
+    }
+
+    /**
+     * Get the display title for a topic, using backend data or fallback
+     * @param {Object} topic - Topic object from API
+     * @param {number} index - Topic index for fallback numbering
+     * @returns {string} Topic title to display
+     */
+    function getTopicTitle(topic, index) {
+        return topic.title || `Chuyên đề ${index + 1}`;
+    }
+
+    /**
+     * Generate HTML for displaying program topics list
+     * @param {Array} topics - Array of topic objects with title property
+     * @returns {string} HTML string for topics list
+     */
+    function generateTopicsListHtml(topics) {
+        if (!topics || topics.length === 0) {
+            return '<div class="lm-no-topics">Chưa có chuyên đề nào</div>';
+        }
+        
+        return topics.map((topic, index) => {
+            const topicTitle = getTopicTitle(topic, index);
+            return `<div class="lm-topic-item">
+                <span class="lm-topic-number">${index + 1}.</span>
+                <span class="lm-topic-title">${escapeHtml(topicTitle)}</span>
+            </div>`;
+        }).join('');
     }
 
     function getCookie(name) {
@@ -2298,6 +2310,10 @@
 
     // Implemented: Create Program modal UI and handlers.
     // Previously showed a placeholder alert; now builds and opens a full modal.
+
+    // Consolidated: Use React modal for course creation
+    // ...existing code...
+
     function openCreateProgramModal(onSuccess) {
         ensureEditModalStyles();
 
@@ -2688,17 +2704,15 @@
     function loadProgramsForSelection(selectElement) {
         if (!selectElement) return;
         
-        // First try to get programs from current DOM
-        const existingPrograms = getAllProgramsFromDOM();
-        if (existingPrograms.length > 0) {
-            populateProgramsSelect(selectElement, existingPrograms);
-            return;
-        }
+        // Always try to fetch fresh data from API first for course creation
+        selectElement.innerHTML = '<option value="">Đang tải danh sách chương trình...</option>';
         
-        // Otherwise fetch from API
         fetch('/api/chalix/dashboard/list-programs/', {
             credentials: 'same-origin',
-            headers: { 'Accept': 'application/json' }
+            headers: { 
+                'Accept': 'application/json',
+                'Cache-Control': 'no-cache'  // Ensure fresh data
+            }
         })
         .then(resp => {
             if (!resp.ok) throw resp;
@@ -2706,11 +2720,20 @@
         })
         .then(data => {
             const programs = data.programs || [];
+            console.log('[LM] Loaded programs for selection:', programs.map(p => ({id: p.id, title: p.title, topics_count: p.topics_count, topics_length: p.topics?.length || 0})));
             populateProgramsSelect(selectElement, programs);
         })
         .catch(err => {
             console.error('Failed to load programs for selection:', err);
-            selectElement.innerHTML = '<option value="">Không thể tải danh sách chương trình</option>';
+            
+            // Fallback to DOM data if API fails
+            const existingPrograms = getAllProgramsFromDOM();
+            if (existingPrograms.length > 0) {
+                console.log('[LM] Using DOM fallback for programs selection');
+                populateProgramsSelect(selectElement, existingPrograms);
+            } else {
+                selectElement.innerHTML = '<option value="">Không thể tải danh sách chương trình</option>';
+            }
         });
     }
 
@@ -2719,7 +2742,26 @@
         programs.forEach(program => {
             const option = document.createElement('option');
             option.value = program.id;
-            option.textContent = `${program.title} (${program.topics ? program.topics.length : 0} chuyên đề)`;
+            
+            // Use topics_count from API first, then fallback to topics.length, then extract from DOM
+            let topicCount = 0;
+            if (program.topics_count !== undefined && program.topics_count !== null) {
+                topicCount = program.topics_count;
+            } else if (program.topics && Array.isArray(program.topics)) {
+                topicCount = program.topics.length;
+            } else {
+                // Last resort: try to extract from DOM if this program came from getAllProgramsFromDOM
+                const card = document.querySelector(`[data-action="view-program"][data-id="${program.id}"]`)?.closest('.lm-card-item');
+                if (card) {
+                    const metaEl = card.querySelector('.lm-card-meta');
+                    if (metaEl) {
+                        const topicsMatch = metaEl.textContent.match(/(\d+)\s*chuyên đề/);
+                        topicCount = topicsMatch ? parseInt(topicsMatch[1]) : 0;
+                    }
+                }
+            }
+            
+            option.textContent = `${program.title} (${topicCount} chuyên đề)`;
             selectElement.appendChild(option);
         });
     }
@@ -2727,44 +2769,56 @@
     function showProgramUnitsPreview(programId, previewElement) {
         if (!previewElement) return;
         
-        // First try to get program from current DOM
-        const existingPrograms = getAllProgramsFromDOM();
-        const program = existingPrograms.find(p => p.id == programId);
+        previewElement.innerHTML = '<p class="lm-loading">Đang tải chi tiết chương trình...</p>';
         
-        if (program) {
+        // Always fetch fresh program details from API to ensure we get topics
+        fetch(`/api/chalix/dashboard/program-detail/${programId}/`, {
+            credentials: 'same-origin',
+            headers: { 
+                'Accept': 'application/json',
+                'Cache-Control': 'no-cache'  // Ensure fresh data
+            }
+        })
+        .then(resp => {
+            if (!resp.ok) throw resp;
+            return resp.json();
+        })
+        .then(program => {
+            console.log('[LM] Loaded program for preview:', {id: program.id, title: program.title, topics_count: program.topics_count, topics: program.topics});
             renderUnitsPreview(previewElement, program);
-        } else {
-            // Fetch program details
-            fetch(`/api/chalix/dashboard/program-detail/${programId}/`, {
-                credentials: 'same-origin',
-                headers: { 'Accept': 'application/json' }
-            })
-            .then(resp => {
-                if (!resp.ok) throw resp;
-                return resp.json();
-            })
-            .then(program => {
+        })
+        .catch(err => {
+            console.error('Failed to load program details:', err);
+            
+            // Fallback to DOM data
+            const existingPrograms = getAllProgramsFromDOM();
+            const program = existingPrograms.find(p => p.id == programId);
+            
+            if (program) {
+                console.log('[LM] Using DOM fallback for program preview:', program);
                 renderUnitsPreview(previewElement, program);
-            })
-            .catch(err => {
-                console.error('Failed to load program details:', err);
+            } else {
                 previewElement.innerHTML = '<p class="lm-error">Không thể tải chi tiết chương trình</p>';
-            });
-        }
+            }
+        });
     }
 
     function renderUnitsPreview(previewElement, program) {
+        console.log('[LM] Rendering units preview for program:', program);
+        
         if (!program.topics || program.topics.length === 0) {
             previewElement.innerHTML = '<p class="lm-detail-empty">Chương trình này chưa có chuyên đề nào</p>';
             return;
         }
         
-        const unitsHtml = program.topics.map((topic, index) => `
+        const unitsHtml = program.topics.map((topic, index) => {
+            const topicTitle = getTopicTitle(topic, index);
+            return `
             <div class="lm-unit-preview-item">
-                <strong>Đơn vị ${index + 1}:</strong> ${escapeHtml(topic.title || topic.name || topic)}
+                <strong>Đơn vị ${index + 1}:</strong> ${escapeHtml(topicTitle)}
                 ${topic.description ? `<br><small>${escapeHtml(topic.description)}</small>` : ''}
-            </div>
-        `).join('');
+            </div>`;
+        }).join('');
         
         previewElement.innerHTML = `
             <div class="lm-units-preview-list">
@@ -2813,21 +2867,62 @@
                 createBtn.disabled = false;
                 return;
             }
-            courseData.source_program_id = sourceProgramId;
+            courseData.template_program_id = sourceProgramId;
             
-            // Get program details to create units
-            const existingPrograms = getAllProgramsFromDOM();
-            const sourceProgram = existingPrograms.find(p => p.id == sourceProgramId);
-            
-            if (sourceProgram && sourceProgram.topics) {
-                courseData.units = sourceProgram.topics.map((topic, index) => ({
-                    title: topic.title || topic.name || topic,
-                    name: topic.title || topic.name || topic,
-                    description: topic.description || `Đơn vị học tập được tạo từ chuyên đề "${topic.title || topic.name || topic}"`,
-                    order: index,
-                    source_topic: topic
-                }));
-            }
+            // Get program details to create units - always fetch fresh data
+            fetch(`/api/chalix/dashboard/program-detail/${sourceProgramId}/`, {
+                credentials: 'same-origin',
+                headers: { 
+                    'Accept': 'application/json',
+                    'Cache-Control': 'no-cache'
+                }
+            })
+            .then(resp => {
+                if (!resp.ok) throw resp;
+                return resp.json();
+            })
+            .then(sourceProgram => {
+                console.log('[LM] Using program for course creation:', {id: sourceProgram.id, title: sourceProgram.title, topics: sourceProgram.topics});
+                
+                if (sourceProgram && sourceProgram.topics) {
+                    courseData.units = sourceProgram.topics.map((topic, index) => {
+                        const topicTitle = getTopicTitle(topic, index);
+                        return {
+                            title: topicTitle,
+                            name: topicTitle,
+                            description: topic.description || `Đơn vị học tập được tạo từ chuyên đề "${topicTitle}"`,
+                            order: index,
+                            source_topic: topic
+                        };
+                    });
+                }
+                
+                // Now proceed with course creation
+                proceedWithCourseCreation(courseData, messageEl, createBtn, overlay, onSuccess);
+            })
+            .catch(err => {
+                console.error('Failed to load program for course creation:', err);
+                
+                // Fallback to DOM data
+                const existingPrograms = getAllProgramsFromDOM();
+                const sourceProgram = existingPrograms.find(p => p.id == sourceProgramId);
+                
+                if (sourceProgram && sourceProgram.topics) {
+                    courseData.units = sourceProgram.topics.map((topic, index) => {
+                        const topicTitle = getTopicTitle(topic, index);
+                        return {
+                            title: topicTitle,
+                            name: topicTitle,
+                            description: topic.description || `Đơn vị học tập được tạo từ chuyên đề "${topicTitle}"`,
+                            order: index,
+                            source_topic: topic
+                        };
+                    });
+                }
+                
+                proceedWithCourseCreation(courseData, messageEl, createBtn, overlay, onSuccess);
+            });
+            return; // Exit early, let the promise chain handle the rest
         } else {
             // Collect manual units
             overlay.querySelectorAll('#new-units-list .lm-topic-input').forEach((input, index) => {
@@ -2842,6 +2937,11 @@
             });
         }
         
+        // For manual creation, proceed directly
+        proceedWithCourseCreation(courseData, messageEl, createBtn, overlay, onSuccess);
+    }
+
+    function proceedWithCourseCreation(courseData, messageEl, createBtn, overlay, onSuccess) {
         // Try to create via API
         fetch(`/api/chalix/dashboard/create-course/`, {
             method: 'POST',
@@ -2866,6 +2966,7 @@
         .catch(err => {
             console.error('Failed to create course:', err);
             // Fallback: simulate success for now
+            const creationType = courseData.creation_type;
             const successMessage = creationType === 'from_program' 
                 ? `Đã tạo khóa học với ${courseData.units.length} đơn vị từ chương trình (mô phỏng - API chưa sẵn sàng)`
                 : 'Đã tạo khóa học thành công (mô phỏng - API chưa sẵn sàng)';

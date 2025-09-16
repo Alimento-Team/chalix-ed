@@ -149,8 +149,7 @@ urlpatterns = oauth2_urlpatterns + [
     path('api/courses/', include('cms.djangoapps.contentstore.api.urls', namespace='courses_api')
          ),
     # Chalix unit types API
-    path('api/chalix/', include('cms.djangoapps.contentstore.views.chalix_urls', namespace='chalix_api')
-         ),
+    path('api/chalix/', include('cms.djangoapps.contentstore.views.chalix_urls', namespace='chalix_api')),
     re_path(fr'^export/{COURSELIKE_KEY_PATTERN}$', contentstore_views.export_handler,
             name='export_handler'),
     re_path(fr'^export_output/{COURSELIKE_KEY_PATTERN}$', contentstore_views.export_output_handler,

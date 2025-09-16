@@ -8,6 +8,9 @@ from django.views.decorators.http import require_POST
 from django.core.exceptions import PermissionDenied
 import json
 import uuid
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Local models
 from cms.djangoapps.contentstore.models import LocalCourse, LocalProgram, ProgramTopic
@@ -51,10 +54,13 @@ def _create_course_structure_from_program(store, course_key, user_id, template_p
     """
     units_created = 0
     
+    # Get the course object from the course key
+    course = store.get_course(course_key)
+    
     # Create a main section to organize all program topics
     main_chapter = store.create_child(
         user_id,
-        course_key,
+        course.location,  # Use course location instead of course_key
         'chapter',
         fields={
             'display_name': template_program.title,
@@ -62,7 +68,7 @@ def _create_course_structure_from_program(store, course_key, user_id, template_p
     )
     
     # For each program topic, create a subsection with an empty unit
-    for topic in program_topics:
+    for i, topic in enumerate(program_topics, 1):
         # Create subsection (sequential) for the topic
         # Topic name becomes the subsection name in the course outline
         sequential = store.create_child(
@@ -265,7 +271,7 @@ def create_course_api(request):
     
     try:
         payload = json.loads(request.body.decode('utf-8'))
-    except Exception:
+    except Exception as e:
         return JsonResponse({'error': 'Invalid JSON'}, status=400)
 
     # Required fields for OpenEDX course creation
@@ -317,158 +323,44 @@ def create_course_api(request):
         )
         
         course_key = new_course.id
+        logger.info(f"[CHALIX] Created OpenEDX course with key: {course_key}")
         
         # Create course structure based on program topics if template provided
         units_created = 0
         if template_program and program_topics:
-            store = modulestore()
-            with store.bulk_operations(course_key):
-                units_created = _create_course_structure_from_program(
-                    store, 
-                    course_key, 
-                    request.user.id, 
-                    template_program, 
-                    program_topics
-                )
+            try:
+                store = modulestore()
+                with store.bulk_operations(course_key):
+                    units_created = _create_course_structure_from_program(
+                        store, 
+                        course_key, 
+                        request.user.id, 
+                        template_program, 
+                        program_topics
+                    )
+            except Exception as structure_error:
+                # Log structure creation error but don't fail the whole course creation
+                print(f"Course structure creation failed: {structure_error}")
+                units_created = 0  # Course created but no structure
+            logger.info(f"[CHALIX] Course structure creation complete. Units created: {units_created}")
+        else:
+            logger.info(f"[CHALIX] No template program provided, skipping structure creation")
 
-        # Prepare response with OpenEDX course data
-        result = {
-            'course_key': str(course_key),
-            'title': new_course.display_name,
-            'org': course_key.org,
-            'number': course_key.course,
-            'run': course_key.run,
-            'course_type': course_fields.get('course_type', ''),
-            'short_description': course_fields.get('short_description', ''),
-            'created_by': request.user.username,
-            'units_created': units_created,
-            'url': f'/courses/{course_key}/',
-            'studio_url': f'/course/{course_key}',
-            'template_program': None,
-        }
-        
-        # Add template program info if used
-        if template_program:
-            result['template_program'] = {
-                'id': template_program.pk,
-                'title': template_program.title,
-                'icon': template_program.icon,
-                'topics_count': len(program_topics)
-            }
-
-        return JsonResponse(result)
-
-    except DuplicateCourseError:
-        return JsonResponse({
-            'error': 'Khóa học với mã số này đã tồn tại. Vui lòng chọn mã số khác.',
-            'error_code': 'DUPLICATE_COURSE'
-        }, status=400)
-    except ValidationError as ex:
-        return JsonResponse({'error': str(ex)}, status=400)
-    except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.error(f"Failed to create course: {str(e)}")
-        return JsonResponse({
-            'error': 'Có lỗi xảy ra khi tạo khóa học. Vui lòng thử lại.',
-            'error_code': 'CREATION_FAILED'
-        }, status=500)
-
-
-@login_required
-@require_POST 
-def create_program_api(request):
-    """Create a new OpenEDX course using the standard course creation logic.
-    
-    Only users with giang_vien or co_quan roles can create courses.
-    If template_program_id is provided, creates course structure based on program topics.
-
-    Expects JSON: {
-        "title": "Course Title",
-        "org": "chalix", 
-        "number": "course_code",
-        "run": "2024",
-        "template_program_id": 123 (optional)
-    }
-    Returns JSON with created course key and details on success.
-    """
-    # Check role-based permission
-    try:
-        require_role(request.user, ['giang_vien', 'co_quan'])
-    except PermissionDenied:
-        return JsonResponse({'error': 'Bạn không có quyền tạo khóa học'}, status=403)
-    
-    try:
-        payload = json.loads(request.body.decode('utf-8'))
-    except Exception:
-        return JsonResponse({'error': 'Invalid JSON'}, status=400)
-
-    # Required fields for OpenEDX course creation
-    title = payload.get('title', '').strip()
-    org = payload.get('org', 'chalix').strip()
-    number = payload.get('number', '').strip()
-    run = payload.get('run', '2024').strip()
-    
-    # Optional fields
-    short_description = payload.get('short_description', '').strip()
-    template_program_id = payload.get('template_program_id')
-    course_type = payload.get('course_type', '')
-
-    if not title:
-        return JsonResponse({'error': 'Title is required'}, status=400)
-    
-    # Auto-generate course number if not provided
-    if not number:
-        number = f'course_{uuid.uuid4().hex[:8]}'
-
-    # Resolve template program if provided
-    template_program = None
-    program_topics = []
-    if template_program_id:
-        try:
-            template_program = LocalProgram.objects.get(pk=template_program_id)
-            program_topics = list(ProgramTopic.objects.filter(program=template_program).order_by('order'))
-        except LocalProgram.DoesNotExist:
-            template_program = None
-
-    try:
-        # Use OpenEDX standard course creation
-        course_fields = {
-            'display_name': title,
-            'course_type': course_type,
-        }
-        
-        # Add short description if provided
-        if short_description:
-            course_fields['short_description'] = short_description
-        
-        # Create the course using OpenEDX standard method
-        new_course = create_new_course(
-            user=request.user,
-            org=org,
-            number=number,
-            run=run,
-            fields=course_fields
+        # Create LocalCourse record to track the course-program relationship
+        # Persist a LocalCourse record and store the modulestore course key string
+        local_course = LocalCourse.objects.create(
+            title=new_course.display_name,
+            short_description=course_fields.get('short_description', ''),
+            template_program=template_program,
+            course_type=course_fields.get('course_type', ''),
+            created_by=request.user if request.user.is_authenticated else None,
+            course_key=str(course_key),
         )
-        
-        course_key = new_course.id
-        
-        # Create course structure based on program topics if template provided
-        units_created = 0
-        if template_program and program_topics:
-            store = modulestore()
-            with store.bulk_operations(course_key):
-                units_created = _create_course_structure_from_program(
-                    store, 
-                    course_key, 
-                    request.user.id, 
-                    template_program, 
-                    program_topics
-                )
 
         # Prepare response with OpenEDX course data
         result = {
             'course_key': str(course_key),
+            'local_course_id': local_course.pk,
             'title': new_course.display_name,
             'org': course_key.org,
             'number': course_key.course,
@@ -501,13 +393,18 @@ def create_program_api(request):
     except ValidationError as ex:
         return JsonResponse({'error': str(ex)}, status=400)
     except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.error(f"Failed to create course: {str(e)}")
+        # Log the error and return a generic error response
+        import traceback
+        error_details = f"Course creation error: {str(e)}\n{traceback.format_exc()}"
+        print(error_details)  # This will appear in CMS logs
         return JsonResponse({
             'error': 'Có lỗi xảy ra khi tạo khóa học. Vui lòng thử lại.',
-            'error_code': 'CREATION_FAILED'
+            'error_code': 'CREATION_FAILED',
+            'debug': str(e)  # Include error details for debugging
         }, status=500)
+
+
+
 
 
 @login_required
@@ -580,6 +477,7 @@ def create_program_api(request):
         return JsonResponse({'error': 'Invalid JSON'}, status=400)
 
     title = payload.get('title', '').strip()
+    short_description = payload.get('short_description', '').strip()
     icon = payload.get('icon', 'seed-of-life')
     update_topics = payload.get('update_topics', False)
     topics = payload.get('topics', [])
@@ -587,44 +485,68 @@ def create_program_api(request):
     if not title:
         return JsonResponse({'error': 'Title is required'}, status=400)
 
-    # Create the program
-    program = LocalProgram.objects.create(
-        title=title,
-        icon=icon,
-        update_topics=update_topics,
-        created_by=request.user if request.user.is_authenticated else None,
-    )
-
-    # Add topics if provided
-    for index, topic_item in enumerate(topics):
-        # Handle both string topics and object topics. Coerce to string before strip
-        if isinstance(topic_item, dict):
-            title_val = topic_item.get('title', '')
-            topic_title = str(title_val).strip()
-        else:
-            topic_title = str(topic_item).strip()
-
-        if topic_title:
-            ProgramTopic.objects.create(
-                program=program,
-                title=topic_title,
-                order=index
+    # Use database transaction to ensure atomicity
+    from django.db import transaction
+    
+    try:
+        with transaction.atomic():
+            # Create the program
+            program = LocalProgram.objects.create(
+                title=title,
+                short_description=short_description,
+                icon=icon,
+                update_topics=update_topics,
+                created_by=request.user if request.user.is_authenticated else None,
             )
 
-    # Return program data with topics
-    topics_data = [
-        {'id': topic.pk, 'title': topic.title, 'order': topic.order}
-        for topic in ProgramTopic.objects.filter(program=program).order_by('order')
-    ]
+            # Add topics if provided
+            topics_to_create = []
+            for index, topic_item in enumerate(topics):
+                # Handle both string topics and object topics. Coerce to string before strip
+                if isinstance(topic_item, dict):
+                    title_val = topic_item.get('title', '')
+                    topic_title = str(title_val).strip()
+                else:
+                    topic_title = str(topic_item).strip()
 
-    return JsonResponse({
-        'id': program.pk, 
-        'title': program.title, 
-        'icon': program.icon,
-        'update_topics': program.update_topics,
-        'topics': topics_data,
-        'created_at': program.created_at.isoformat()
-    })
+                if topic_title:
+                    topics_to_create.append(ProgramTopic(
+                        program=program,
+                        title=topic_title,
+                        order=index
+                    ))
+            
+            # Bulk create all topics at once
+            if topics_to_create:
+                ProgramTopic.objects.bulk_create(topics_to_create)
+
+        # Return program data with topics
+        topics_data = [
+            {'id': topic.pk, 'title': topic.title, 'order': topic.order}
+            for topic in ProgramTopic.objects.filter(program=program).order_by('order')
+        ]
+
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Successfully created program {program.pk} with {len(topics_data)} topics")
+
+        return JsonResponse({
+            'id': program.pk, 
+            'title': program.title,
+            'short_description': program.short_description, 
+            'icon': program.icon,
+            'update_topics': program.update_topics,
+            'topics': topics_data,
+            'created_at': program.created_at.isoformat()
+        })
+        
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error creating program: {str(e)}")
+        return JsonResponse({
+            'error': 'Có lỗi xảy ra khi tạo chương trình học. Vui lòng thử lại.'
+        }, status=500)
 
 
 @login_required
@@ -656,6 +578,7 @@ def update_program_api(request):
 
     program_id = payload.get('id')
     title = payload.get('title', '').strip()
+    short_description = payload.get('short_description', '').strip()
     icon = payload.get('icon', 'seed-of-life')
     update_topics = payload.get('update_topics', False)
     topics = payload.get('topics', [])
@@ -672,68 +595,136 @@ def update_program_api(request):
     except LocalProgram.DoesNotExist:
         return JsonResponse({'error': 'Program not found'}, status=404)
 
-    # Update the program fields
-    program.title = title
-    program.icon = icon
-    program.update_topics = update_topics
-    program.save()
-
-    # Update topics - delete existing and create new ones
-    ProgramTopic.objects.filter(program=program).delete()  # Remove existing topics
+    # Use database transaction to ensure atomicity
+    from django.db import transaction
     
-    # Add new topics
-    for index, topic_item in enumerate(topics):
-        # Handle both string topics and object topics. Coerce to string before strip
-        if isinstance(topic_item, dict):
-            title_val = topic_item.get('title', '')
-            topic_title = str(title_val).strip()
-        else:
-            topic_title = str(topic_item).strip()
+    try:
+        with transaction.atomic():
+            # Update the program fields
+            program.title = title
+            program.short_description = short_description
+            program.icon = icon
+            program.update_topics = update_topics
+            program.save()
 
-        if topic_title:
-            ProgramTopic.objects.create(
-                program=program,
-                title=topic_title,
-                order=index
-            )
+            # Update topics - delete existing and create new ones
+            # Use the related manager for better performance and consistency
+            ProgramTopic.objects.filter(program=program).delete()  # Remove existing topics
+            
+            # Add new topics
+            topics_to_create = []
+            for index, topic_item in enumerate(topics):
+                # Handle both string topics and object topics. Coerce to string before strip
+                if isinstance(topic_item, dict):
+                    title_val = topic_item.get('title', '')
+                    topic_title = str(title_val).strip()
+                else:
+                    topic_title = str(topic_item).strip()
 
-    # Return updated program data with topics
-    topics_data = [
-        {'id': topic.pk, 'title': topic.title, 'order': topic.order}
-        for topic in ProgramTopic.objects.filter(program=program).order_by('order')
-    ]
+                if topic_title:
+                    topics_to_create.append(ProgramTopic(
+                        program=program,
+                        title=topic_title,
+                        order=index
+                    ))
+            
+            # Bulk create all topics at once for better performance
+            if topics_to_create:
+                ProgramTopic.objects.bulk_create(topics_to_create)
 
-    return JsonResponse({
-        'id': program.pk, 
-        'title': program.title, 
-        'icon': program.icon,
-        'update_topics': program.update_topics,
-        'topics': topics_data,
-        'updated_at': program.updated_at.isoformat(),
-        'message': 'Đã cập nhật chương trình học thành công!'
-    })
+        # Refresh from database to get the latest data
+        program.refresh_from_db()
+        
+        # Return updated program data with topics
+        topics_data = [
+            {'id': topic.pk, 'title': topic.title, 'order': topic.order}
+            for topic in ProgramTopic.objects.filter(program=program).order_by('order')
+        ]
+
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Successfully updated program {program_id} with {len(topics_data)} topics: {[t['title'] for t in topics_data]}")
+        
+        # Additional debugging: Check database directly
+        from django.db import connection
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT COUNT(*) FROM contentstore_programtopic WHERE program_id = %s", [program.pk])
+            db_count = cursor.fetchone()[0]
+            logger.info(f"Direct database query shows {db_count} topics for program {program_id}")
+
+        return JsonResponse({
+            'id': program.pk, 
+            'title': program.title,
+            'short_description': program.short_description, 
+            'icon': program.icon,
+            'update_topics': program.update_topics,
+            'topics': topics_data,
+            'updated_at': program.updated_at.isoformat(),
+            'message': 'Đã cập nhật chương trình học thành công!'
+        })
+        
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error updating program {program_id}: {str(e)}")
+        return JsonResponse({
+            'error': 'Có lỗi xảy ra khi cập nhật chương trình học. Vui lòng thử lại.'
+        }, status=500)
 
 
 @login_required
 def list_local_programs_api(request):
     """Return a list of LocalProgram objects visible to the user as JSON."""
-    qs = LocalProgram.objects.prefetch_related('topics').all().order_by('-created_at')[:100]
+    # Don't use prefetch_related since we need fresh data after updates
+    qs = LocalProgram.objects.all().order_by('-created_at')[:100]
     programs = []
+    
+    import logging
+    logger = logging.getLogger(__name__)
+    
     for p in qs:
+        # Always fetch fresh topics data to avoid caching issues
+        topics_queryset = ProgramTopic.objects.filter(program=p).order_by('order')
         topics_data = [
             {'id': topic.pk, 'title': topic.title, 'order': topic.order}
-            for topic in ProgramTopic.objects.filter(program=p).order_by('order')
+            for topic in topics_queryset
         ]
+        
+        # Log the topics for debugging
+        logger.info(f"Program {p.pk} ({p.title}) has {len(topics_data)} topics: {[t['title'] for t in topics_data]}")
+        
         programs.append({
             'id': p.pk,
             'title': p.title,
+            'short_description': p.short_description,
             'icon': p.icon,
             'update_topics': p.update_topics,
             'topics': topics_data,
+            'topics_count': len(topics_data),
             'created_at': p.created_at.isoformat(),
             'created_by': getattr(p.created_by, 'username', None),
         })
-    return JsonResponse({'programs': programs})
+    
+    logger.info(f"Returning {len(programs)} programs in list_local_programs_api")
+    
+    # Add debugging info to track fresh responses
+    import time
+    response_data = {
+        'programs': programs,
+        'debug_info': {
+            'timestamp': time.time(),
+            'server_time': time.strftime('%Y-%m-%d %H:%M:%S'),
+            'total_programs': len(programs),
+        }
+    }
+    
+    # Create response with cache-busting headers to ensure fresh data
+    response = JsonResponse(response_data)
+    response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response['Pragma'] = 'no-cache'
+    response['Expires'] = '0'
+    response['X-Debug-Timestamp'] = str(time.time())
+    return response
 
 
 @login_required
@@ -805,17 +796,26 @@ def program_detail_api(request, cid):
     except LocalProgram.DoesNotExist:
         return JsonResponse({'error': 'Program not found'}, status=404)
     
-    # Get all topics for this program
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # Get all topics for this program - ensure fresh data
+    topics_queryset = ProgramTopic.objects.filter(program=program).order_by('order')
     topics_data = [
         {'id': topic.pk, 'title': topic.title, 'order': topic.order}
-        for topic in ProgramTopic.objects.filter(program=program).order_by('order')
+        for topic in topics_queryset
     ]
+    
+    # Log the topics for debugging
+    logger.info(f"Program detail {cid}: Found {len(topics_data)} topics: {[t['title'] for t in topics_data]}")
     
     # Get all courses that use this program as template
     associated_courses = LocalCourse.objects.filter(template_program=program).order_by('-created_at')
     courses_data = [
         {
             'id': course.pk,
+            'local_course_id': course.pk,
+            'course_key': course.course_key,
             'title': course.title,
             'short_description': course.short_description,
             'course_type': course.course_type,
@@ -828,6 +828,7 @@ def program_detail_api(request, cid):
     program_data = {
         'id': program.pk,
         'title': program.title,
+        'short_description': program.short_description,
         'icon': program.icon,
         'update_topics': program.update_topics,
         'created_at': program.created_at.isoformat(),
@@ -839,7 +840,12 @@ def program_detail_api(request, cid):
         'courses_count': len(courses_data),
     }
     
-    return JsonResponse(program_data)
+    # Create response with cache-busting headers to ensure fresh data
+    response = JsonResponse(program_data)
+    response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response['Pragma'] = 'no-cache'
+    response['Expires'] = '0'
+    return response
 
 
 @login_required
@@ -885,45 +891,34 @@ def update_course_api(request):
         return JsonResponse({'error': 'Bạn không có quyền chỉnh sửa khóa học này'}, status=403)
 
     try:
-        store = modulestore()
-        course = store.get_course(course_key)
+        from openedx.core.djangoapps.models.course_details import CourseDetails
         
-        if not course:
-            return JsonResponse({'error': 'Course not found'}, status=404)
-
-        # Update course fields
-        course.display_name = title
-        if short_description:
-            course.short_description = short_description
+        # Prepare the course update payload similar to how CourseDetails.update_from_json expects it
+        course_update_data = {
+            'title': title,
+            'short_description': short_description,
+        }
         
-        # Parse and set dates if provided
+        # Add date fields if provided - CourseDetails.update_from_json expects these field names
         if start_date_str:
-            from dateutil import parser as date_parser
-            try:
-                course.start = date_parser.parse(start_date_str)
-            except Exception:
-                return JsonResponse({'error': 'Invalid start date format'}, status=400)
-                
+            course_update_data['start_date'] = start_date_str
         if end_date_str:
-            from dateutil import parser as date_parser
-            try:
-                course.end = date_parser.parse(end_date_str)
-            except Exception:
-                return JsonResponse({'error': 'Invalid end date format'}, status=400)
-
-        # Save the course
-        store.update_item(course, request.user.id)
+            course_update_data['end_date'] = end_date_str
+            
+        # Use the proper CourseDetails.update_from_json method which handles all the complexity
+        # of updating course fields and about items correctly
+        updated_course_details = CourseDetails.update_from_json(course_key, course_update_data, request.user)
 
         # Return updated course data
         return JsonResponse({
             'course_key': str(course_key),
-            'title': course.display_name,
+            'title': updated_course_details.title,
             'org': course_key.org,
             'number': course_key.course,
             'run': course_key.run,
-            'short_description': getattr(course, 'short_description', ''),
-            'start_date': course.start.isoformat() if course.start else None,
-            'end_date': course.end.isoformat() if course.end else None,
+            'short_description': updated_course_details.short_description,
+            'start_date': updated_course_details.start_date.isoformat() if updated_course_details.start_date else None,
+            'end_date': updated_course_details.end_date.isoformat() if updated_course_details.end_date else None,
             'message': 'Đã cập nhật khóa học thành công!'
         })
 
