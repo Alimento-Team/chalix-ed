@@ -709,7 +709,12 @@ def _get_index_videos(course, pagination_conf=None):
         else:
             root_path = ""
         client_video_id = video.get("client_video_id", "")
-        protocol = 'https' if getattr(settings, 'HTTPS', False) else 'http'
+        https_setting = getattr(settings, 'HTTPS', False)
+        # Handle both boolean and string values for HTTPS setting
+        if isinstance(https_setting, str):
+            protocol = 'https' if https_setting.lower() not in ('off', 'false', '0') else 'http'
+        else:
+            protocol = 'https' if https_setting else 'http'
         public_url = (
             protocol + '://' + settings.AWS_S3_ENDPOINT_URL.replace('https://', '').replace('http://', '')
             + f"/{bucket_name}/{root_path}{client_video_id}"
@@ -718,6 +723,12 @@ def _get_index_videos(course, pagination_conf=None):
         return values
 
     videos, pagination_context = _get_videos(course, pagination_conf)
+
+    # Debug logging to see what videos are being retrieved
+    LOGGER.info(f'VIDEOS: Retrieved {len(videos)} videos for course {course_id}')
+    for video in videos:
+        LOGGER.info(f'VIDEOS: Video {video.get("edx_video_id", "unknown")} - status: {video.get("status", "unknown")} - courses: {video.get("courses", [])}')
+
     return [_get_values(video, course) for video in videos], pagination_context
 
 
@@ -761,20 +772,20 @@ def videos_index_html(course, pagination_conf=None):
 
 def videos_index_json(course):
     """
-    Returns JSON in the following format:
-    {
-        'videos': [{
-            'edx_video_id': 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa',
-            'client_video_id': 'video.mp4',
-            'created': '1970-01-01T00:00:00Z',
-            'duration': 42.5,
-            'status': 'upload',
-            'course_video_image_url': 'https://video/images/1234.jpg'
-        }]
-    }
+    Returns JSON in the same format as the HTML context for consistency.
     """
-    index_videos, __ = _get_index_videos(course)
-    return JsonResponse({"videos": index_videos}, status=200)
+    context = get_course_videos_context(course, None)
+    # Remove non-serializable objects from context for JSON response
+    json_context = {k: v for k, v in context.items() if k != 'context_course'}
+
+    # Debug logging to see what's in the response
+    LOGGER.info(f'VIDEOS: JSON response context keys: {list(json_context.keys())}')
+    if 'previous_uploads' in json_context:
+        LOGGER.info(f'VIDEOS: Number of previous_uploads: {len(json_context["previous_uploads"])}')
+        for i, video in enumerate(json_context['previous_uploads'][:3]):  # Log first 3 videos
+            LOGGER.info(f'VIDEOS: Video {i}: id={video.get("edx_video_id", "unknown")}, status={video.get("status", "unknown")}')
+
+    return JsonResponse(json_context, status=200)
 
 
 def videos_post(course, request):
@@ -875,7 +886,12 @@ def videos_post(course, request):
             HttpMethod='PUT'
         )
 
-        protocol = 'https' if getattr(settings, 'HTTPS', False) else 'http'
+        https_setting = getattr(settings, 'HTTPS', False)
+        # Handle both boolean and string values for HTTPS setting
+        if isinstance(https_setting, str):
+            protocol = 'https' if https_setting.lower() not in ('off', 'false', '0') else 'http'
+        else:
+            protocol = 'https' if https_setting else 'http'
         public_url = (
             protocol + '://' + settings.AWS_S3_ENDPOINT_URL.replace('https://', '').replace('http://', '')
             + f"/{bucket_name}/{root_path}{file_name}"
@@ -902,7 +918,13 @@ def storage_service_client():
     """
     Returns an S3 client for video upload.
     """
-    protocol = 'https' if getattr(settings, 'HTTPS', False) else 'http'
+    https_setting = getattr(settings, 'HTTPS', False)
+    # Handle both boolean and string values for HTTPS setting
+    if isinstance(https_setting, str):
+        protocol = 'https' if https_setting.lower() not in ('off', 'false', '0') else 'http'
+    else:
+        protocol = 'https' if https_setting else 'http'
+    
     params = {
         'endpoint_url': protocol + '://' + settings.AWS_S3_ENDPOINT_URL.replace('https://', '').replace('http://', ''),
         'aws_access_key_id': settings.AWS_ACCESS_KEY_ID,

@@ -131,12 +131,18 @@ class CourseVideosView(DeveloperErrorViewMixin, APIView):
         if not has_studio_read_access(request.user, course_key):
             self.permission_denied(request)
 
+        # Get the course object using the same method as other views
+        from cms.djangoapps.contentstore.views.course import get_course_and_check_access
+        course = get_course_and_check_access(course_key, request.user)
+
         course_videos_context = get_course_videos_context(
-            None,
+            course,  # Pass the actual course object instead of None
             None,
             course_key,
         )
-        serializer = CourseVideosSerializer(course_videos_context)
+        # Create a serializable context by excluding the non-serializable course object
+        serializable_context = {k: v for k, v in course_videos_context.items() if k != 'context_course'}
+        serializer = CourseVideosSerializer(serializable_context)
         return Response(serializer.data)
 
 

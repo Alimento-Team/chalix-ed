@@ -356,7 +356,10 @@ class VideosHandlerTestCase(
     def test_get_json(self):
         response = self.client.get_json(self.url)
         self.assertEqual(response.status_code, 200)
-        response_videos = json.loads(response.content.decode('utf-8'))['videos']
+        response_data = json.loads(response.content.decode('utf-8'))
+        # The JSON response now matches the HTML context structure
+        self.assertIn('previous_uploads', response_data)
+        response_videos = response_data['previous_uploads']
         self.assertEqual(len(response_videos), len(self.previous_uploads))
         for i, response_video in enumerate(response_videos):
             # Videos should be returned by creation date descending
@@ -700,7 +703,8 @@ class VideosHandlerTestCase(
         """
         response = self.client.get_json(url)
         self.assertEqual(response.status_code, 200)
-        response_videos = json.loads(response.content.decode('utf-8'))["videos"]
+        response_data = json.loads(response.content.decode('utf-8'))
+        response_videos = response_data['previous_uploads']
         self.assertEqual(len(response_videos), len(self.previous_uploads) - deleted_videos)
 
         if deleted_videos:
@@ -776,7 +780,8 @@ class VideosHandlerTestCase(
         """
         response = self.client.get_json(url)
         self.assertEqual(response.status_code, 200)
-        videos = json.loads(response.content.decode('utf-8'))["videos"]
+        response_data = json.loads(response.content.decode('utf-8'))
+        videos = response_data['previous_uploads']
         for video in videos:
             if video['edx_video_id'] == edx_video_id:
                 return self.assertEqual(video['status'], status)
@@ -994,7 +999,8 @@ class VideoImageTestCase(VideoUploadTestBase, CourseTestCase):
 
         response = self.client.get_json(get_videos_url)
         self.assertEqual(response.status_code, 200)
-        response_videos = json.loads(response.content.decode('utf-8'))["videos"]
+        response_data = json.loads(response.content.decode('utf-8'))
+        response_videos = response_data["previous_uploads"]
         for response_video in response_videos:
             if response_video['edx_video_id'] == edx_video_id:
                 self.assertEqual(response_video['course_video_image_url'], val_image_url)

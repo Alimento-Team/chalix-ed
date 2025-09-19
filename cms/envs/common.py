@@ -1570,9 +1570,9 @@ EXTENDED_VIDEO_TRANSCRIPT_LANGUAGES = []
 ############################# SETTINGS FOR VIDEO UPLOAD PIPELINE #############################
 
 VIDEO_UPLOAD_PIPELINE = {
-    'VEM_S3_BUCKET': '',
-    'BUCKET': '',
-    'ROOT_PATH': '',
+    'VEM_S3_BUCKET': 'openedxvideos',
+    'BUCKET': 'openedxvideos',
+    'ROOT_PATH': 'upload',
     'CONCURRENT_UPLOAD_LIMIT': 4,
 }
 

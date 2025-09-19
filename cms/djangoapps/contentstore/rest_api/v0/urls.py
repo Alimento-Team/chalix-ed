@@ -85,6 +85,10 @@ urlpatterns = [
         authoring_videos.VideosUploadsView.as_view(), name='cms_api_videos_uploads'
     ),
     re_path(
+        fr'^videos/stream/{VIDEO_ID_PATTERN}$',
+        authoring_videos.VideoStreamView.as_view(), name='cms_api_videos_stream'
+    ),
+    re_path(
         fr'^video_transcripts/{settings.COURSE_ID_PATTERN}$',
         TranscriptView.as_view(), name='cms_api_video_transcripts'
     ),
