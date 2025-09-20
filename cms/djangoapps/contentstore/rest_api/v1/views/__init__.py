@@ -13,6 +13,7 @@ from .help_urls import HelpUrlsView
 from .home import HomePageCoursesView, HomePageLibrariesView, HomePageView
 from .proctoring import ProctoredExamSettingsView, ProctoringErrorsView
 from .settings import CourseSettingsView
+from .slides import CourseSlidesView, SlideUsageView
 from .textbooks import CourseTextbooksView
 from .vertical_block import ContainerHandlerView, VerticalContainerView
 from .videos import (

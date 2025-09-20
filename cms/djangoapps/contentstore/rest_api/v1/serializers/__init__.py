@@ -17,6 +17,14 @@ from .proctoring import (
     ProctoringErrorsSerializer,
 )
 from .settings import CourseSettingsSerializer
+from .slides import (
+    CourseSlidesSerializer,
+    SlideDownloadSerializer,
+    SlideFileSpecSerializer,
+    SlideModelSerializer,
+    SlideUploadSerializer,
+    SlideUsageSerializer,
+)
 from .textbooks import CourseTextbooksSerializer
 from .vertical_block import ContainerHandlerSerializer, VerticalContainerSerializer
 from .videos import (

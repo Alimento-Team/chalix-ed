@@ -1,0 +1,19 @@
+<div class="assets-library">
+    <h3 class="assets-title"><%- uploadHeader %></h3>
+    <div class="file-drop-area">
+        <div class="file-drop-icon">
+            <span class="icon fa fa-cloud-upload" aria-hidden="true"></span>
+        </div>
+        <div class="file-drop-text">
+            <%- uploadText %>
+        </div>
+        <div class="file-drop-info">
+            <div><%- maxSizeText %></div>
+            <div><%- supportedSlidesText %></div>
+        </div>
+        <input type="file" class="file-input" multiple accept=".pdf,.pptx,.ppt" style="display: none;">
+    </div>
+    <ul class="active-slide-upload-list">
+        <!-- Active uploads will be appended here -->
+    </ul>
+</div>

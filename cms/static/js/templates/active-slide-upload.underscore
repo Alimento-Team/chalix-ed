@@ -1,0 +1,29 @@
+<div class="slide-upload-item">
+    <div class="slide-upload-info">
+        <div class="slide-upload-name"><%- fileName %></div>
+        <div class="slide-upload-status">
+            <% if (status === 'uploading') { %>
+                <span class="status-uploading">
+                    <span class="icon fa fa-spinner fa-spin" aria-hidden="true"></span>
+                    <%- gettext('Uploading...') %> <%- progress %>%</span>
+            <% } else if (status === 'completed') { %>
+                <span class="status-completed">
+                    <span class="icon fa fa-check" aria-hidden="true"></span>
+                    <%- gettext('Upload Complete') %></span>
+            <% } else if (status === 'failed') { %>
+                <span class="status-failed">
+                    <span class="icon fa fa-exclamation-triangle" aria-hidden="true"></span>
+                    <%- gettext('Upload Failed') %>
+                    <a href="#" class="more-details-action"><%- gettext('More details') %></a>
+                </span>
+            <% } %>
+        </div>
+    </div>
+    <div class="slide-upload-progress">
+        <% if (status === 'uploading') { %>
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: <%- progress %>%"></div>
+            </div>
+        <% } %>
+    </div>
+</div>

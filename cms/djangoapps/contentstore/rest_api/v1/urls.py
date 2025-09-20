@@ -16,6 +16,7 @@ from .views import (
     CourseGroupConfigurationsView,
     CourseRerunView,
     CourseSettingsView,
+    CourseSlidesView,
     CourseVideosView,
     CourseWaffleFlagsView,
     HomePageView,
@@ -25,6 +26,7 @@ from .views import (
     ProctoringErrorsView,
     HelpUrlsView,
     VideoUsageView,
+    SlideUsageView,
     VideoDownloadView,
     VerticalContainerView,
 )
@@ -51,6 +53,16 @@ urlpatterns = [
         fr'^videos/{COURSE_ID_PATTERN}$',
         CourseVideosView.as_view(),
         name="course_videos"
+    ),
+    re_path(
+        fr'^slides/{COURSE_ID_PATTERN}$',
+        CourseSlidesView.as_view(),
+        name="course_slides"
+    ),
+    re_path(
+        fr'^slides/{COURSE_ID_PATTERN}/(?P<slide_id>[-\w]+)/usage$',
+        SlideUsageView.as_view(),
+        name="slide_usage"
     ),
     re_path(
         fr'^videos/{COURSE_ID_PATTERN}/{VIDEO_ID_PATTERN}/usage$',

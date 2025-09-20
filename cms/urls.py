@@ -182,6 +182,8 @@ urlpatterns = oauth2_urlpatterns + [
             contentstore_views.videos_handler, name='videos_handler'),
     re_path(fr'^generate_video_upload_link/{settings.COURSE_KEY_PATTERN}$',
             contentstore_views.generate_video_upload_link_handler, name='generate_video_upload_link'),
+    re_path(fr'^slides/{settings.COURSE_KEY_PATTERN}(?:/(?P<slide_id>[-\w]+))?$',
+            contentstore_views.slides_handler, name='slides_handler'),
     re_path(fr'^video_images/{settings.COURSE_KEY_PATTERN}(?:/(?P<edx_video_id>[-\w]+))?$',
             contentstore_views.video_images_handler, name='video_images_handler'),
     path('video_images_upload_enabled', contentstore_views.video_images_upload_enabled,

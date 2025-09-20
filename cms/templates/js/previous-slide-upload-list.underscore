@@ -1,0 +1,18 @@
+<div class="assets-library">
+    <h3 class="assets-title"><%- gettext("Previous Uploads") %></h3>
+    <div class="assets-table slide-table">
+        <div class="js-table-head">
+            <div class="slide-row">
+                <div class="slide-head-col slide-col name-col"><%- gettext("Name") %></div>
+                <div class="slide-head-col slide-col date-col"><%- gettext("Date Added") %></div>
+                <div class="slide-head-col slide-col slide-id-col"><%- gettext("Slide ID") %></div>
+                <div class="slide-head-col slide-col file-type-col"><%- gettext("File Type") %></div>
+                <div class="slide-head-col slide-col file-size-col"><%- gettext("File Size") %></div>
+                <div class="slide-head-col slide-col status-col"><%- gettext("Status") %></div>
+                <div class="slide-head-col slide-col public-url-col"><%- gettext("Download URL") %></div>
+                <div class="slide-head-col slide-col actions-col"><%- gettext("Action") %></div>
+            </div>
+        </div>
+        <div class="js-table-body"></div>
+    </div>
+</div>
