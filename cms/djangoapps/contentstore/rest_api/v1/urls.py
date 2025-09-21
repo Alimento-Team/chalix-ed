@@ -31,6 +31,7 @@ from .views import (
     VerticalContainerView,
 )
 
+
 app_name = 'v1'
 
 VIDEO_ID_PATTERN = r'(?P<edx_video_id>[-\w]+)'
@@ -64,6 +65,7 @@ urlpatterns = [
         SlideUsageView.as_view(),
         name="slide_usage"
     ),
+
     re_path(
         fr'^videos/{COURSE_ID_PATTERN}/{VIDEO_ID_PATTERN}/usage$',
         VideoUsageView.as_view(),

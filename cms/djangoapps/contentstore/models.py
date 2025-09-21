@@ -1,6 +1,4 @@
-"""
-Models for contentstore
-"""
+
 
 
 from datetime import datetime, timezone

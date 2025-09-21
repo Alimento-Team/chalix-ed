@@ -114,8 +114,25 @@ def handle_slides_delete(request, course, slide_id):
             status=rest_status.HTTP_400_BAD_REQUEST
         )
 
-    # For now, return success - actual deletion logic would be implemented here
-    return JsonResponse({'success': True})
+    # Delete all files for this slide from S3
+    try:
+        s3_client = get_s3_client()
+        bucket_name = 'openedxuploads'
+        prefix = f"slides/{course.id}/{slide_id}/"
+        # List all objects under the slide folder
+        response = s3_client.list_objects_v2(Bucket=bucket_name, Prefix=prefix)
+        deleted_files = []
+        if 'Contents' in response:
+            for obj in response['Contents']:
+                key = obj['Key']
+                s3_client.delete_object(Bucket=bucket_name, Key=key)
+                deleted_files.append(key)
+        # Delete slide record(s) from database
+        LOGGER.info(f"Deleted slide {slide_id} for course {course.id} from S3. Files: {deleted_files}")
+        return JsonResponse({'success': True, 'deleted_files': deleted_files})
+    except Exception as e:
+        LOGGER.error(f"Failed to delete slide {slide_id} for course {course.id}: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=rest_status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 def slides_index_html(course):
@@ -301,6 +318,47 @@ def generate_slide_public_url(course_id, slide_id, file_name):
     return f"{base_url}/{bucket_name}/{slides_path}"
 
 
+def generate_slide_signed_url(course_id, slide_id, file_name, expiration=3600):
+    """
+    Generate a temporary signed S3 URL for accessing a slide file
+    This is needed for react-doc-viewer to access PPTX files
+    
+    Args:
+        course_id: Course identifier
+        slide_id: Slide identifier  
+        file_name: Name of the slide file
+        expiration: URL expiration time in seconds (default: 1 hour)
+    
+    Returns:
+        str: Signed S3 URL for temporary access
+    """
+    try:
+        s3_client = get_s3_client()
+        bucket_name = 'openedxuploads'
+        slides_path = f"slides/{course_id}/{slide_id}/{file_name}"
+        
+        # Generate presigned URL for GET operation with CORS-friendly parameters
+        signed_url = s3_client.generate_presigned_url(
+            'get_object',
+            Params={
+                'Bucket': bucket_name,
+                'Key': slides_path,
+                'ResponseContentDisposition': f'inline; filename="{file_name}"',
+                'ResponseContentType': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            },
+            ExpiresIn=expiration,
+            HttpMethod='GET'
+        )
+        
+        LOGGER.info(f'Generated signed URL for slide {slide_id} file {file_name} (expires in {expiration}s)')
+        return signed_url
+        
+    except Exception as e:
+        LOGGER.error(f"Error generating signed URL for slide: {str(e)}")
+        # Fallback to public URL if signed URL generation fails
+        return generate_slide_public_url(course_id, slide_id, file_name)
+
+
 def get_course_slides_from_s3(course):
     """
     Get actual slides from S3 bucket for the course
@@ -342,17 +400,42 @@ def get_course_slides_from_s3(course):
             
             # Convert grouped files to slide objects
             for slide_id, files in slide_groups.items():
-                # For now, take the first file in each slide folder
-                # In production, you might want to handle multiple files per slide differently
-                primary_file = files[0]
-                file_name = primary_file['file_name']
+                # Determine primary file and URLs based on file type
+                primary_file = None
+                pptx_file = None
+                pdf_file = None
                 
-                # Determine file type
-                file_type = 'application/pdf'
-                if file_name.lower().endswith(('.ppt', '.pptx')):
+                # Categorize files
+                for f in files:
+                    if f['file_name'].lower().endswith('.pdf'):
+                        pdf_file = f
+                    elif f['file_name'].lower().endswith(('.ppt', '.pptx')):
+                        pptx_file = f
+                
+                # For PPTX files, use the original PPTX and provide signed URL
+                # For PDF files, use the PDF and provide public URL
+                if pptx_file:
+                    primary_file = pptx_file
+                    file_name = primary_file['file_name']
                     file_type = 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
-                
-                public_url = generate_slide_public_url(course.id, slide_id, file_name)
+                    # Generate signed URL for PPTX files (needed for react-doc-viewer)
+                    public_url = generate_slide_signed_url(course.id, slide_id, file_name)
+                    # Also provide a viewer-specific URL for the frontend
+                    viewer_url = public_url
+                elif pdf_file:
+                    primary_file = pdf_file
+                    file_name = primary_file['file_name']
+                    file_type = 'application/pdf'
+                    # Use public URL for PDF files
+                    public_url = generate_slide_public_url(course.id, slide_id, file_name)
+                    viewer_url = public_url
+                else:
+                    # Fallback to first file if no PDF or PPTX found
+                    primary_file = files[0]
+                    file_name = primary_file['file_name']
+                    file_type = 'application/pdf'  # Default assumption
+                    public_url = generate_slide_public_url(course.id, slide_id, file_name)
+                    viewer_url = public_url
                 
                 # Build base slide dict
                 slide_dict = {
@@ -366,7 +449,9 @@ def get_course_slides_from_s3(course):
                     'download_link': public_url,  # Same as public URL for now
                     'public_url': public_url,
                     'url': public_url,
+                    'viewer_url': viewer_url,  # Signed URL for PPTX, public URL for PDF
                     'contentType': file_type,
+                    'is_pptx': file_type == 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
                 }
 
                 # Video-specific alias fields removed; frontend should use slide-specific fields now
@@ -407,8 +492,9 @@ def get_course_slides_context(course):
             'download_link': public_url,
             'public_url': public_url,
             'url': public_url,
+            'viewer_url': public_url,
             'contentType': 'application/pdf',
-            # Alias fields
+            'is_pptx': False,
         }]
 
     return {
