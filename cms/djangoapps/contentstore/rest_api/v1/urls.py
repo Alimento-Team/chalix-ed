@@ -29,6 +29,10 @@ from .views import (
     SlideUsageView,
     VideoDownloadView,
     VerticalContainerView,
+    UnitMediaListView,
+    UnitMediaDetailView,
+    UnitMediaStatsView,
+    UnitMediaFinalizeUploadView,
 )
 
 
@@ -64,6 +68,28 @@ urlpatterns = [
         fr'^slides/{COURSE_ID_PATTERN}/(?P<slide_id>[-\w]+)/usage$',
         SlideUsageView.as_view(),
         name="slide_usage"
+    ),
+
+    # Unit Media URLs
+    re_path(
+        r'^units/(?P<unit_id>[^/]+)/(?P<media_type>video|slide)s/$',
+        UnitMediaListView.as_view(),
+        name="unit_media_list"
+    ),
+    re_path(
+        r'^units/(?P<unit_id>[^/]+)/(?P<media_type>video|slide)s/(?P<media_id>[-\w]+)/$',
+        UnitMediaDetailView.as_view(),
+        name="unit_media_detail"
+    ),
+    re_path(
+        r'^units/(?P<unit_id>[^/]+)/(?P<media_type>video|slide)s/(?P<media_id>[-\w]+)/finalize/$',
+        UnitMediaFinalizeUploadView.as_view(),
+        name="unit_media_finalize"
+    ),
+    re_path(
+        r'^units/(?P<unit_id>[^/]+)/media/stats/$',
+        UnitMediaStatsView.as_view(),
+        name="unit_media_stats"
     ),
 
     re_path(

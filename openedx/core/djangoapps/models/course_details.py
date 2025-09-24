@@ -79,6 +79,11 @@ class CourseDetails:
         self.learning_info = []
         self.instructor_info = []
 
+        # New fields
+        self.estimated_hours = 0.0
+        self.online_course_link = ""
+        self.instructor = ""
+
     @classmethod
     def fetch_about_attribute(cls, course_key, attribute):
         """
@@ -130,6 +135,11 @@ class CourseDetails:
         course_details.self_paced = block.self_paced
         course_details.learning_info = block.learning_info
         course_details.instructor_info = block.instructor_info
+
+        # New fields
+        course_details.estimated_hours = getattr(block, 'estimated_hours', 0.0)
+        course_details.online_course_link = getattr(block, 'online_course_link', "")
+        course_details.instructor = getattr(block, 'instructor', "")
 
         # Default course license is "All Rights Reserved"
         course_details.license = getattr(block, "license", "all-rights-reserved")
@@ -208,7 +218,8 @@ class CourseDetails:
         # is what the setter expects as input.
         date = Date()
 
-        if jsondict['overview'] == '':
+        # Ensure overview key exists; update empty overview to a non-empty placeholder as expected
+        if jsondict.get('overview', '') == '':
             jsondict['overview'] = '<p>&nbsp;</p>'
 
         if 'start_date' in jsondict:
@@ -302,6 +313,17 @@ class CourseDetails:
             block.self_paced = jsondict['self_paced']
             dirty = True
 
+        # New fields
+        if 'estimated_hours' in jsondict and jsondict['estimated_hours'] != getattr(block, 'estimated_hours', 0.0):
+            block.estimated_hours = jsondict['estimated_hours']
+            dirty = True
+        if 'online_course_link' in jsondict and jsondict['online_course_link'] != getattr(block, 'online_course_link', ""):
+            block.online_course_link = jsondict['online_course_link']
+            dirty = True
+        if 'instructor' in jsondict and jsondict['instructor'] != getattr(block, 'instructor', ""):
+            block.instructor = jsondict['instructor']
+            dirty = True
+
         if dirty:
             module_store.update_item(block, user.id)
 
@@ -313,7 +335,9 @@ class CourseDetails:
             if attribute in jsondict:
                 cls.update_about_item(block, attribute, jsondict[attribute], user.id)
 
-        cls.update_about_video(block, jsondict['intro_video'], user.id)
+        # Be defensive: intro_video may not be present in jsondict when called from various APIs
+        intro_video_val = jsondict.get('intro_video', '')
+        cls.update_about_video(block, intro_video_val, user.id)
 
         # Could just return jsondict w/o doing any db reads, but I put
         # the reads in as a means to confirm it persisted correctly

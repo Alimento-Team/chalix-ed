@@ -1596,7 +1596,11 @@ def get_help_urls():
     ini = HelpUrlExpert.the_one()
     ini.config = configparser.ConfigParser()
     ini.config.read(ini.ini_file_name)
-    tokens = list(ini.config['pages'].keys())
+    try:
+        tokens = list(ini.config['pages'].keys())
+    except (configparser.NoSectionError, KeyError):
+        return {}
+
     help_tokens = {token: HelpUrlExpert.the_one().url_for_token(token) for token in tokens}
     return help_tokens
 

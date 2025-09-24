@@ -15,6 +15,7 @@ from .proctoring import ProctoredExamSettingsView, ProctoringErrorsView
 from .settings import CourseSettingsView
 from .slides import CourseSlidesView, SlideUsageView
 from .textbooks import CourseTextbooksView
+from .unit_media import UnitMediaListView, UnitMediaDetailView, UnitMediaStatsView, UnitMediaFinalizeUploadView
 from .vertical_block import ContainerHandlerView, VerticalContainerView
 from .videos import (
     CourseVideosView,

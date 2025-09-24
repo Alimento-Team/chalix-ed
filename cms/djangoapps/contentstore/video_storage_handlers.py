@@ -939,14 +939,37 @@ def send_video_status_update(updates):
     """
     Update video status in edx-val.
     """
+    from edxval.exceptions import ValVideoNotFoundError
+    
     for update in updates:
-        update_video_status(update.get('edxVideoId'), update.get('status'))
-        LOGGER.info(
-            'VIDEOS: Video status update with id [%s], status [%s] and message [%s]',
-            update.get('edxVideoId'),
-            update.get('status'),
-            update.get('message')
-        )
+        edx_video_id = update.get('edxVideoId')
+        status = update.get('status')
+        message = update.get('message', '')
+        
+        try:
+            update_video_status(edx_video_id, status)
+            LOGGER.info(
+                'VIDEOS: Video status update with id [%s], status [%s] and message [%s]',
+                edx_video_id,
+                status,
+                message
+            )
+        except ValVideoNotFoundError:
+            # This can happen for unit-specific uploads that don't create edx-val Video records
+            # Just log and continue - this is expected behavior for unit media files
+            LOGGER.info(
+                'VIDEOS: Skipping status update for video [%s] - not found in edx-val (likely a unit media file)',
+                edx_video_id
+            )
+            continue
+        except Exception as e:
+            # Log other unexpected errors but don't fail the entire batch
+            LOGGER.exception(
+                'VIDEOS: Failed to update status for video [%s]: %s',
+                edx_video_id,
+                str(e)
+            )
+            continue
 
     return JsonResponse()
 

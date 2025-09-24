@@ -96,6 +96,20 @@ from ..helpers import (
 
 log = logging.getLogger(__name__)
 
+
+def _safe_help_url(token):
+    """Return the help URL for `token`, or empty string on error.
+
+    This wraps HelpUrlExpert lookups to avoid raising exceptions during
+    template/view rendering when the help_tokens config is missing or
+    malformed.
+    """
+    try:
+        return HelpUrlExpert.the_one().url_for_token(token)
+    except Exception:  # defensive: do not let help token failures crash views
+        log.exception("Unable to resolve help token '%s'", token)
+        return ""
+
 CREATE_IF_NOT_FOUND = ["course_info"]
 
 # Useful constants for defining predicates
@@ -1145,9 +1159,7 @@ def create_xblock_info(  # lint-amnesty, pylint: disable=too-many-statements
             {
                 "video_sharing_enabled": True,
                 "video_sharing_options": course.video_sharing_options,
-                "video_sharing_doc_url": HelpUrlExpert.the_one().url_for_token(
-                    "social_sharing"
-                ),
+                "video_sharing_doc_url": _safe_help_url("social_sharing"),
             }
         )
 
@@ -1231,9 +1243,7 @@ def create_xblock_info(  # lint-amnesty, pylint: disable=too-many-statements
                     "highlights_enabled": True,
                     # used to be controlled by a waffle flag, now just always disabled
                     "highlights_preview_only": False,
-                    "highlights_doc_url": HelpUrlExpert.the_one().url_for_token(
-                        "content_highlights"
-                    ),
+                    "highlights_doc_url": _safe_help_url("content_highlights"),
                 }
             )
 

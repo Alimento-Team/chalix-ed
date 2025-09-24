@@ -325,6 +325,26 @@ class TeamsConfigField(Dict):
 
 
 class CourseFields:  # lint-amnesty, pylint: disable=missing-class-docstring
+    estimated_hours = Float(
+        display_name=_("Estimated Hours to Complete"),
+        help=_("Estimated number of hours required to complete the course."),
+        default=0.0,
+        scope=Scope.settings
+    )
+
+    online_course_link = String(
+        display_name=_("Online Course Link"),
+        help=_("URL for online course meetings, e.g., Zoom or Google Meet link."),
+        default="",
+        scope=Scope.settings
+    )
+
+    instructor = String(
+        display_name=_("Assigned Instructor"),
+        help=_("Name or identifier of the assigned instructor for the course."),
+        default="",
+        scope=Scope.settings
+    )
     lti_passports = List(
         display_name=_("LTI Passports"),
         help=_('Enter the passports for course LTI tools in the following format: "id:client_key:client_secret".'),

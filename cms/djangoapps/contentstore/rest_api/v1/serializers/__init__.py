@@ -26,6 +26,15 @@ from .slides import (
     SlideUsageSerializer,
 )
 from .textbooks import CourseTextbooksSerializer
+from .unit_media import (
+    UnitMediaFileSerializer,
+    UnitMediaFileListSerializer,
+    UnitMediaFileUploadSerializer,
+    UnitMediaErrorSerializer,
+    UnitMediaFileStatsSerializer,
+    UnitMediaPresignedUrlSerializer,
+    UnitMediaPresignedUrlListSerializer,
+)
 from .vertical_block import ContainerHandlerSerializer, VerticalContainerSerializer
 from .videos import (
     CourseVideosSerializer,

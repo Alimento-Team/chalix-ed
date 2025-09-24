@@ -1,10 +1,12 @@
 
 
 
+import uuid
 from datetime import datetime, timezone
 
 from config_models.models import ConfigurationModel
 from django.conf import settings
+from django.core.validators import FileExtensionValidator
 from django.db import models
 from django.db.models import Count, F, Q, QuerySet, Max
 from django.db.models.fields import IntegerField, TextField
@@ -705,3 +707,394 @@ class ChalixUserRole(models.Model):
             return ['statistics', 'learning-management']
         else:  # cong_chuc
             return []
+
+
+class UnitMediaFile(models.Model):
+    """
+    Model for storing media files (videos and slides) attached to specific course units.
+    This replaces course-level media attachments with unit-level attachments for better UX.
+    """
+    
+    # Media type choices
+    MEDIA_TYPE_CHOICES = [
+        ('video', _('Video')),
+        ('slide', _('Slide')),
+    ]
+    
+    # File extension validators
+    VIDEO_EXTENSIONS = ['mp4', 'mov', 'avi', 'wmv', 'mkv']
+    SLIDE_EXTENSIONS = ['pdf', 'docx']
+    
+    id = models.UUIDField(
+        primary_key=True, 
+        default=uuid.uuid4, 
+        editable=False,
+        verbose_name=_("Media File ID")
+    )
+    
+    # Unit and course relationship
+    unit_id = models.CharField(
+        max_length=255,
+        db_index=True,
+        verbose_name=_("Unit ID"),
+        help_text=_("The unique identifier of the course unit this media belongs to")
+    )
+    
+    course_id = CourseKeyField(
+        max_length=255,
+        db_index=True,
+        verbose_name=_("Course ID"),
+        help_text=_("The course key this media belongs to")
+    )
+    
+    # Media type and metadata
+    media_type = models.CharField(
+        max_length=10,
+        choices=MEDIA_TYPE_CHOICES,
+        db_index=True,
+        verbose_name=_("Media Type"),
+        help_text=_("Type of media file (video or slide)")
+    )
+    
+    file_name = models.CharField(
+        max_length=255,
+        verbose_name=_("File Name"),
+        help_text=_("Original filename as uploaded by user")
+    )
+    
+    display_name = models.CharField(
+        max_length=255,
+        blank=True,
+        verbose_name=_("Display Name"),
+        help_text=_("User-friendly name for the media file")
+    )
+    
+    file_size = models.BigIntegerField(
+        verbose_name=_("File Size"),
+        help_text=_("Size of the file in bytes")
+    )
+    
+    file_type = models.CharField(
+        max_length=100,
+        verbose_name=_("File Type"),
+        help_text=_("MIME type of the file (e.g., video/mp4, application/pdf)")
+    )
+    
+    # Storage information
+    file_path = models.CharField(
+        max_length=500,
+        verbose_name=_("File Path"),
+        help_text=_("Relative path to the stored file")
+    )
+    
+    upload_url = models.URLField(
+        max_length=500,  # Increased from default 200 to handle longer URLs
+        verbose_name=_("Upload URL"),
+        help_text=_("Public URL for accessing the uploaded file")
+    )
+    
+    # User tracking
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='uploaded_unit_media',
+        verbose_name=_("Uploaded By"),
+        help_text=_("User who uploaded this media file")
+    )
+    
+    # Timestamps
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name=_("Created At")
+    )
+    
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        verbose_name=_("Updated At")
+    )
+
+    class Meta:
+        verbose_name = _("Unit Media File")
+        verbose_name_plural = _("Unit Media Files")
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['unit_id', 'media_type']),
+            models.Index(fields=['course_id', 'media_type']),
+            models.Index(fields=['media_type', 'created_at']),
+        ]
+        # Prevent duplicate filenames per unit/type combination
+        unique_together = ['unit_id', 'file_name', 'media_type']
+
+    def __str__(self):
+        return f"{self.get_media_type_display()}: {self.display_name or self.file_name} ({self.unit_id})"
+
+    @property
+    def file_extension(self):
+        """Get the file extension from the filename"""
+        return self.file_name.split('.')[-1].lower() if '.' in self.file_name else ''
+
+    @property
+    def is_video(self):
+        """Check if this is a video file"""
+        return self.media_type == 'video'
+
+    @property
+    def is_slide(self):
+        """Check if this is a slide file"""
+        return self.media_type == 'slide'
+
+    @property
+    def formatted_file_size(self):
+        """Return human-readable file size"""
+        if self.file_size < 1024:
+            return f"{self.file_size} B"
+        elif self.file_size < 1024 * 1024:
+            return f"{self.file_size / 1024:.1f} KB"
+        elif self.file_size < 1024 * 1024 * 1024:
+            return f"{self.file_size / (1024 * 1024):.1f} MB"
+        else:
+            return f"{self.file_size / (1024 * 1024 * 1024):.1f} GB"
+
+    def clean(self):
+        """Validate the model before saving"""
+        from django.core.exceptions import ValidationError
+        
+        # Validate file extension based on media type
+        extension = self.file_extension
+        if self.media_type == 'video' and extension not in self.VIDEO_EXTENSIONS:
+            raise ValidationError({
+                'file_name': _(f'Video files must have one of these extensions: {", ".join(self.VIDEO_EXTENSIONS)}')
+            })
+        elif self.media_type == 'slide' and extension not in self.SLIDE_EXTENSIONS:
+            raise ValidationError({
+                'file_name': _(f'Slide files must have one of these extensions: {", ".join(self.SLIDE_EXTENSIONS)}')
+            })
+
+        # Set display_name to file_name if not provided
+        if not self.display_name:
+            self.display_name = self.file_name
+
+    def save(self, *args, **kwargs):
+        """Override save to run validation"""
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get_unit_media(cls, unit_id, media_type=None):
+        """Get all media files for a specific unit"""
+        queryset = cls.objects.filter(unit_id=unit_id)
+        if media_type:
+            queryset = queryset.filter(media_type=media_type)
+        return queryset.order_by('created_at')
+
+    @classmethod
+    def get_course_media(cls, course_id, media_type=None):
+        """Get all media files for a specific course"""
+        queryset = cls.objects.filter(course_id=course_id)
+        if media_type:
+            queryset = queryset.filter(media_type=media_type)
+        return queryset.order_by('unit_id', 'created_at')
+
+
+class ChalixQuiz(models.Model):
+    """
+    Model for quiz/assessment created in course authoring interface.
+    Quizzes are attached to course sections/subsections.
+    """
+    course_key = CourseKeyField(
+        max_length=255,
+        help_text="Course key where this quiz belongs"
+    )
+    
+    parent_locator = models.CharField(
+        max_length=255,
+        help_text="Locator string of the parent block (section/subsection) where quiz is attached"
+    )
+    
+    title = models.CharField(
+        max_length=255,
+        verbose_name=_("Quiz Title")
+    )
+    
+    description = models.TextField(
+        blank=True,
+        verbose_name=_("Quiz Description"),
+        help_text=_("Optional description for the quiz")
+    )
+    
+    is_active = models.BooleanField(
+        default=True,
+        verbose_name=_("Is Active"),
+        help_text=_("Whether this quiz is active (soft delete flag)")
+    )
+    
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='created_quizzes',
+        verbose_name=_("Created By")
+    )
+    
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name=_("Created At")
+    )
+    
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        verbose_name=_("Updated At")
+    )
+
+    class Meta:
+        verbose_name = _("Chalix Quiz")
+        verbose_name_plural = _("Chalix Quizzes")
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['course_key', 'is_active']),
+            models.Index(fields=['parent_locator', 'is_active']),
+            models.Index(fields=['created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.title} ({self.course_key})"
+
+    @property
+    def question_count(self):
+        """Get the number of questions in this quiz"""
+        return self.questions.filter(is_active=True).count()
+
+
+class ChalixQuizQuestion(models.Model):
+    """
+    Individual question within a quiz.
+    """
+    QUESTION_TYPE_CHOICES = [
+        ('single_choice', _('Single Choice')),
+        ('multiple_choice', _('Multiple Choice')),
+    ]
+    
+    quiz = models.ForeignKey(
+        ChalixQuiz,
+        on_delete=models.CASCADE,
+        related_name='questions',
+        verbose_name=_("Quiz")
+    )
+    
+    question_text = models.TextField(
+        verbose_name=_("Question Text"),
+        help_text=_("The question text displayed to students")
+    )
+    
+    question_type = models.CharField(
+        max_length=20,
+        choices=QUESTION_TYPE_CHOICES,
+        default='single_choice',
+        verbose_name=_("Question Type"),
+        help_text=_("Whether this is a single choice or multiple choice question")
+    )
+    
+    order_index = models.PositiveIntegerField(
+        default=0,
+        verbose_name=_("Order Index"),
+        help_text=_("Order of this question within the quiz")
+    )
+    
+    is_active = models.BooleanField(
+        default=True,
+        verbose_name=_("Is Active"),
+        help_text=_("Whether this question is active (soft delete flag)")
+    )
+    
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name=_("Created At")
+    )
+    
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        verbose_name=_("Updated At")
+    )
+
+    class Meta:
+        verbose_name = _("Quiz Question")
+        verbose_name_plural = _("Quiz Questions")
+        ordering = ['quiz', 'order_index']
+        indexes = [
+            models.Index(fields=['quiz', 'order_index']),
+            models.Index(fields=['quiz', 'is_active']),
+        ]
+
+    def __str__(self):
+        return f"Q{self.order_index + 1}: {self.question_text[:50]}..."
+
+    @property
+    def choice_count(self):
+        """Get the number of choices for this question"""
+        return self.choices.filter(is_active=True).count()
+
+    @property
+    def correct_choices(self):
+        """Get all correct choices for this question"""
+        return self.choices.filter(is_correct=True, is_active=True)
+
+
+class ChalixQuizChoice(models.Model):
+    """
+    Individual choice/option for a quiz question.
+    """
+    question = models.ForeignKey(
+        ChalixQuizQuestion,
+        on_delete=models.CASCADE,
+        related_name='choices',
+        verbose_name=_("Question")
+    )
+    
+    choice_text = models.TextField(
+        verbose_name=_("Choice Text"),
+        help_text=_("The text of this choice option")
+    )
+    
+    is_correct = models.BooleanField(
+        default=False,
+        verbose_name=_("Is Correct"),
+        help_text=_("Whether this choice is a correct answer")
+    )
+    
+    order_index = models.PositiveIntegerField(
+        default=0,
+        verbose_name=_("Order Index"),
+        help_text=_("Order of this choice within the question")
+    )
+    
+    is_active = models.BooleanField(
+        default=True,
+        verbose_name=_("Is Active"),
+        help_text=_("Whether this choice is active (soft delete flag)")
+    )
+    
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name=_("Created At")
+    )
+    
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        verbose_name=_("Updated At")
+    )
+
+    class Meta:
+        verbose_name = _("Quiz Choice")
+        verbose_name_plural = _("Quiz Choices")
+        ordering = ['question', 'order_index']
+        indexes = [
+            models.Index(fields=['question', 'order_index']),
+            models.Index(fields=['question', 'is_correct']),
+        ]
+
+    def __str__(self):
+        correct_mark = "✓" if self.is_correct else "✗"
+        return f"{correct_mark} {self.choice_text[:30]}..."

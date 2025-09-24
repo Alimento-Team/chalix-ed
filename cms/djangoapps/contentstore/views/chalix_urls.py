@@ -3,7 +3,7 @@ URL patterns for Chalix unit types and dashboard.
 """
 
 from django.urls import path, re_path
-from . import chalix_unit_types, chalix_dashboard
+from . import chalix_unit_types, chalix_dashboard, chalix_quiz
 
 app_name = 'chalix'
 
@@ -115,5 +115,32 @@ urlpatterns = [
         r'^online-class/update/(?P<course_id>.+)$',
         chalix_unit_types.update_online_class_config,
         name='chalix_update_online_class'
+    ),
+
+    # Quiz management endpoints
+    path(
+        'quiz/create/',
+        chalix_quiz.create_quiz_api,
+        name='chalix_create_quiz'
+    ),
+    path(
+        'quiz/<int:quiz_id>/',
+        chalix_quiz.get_quiz_api,
+        name='chalix_get_quiz'
+    ),
+    path(
+        'quiz/list/<str:course_key_string>/',
+        chalix_quiz.list_quizzes_api,
+        name='chalix_list_quizzes'
+    ),
+    path(
+        'quiz/update/<int:quiz_id>/',
+        chalix_quiz.update_quiz_api,
+        name='chalix_update_quiz'
+    ),
+    path(
+        'quiz/delete/<int:quiz_id>/',
+        chalix_quiz.delete_quiz_api,
+        name='chalix_delete_quiz'
     ),
 ]

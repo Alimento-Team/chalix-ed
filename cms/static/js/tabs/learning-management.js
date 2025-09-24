@@ -252,9 +252,21 @@
             
             .lm-detail-grid {
                 display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-                gap: 16px;
+                grid-template-columns: 1fr 320px;
+                gap: 24px;
                 margin-bottom: 16px;
+            }
+
+            @media (max-width: 900px) {
+                .lm-detail-grid {
+                    grid-template-columns: 1fr;
+                }
+                .lm-detail-sidebar {
+                    order: 2;
+                }
+                .lm-detail-main {
+                    order: 1;
+                }
             }
             
             .lm-detail-item {
@@ -273,6 +285,14 @@
             .lm-detail-item span {
                 font-size: 14px;
                 color: #1f2937;
+            }
+
+            .lm-detail-main {
+                min-width: 0;
+            }
+
+            .lm-detail-sidebar {
+                padding: 8px 12px;
             }
             
             .lm-description {
@@ -961,6 +981,20 @@
         courses.forEach(course => {
             const card = document.createElement('div');
             card.className = 'lm-card-item';
+            // Store course_key on the DOM node so getAllCoursesFromDOM can recover it later
+            if (course.course_key) {
+                card.dataset.courseKey = course.course_key;
+            }
+            // Store new fields for later detail view / edit operations
+            if (course.online_course_link) {
+                card.dataset.onlineCourseLink = course.online_course_link;
+            }
+            if (course.instructor) {
+                card.dataset.instructor = course.instructor;
+            }
+            if (course.estimated_hours !== undefined && course.estimated_hours !== null) {
+                card.dataset.estimatedHours = course.estimated_hours;
+            }
             
             // Use course.id when available, otherwise fall back to course_key (OpenEDX identifier)
             const courseIdentifier = (course.id !== undefined && course.id !== null) ? course.id : course.course_key;
@@ -1508,43 +1542,69 @@
     function updateCourseInDOM(courseData) {
         console.log('🔄 Updating course in DOM:', courseData);
         
-        // Find the course item in the list
-        const courseItems = document.querySelectorAll('.lm-course-item');
+        // Find the course item in the list - support both legacy '.lm-course-item' and new '.lm-card-item'
+        const courseItems = document.querySelectorAll('.lm-course-item, .lm-card-item');
+        let found = false;
         courseItems.forEach(item => {
-            const itemId = item.getAttribute('data-course-id');
-            if (itemId && itemId === courseData.id.toString()) {
-                console.log('📍 Found course item to update:', itemId);
-                
-                // Update title
-                const titleEl = item.querySelector('h3');
+            // Prefer dataset.courseKey when available
+            const cardCourseKey = item.dataset.courseKey;
+            const metaEl = item.querySelector && item.querySelector('.lm-card-meta');
+            let metaId = null;
+            if (metaEl) {
+                const m = metaEl.textContent.match(/ID:\s*([^•\n]+)/);
+                metaId = m ? m[1].trim() : null;
+            }
+
+            const itemId = item.getAttribute('data-course-id') || metaId || null;
+
+            // Match by numeric id or by course_key string
+            if ((courseData.id && String(courseData.id) === String(itemId)) ||
+                (courseData.course_key && cardCourseKey && String(courseData.course_key) === String(cardCourseKey))) {
+                found = true;
+
+                // Update title if present
+                const titleEl = item.querySelector('h3, .lm-card-title');
                 if (titleEl && courseData.title) {
                     titleEl.textContent = courseData.title;
-                    console.log('📝 Updated course title');
                 }
-                
-                // Update description
-                const descEl = item.querySelector('p');
-                if (descEl && courseData.description) {
-                    descEl.textContent = courseData.description;
-                    console.log('📝 Updated course description');
+
+                // Update short description if present
+                const descEl = item.querySelector('p, .lm-card-desc');
+                if (descEl && (courseData.short_description || courseData.description)) {
+                    descEl.textContent = courseData.short_description || courseData.description || '';
                 }
-                
-                // Add visual feedback
-                item.style.backgroundColor = '#e8f5e8';
+
+                // Update stored dataset fields so future DOM reads include them
+                try {
+                    if (courseData.course_key) item.dataset.courseKey = courseData.course_key;
+                    if (courseData.online_course_link !== undefined) item.dataset.onlineCourseLink = courseData.online_course_link || '';
+                    if (courseData.instructor !== undefined) item.dataset.instructor = courseData.instructor || '';
+                    // Always set estimatedHours to avoid leaving stale values on the card.
+                    // Store as a string; clear to empty string when no value provided.
+                    if (courseData.estimated_hours !== undefined && courseData.estimated_hours !== null) {
+                        item.dataset.estimatedHours = String(courseData.estimated_hours);
+                    } else {
+                        item.dataset.estimatedHours = '';
+                    }
+                } catch (e) {
+                    console.warn('Failed to update card dataset', e);
+                }
+
+                // Visual feedback
+                item.style.transition = 'all 0.25s ease';
                 item.style.transform = 'scale(1.02)';
-                item.style.transition = 'all 0.3s ease';
-                
+                item.style.boxShadow = '0 6px 18px rgba(0,0,0,0.08)';
                 setTimeout(() => {
-                    item.style.backgroundColor = '';
                     item.style.transform = '';
-                }, 2000);
-                
-                console.log('✅ Course DOM update completed');
+                    item.style.boxShadow = '';
+                }, 300);
+
+                console.log('✅ Updated course card in DOM');
                 return;
             }
         });
-        
-        console.log('⚠️ Course item not found in DOM for update');
+
+        if (!found) console.log('⚠️ Course item not found in DOM for update');
     }
 
     function updateProgramInDOM(programData) {
@@ -1705,13 +1765,18 @@
     function viewCourseDetails(courseId) {
         // First try to get the course from the list we already have
         const existingCourses = getAllCoursesFromDOM();
-        const course = existingCourses.find(c => c.id == courseId);
-        
-        if (course) {
-            // Show details from cached data
-            showCourseDetailsModal(course);
-        } else {
-            // Try to fetch from API
+            const course = existingCourses.find(c => c.id == courseId);
+
+            // If we have cached course data but it lacks detail fields, fetch from API
+            if (course && (course.online_course_link || course.instructor || course.estimated_hours)) {
+                showCourseDetailsModal(course);
+                return;
+            }
+
+            // Otherwise fetch fresh data from API
+            if (course) {
+                // fall through to API fetch to get full details
+            }// Try to fetch from API
             fetch(`/api/chalix/dashboard/course-detail/${courseId}/`, {
                 credentials: 'same-origin',
                 headers: { 'Accept': 'application/json' }
@@ -1735,8 +1800,7 @@
                 });
             });
         }
-    }
-
+    
     function getAllCoursesFromDOM() {
         // Extract courses data from the current DOM
         const courses = [];
@@ -1753,17 +1817,30 @@
                 const meta = metaEl ? metaEl.textContent : '';
                 const desc = descEl ? descEl.textContent : '';
                 
-                // Extract ID from meta text
-                const idMatch = meta.match(/ID:\s*(\d+)/);
+                // Extract ID from meta text — allow non-numeric course identifiers (course_key strings)
+                // Match ID: <identifier> optionally followed by ' •'
+                const idMatch = meta.match(/ID:\s*([^•\n]+)/);
                 const typeMatch = meta.match(/•\s*(.+)$/);
-                
-                if (idMatch) {
+                const idValue = idMatch ? idMatch[1].trim() : null;
+
+                // Read any stored dataset fields (new fields added to cards)
+                const onlineLink = card.dataset.onlineCourseLink || '';
+                const instructor = card.dataset.instructor || '';
+                const estimatedHours = (card.dataset.estimatedHours !== undefined && card.dataset.estimatedHours !== '')
+                    ? card.dataset.estimatedHours
+                    : null;
+
+                if (idValue) {
                     courses.push({
-                        id: parseInt(idMatch[1]),
+                        id: idValue,
+                        course_key: card.dataset.courseKey || idValue,
                         title: title,
                         short_description: desc === 'Chưa có mô tả' ? '' : desc,
                         course_type: typeMatch ? typeMatch[1].trim() : 'Chưa phân loại',
-                        units: []
+                        units: [],
+                        online_course_link: onlineLink,
+                        instructor: instructor,
+                        estimated_hours: estimatedHours
                     });
                 }
             }
@@ -1796,7 +1873,7 @@
                                     </div>
                                     <div class="lm-detail-row">
                                         <span class="lm-detail-label">ID:</span>
-                                        <span class="lm-detail-value">${course.id}</span>
+                                        <span class="lm-detail-value">${course.id || course.course_key || ''}</span>
                                     </div>
                                     <div class="lm-detail-row">
                                         <span class="lm-detail-label">Loại khóa học:</span>
@@ -1811,8 +1888,16 @@
                                         <span class="lm-detail-value">${escapeHtml(course.level || 'Chưa xác định')}</span>
                                     </div>
                                     <div class="lm-detail-row">
-                                        <span class="lm-detail-label">Thời lượng:</span>
-                                        <span class="lm-detail-value">${escapeHtml(course.duration || 'Chưa xác định')}</span>
+                                        <span class="lm-detail-label">Thời lượng ước tính:</span>
+                                        <span class="lm-detail-value">${course.estimated_hours !== undefined && course.estimated_hours !== null ? escapeHtml(String(course.estimated_hours)) + ' giờ' : escapeHtml(course.duration || 'Chưa xác định')}</span>
+                                    </div>
+                                    <div class="lm-detail-row">
+                                        <span class="lm-detail-label">Liên kết lớp học trực tuyến:</span>
+                                        <span class="lm-detail-value">${escapeHtml(course.online_course_link || 'Chưa có')}</span>
+                                    </div>
+                                    <div class="lm-detail-row">
+                                        <span class="lm-detail-label">Chỉ định giảng viên:</span>
+                                        <span class="lm-detail-value">${escapeHtml(course.instructor || 'Chưa có')}</span>
                                     </div>
                                 </div>
                             </div>
@@ -1993,12 +2078,26 @@
                                 </select>
                             </div>
                         </div>
+
+                        <div class="lm-form-group">
+                            <label class="lm-form-label" for="course-estimated-hours">Thời lượng ước tính (giờ)</label>
+                            <input type="number" min="0" id="course-estimated-hours" name="estimated_hours" class="lm-form-input"
+                                   value="${escapeHtml(course.estimated_hours !== undefined && course.estimated_hours !== null ? String(course.estimated_hours) : '')}"
+                                   placeholder="Số giờ (ví dụ: 40)">
+                        </div>
                         
                         <div class="lm-form-group">
-                            <label class="lm-form-label" for="course-duration">Thời lượng</label>
-                            <input type="text" id="course-duration" name="duration" class="lm-form-input" 
-                                   value="${escapeHtml(course.duration || '')}" 
-                                   placeholder="Ví dụ: 8 tuần, 40 giờ">
+                            <label class="lm-form-label" for="course-online-link">Liên kết lớp học trực tuyến</label>
+                            <input type="text" id="course-online-link" name="online_course_link" class="lm-form-input"
+                                   value="${escapeHtml(course.online_course_link || course.onlineCourseLink || '')}"
+                                   placeholder="https://...">
+                        </div>
+                        
+                        <div class="lm-form-group">
+                            <label class="lm-form-label" for="course-instructor">Chỉ định giảng viên</label>
+                            <input type="text" id="course-instructor" name="instructor" class="lm-form-input"
+                                   value="${escapeHtml(course.instructor || '')}"
+                                   placeholder="Số điện thoại hoặc Email giảng viên">
                         </div>
                         
                         <div class="lm-form-group">
@@ -2109,11 +2208,15 @@
         const formData = new FormData(form);
         const courseData = {
             id: originalCourse.id,
+            course_key: (originalCourse.course_key || originalCourse.courseKey || originalCourse.courseKeyString || null),
             title: formData.get('title'),
             short_description: formData.get('short_description'),
             course_type: formData.get('course_type'),
             level: formData.get('level'),
             duration: formData.get('duration'),
+            estimated_hours: formData.get('estimated_hours') ? Number(formData.get('estimated_hours')) : null,
+            online_course_link: formData.get('online_course_link') || '',
+            instructor: formData.get('instructor') || '',
             units: []
         };
         
@@ -2161,10 +2264,48 @@
         .then(result => {
             console.log('✅ Course saved successfully:', result);
             messageEl.innerHTML = '<div class="lm-message lm-success">Đã lưu khóa học thành công!</div>';
-            setTimeout(() => {
-                document.body.removeChild(overlay);
-                if (onSuccess) onSuccess();
-            }, 1500);
+
+            // Use the server response to update the DOM immediately
+            try {
+                const updated = {
+                    id: result.local_course_id || result.id || courseData.id || result.course_key || null,
+                    course_key: result.course_key || courseData.course_key || null,
+                    title: result.title || courseData.title,
+                    short_description: result.short_description || courseData.short_description,
+                    online_course_link: result.online_course_link !== undefined ? result.online_course_link : (courseData.online_course_link || ''),
+                    instructor: result.instructor !== undefined ? result.instructor : (courseData.instructor || ''),
+                    estimated_hours: result.estimated_hours !== undefined ? result.estimated_hours : (courseData.estimated_hours || null)
+                };
+                updateCourseInDOM(updated);
+
+                // Close overlay then immediately open details modal with fresh data
+                setTimeout(() => {
+                    try {
+                        document.body.removeChild(overlay);
+                    } catch (e) { /* ignore */ }
+
+                    // Build a course object suitable for showCourseDetailsModal
+                    const detailCourse = Object.assign({}, updated, {
+                        title: updated.title,
+                        short_description: updated.short_description,
+                        course_type: courseData.course_type || '',
+                        level: courseData.level || '',
+                        duration: courseData.duration || '',
+                        units: courseData.units || []
+                    });
+
+                    // Open details modal so user sees updated fields immediately
+                    try { showCourseDetailsModal(detailCourse); } catch (e) { console.warn('Failed to open details modal', e); }
+
+                    if (onSuccess) onSuccess();
+                }, 600);
+            } catch (e) {
+                console.warn('Failed to apply server response to DOM', e);
+                setTimeout(() => {
+                    try { document.body.removeChild(overlay); } catch (er) {}
+                    if (onSuccess) onSuccess();
+                }, 1200);
+            }
         })
         .catch(err => {
             console.error('💥 Failed to save course:', err);
@@ -2436,6 +2577,24 @@
                             <label class="lm-form-label" for="new-course-duration">Thời lượng</label>
                             <input type="text" id="new-course-duration" name="duration" class="lm-form-input" 
                                    placeholder="Ví dụ: 8 tuần, 40 giờ">
+                        </div>
+
+                        <div class="lm-form-group">
+                            <label class="lm-form-label" for="new-course-estimated-hours">Thời lượng ước tính (giờ)</label>
+                            <input type="number" min="0" id="new-course-estimated-hours" name="estimated_hours" class="lm-form-input"
+                                   placeholder="Số giờ (ví dụ: 40)">
+                        </div>
+                        
+                        <div class="lm-form-group">
+                            <label class="lm-form-label" for="new-course-online-link">Liên kết lớp học trực tuyến</label>
+                            <input type="text" id="new-course-online-link" name="online_course_link" class="lm-form-input"
+                                   placeholder="https://...">
+                        </div>
+                        
+                        <div class="lm-form-group">
+                            <label class="lm-form-label" for="new-course-instructor">Chỉ định giảng viên</label>
+                            <input type="text" id="new-course-instructor" name="instructor" class="lm-form-input"
+                                   placeholder="Tên giảng viên">
                         </div>
                         
                         <div class="lm-form-group">
@@ -2849,6 +3008,9 @@
             course_type: formData.get('course_type'),
             level: formData.get('level'),
             duration: formData.get('duration'),
+            estimated_hours: formData.get('estimated_hours') ? Number(formData.get('estimated_hours')) : null,
+            online_course_link: formData.get('online_course_link') || '',
+            instructor: formData.get('instructor') || '',
             creation_type: creationType,
             units: []
         };

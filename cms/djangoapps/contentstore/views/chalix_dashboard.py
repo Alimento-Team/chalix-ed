@@ -35,6 +35,7 @@ from xmodule.modulestore.django import modulestore
 from xmodule.modulestore.exceptions import DuplicateCourseError
 from opaque_keys.edx.keys import CourseKey
 from rest_framework.exceptions import ValidationError
+from openedx.core.djangoapps.models.course_details import CourseDetails
 
 
 def _create_course_structure_from_program(store, course_key, user_id, template_program, program_topics):
@@ -284,6 +285,9 @@ def create_course_api(request):
     short_description = payload.get('short_description', '').strip()
     template_program_id = payload.get('template_program_id')
     course_type = payload.get('course_type', '')
+    online_course_link = payload.get('online_course_link', '').strip()
+    instructor = payload.get('instructor', '').strip()
+    estimated_hours = payload.get('estimated_hours')
 
     if not title:
         return JsonResponse({'error': 'Title is required'}, status=400)
@@ -346,6 +350,29 @@ def create_course_api(request):
         else:
             logger.info(f"[CHALIX] No template program provided, skipping structure creation")
 
+        # Update course with new fields if provided
+        if online_course_link or instructor or estimated_hours is not None:
+            try:
+                from openedx.core.djangoapps.models.course_details import CourseDetails
+                course_update_data = {}
+                if online_course_link:
+                    course_update_data['online_course_link'] = online_course_link
+                if instructor:
+                    course_update_data['instructor'] = instructor
+                if estimated_hours is not None:
+                    course_update_data['estimated_hours'] = estimated_hours
+                
+                # Need to provide required fields to avoid KeyError
+                course_update_data['overview'] = ''
+                course_update_data['intro_video'] = ''
+                
+                # Update the course with new fields
+                CourseDetails.update_from_json(course_key, course_update_data, request.user)
+                logger.info(f"[CHALIX] Updated course with new fields: {course_update_data}")
+            except Exception as update_error:
+                logger.warning(f"[CHALIX] Failed to update course with new fields: {update_error}")
+                # Don't fail the whole creation if field update fails
+
         # Create LocalCourse record to track the course-program relationship
         # Persist a LocalCourse record and store the modulestore course key string
         local_course = LocalCourse.objects.create(
@@ -367,6 +394,9 @@ def create_course_api(request):
             'run': course_key.run,
             'course_type': course_fields.get('course_type', ''),
             'short_description': course_fields.get('short_description', ''),
+            'online_course_link': online_course_link or '',
+            'instructor': instructor or '',
+            'estimated_hours': estimated_hours if estimated_hours is not None else 0,
             'created_by': request.user.username,
             'units_created': units_created,
             'url': f'/courses/{course_key}/',
@@ -423,6 +453,7 @@ def list_local_courses_api(request):
             
             # Create formatted course using CourseOverview and course_key directly
             formatted_course = {
+                'id': str(course_key),
                 'course_key': str(course_key),
                 'title': getattr(course_overview, 'display_name', '') or 'Untitled Course',
                 # Get org, number, run from the course key
@@ -439,6 +470,26 @@ def list_local_courses_api(request):
                 'start_date': course_overview.start.isoformat() if hasattr(course_overview, 'start') and course_overview.start else None,
                 'end_date': course_overview.end.isoformat() if hasattr(course_overview, 'end') and course_overview.end else None,
             }
+            # Try to enrich with additional fields stored on the modulestore course block
+            try:
+                # Use CourseDetails.fetch which consolidates course block attributes
+                try:
+                    details = CourseDetails.fetch(course_key)
+                    formatted_course['online_course_link'] = getattr(details, 'online_course_link', '')
+                    formatted_course['instructor'] = getattr(details, 'instructor', '')
+                    formatted_course['estimated_hours'] = getattr(details, 'estimated_hours', 0)
+                except Exception:
+                    # Fallback: try to read raw block attributes
+                    store = modulestore()
+                    block = store.get_course(course_key)
+                    if block:
+                        formatted_course['online_course_link'] = getattr(block, 'online_course_link', '')
+                        formatted_course['instructor'] = getattr(block, 'instructor', '')
+                        formatted_course['estimated_hours'] = getattr(block, 'estimated_hours', 0)
+            except Exception:
+                # If enrichment fails, continue without the extra fields
+                pass
+
             formatted_courses.append(formatted_course)
         except Exception as e:
             # Skip courses that can't be loaded
@@ -759,6 +810,7 @@ def course_detail_api(request, course_key_string):
             created_date = ''
         
         course_data = {
+            'id': str(course_key),
             'course_key': str(course_key),
             'title': getattr(course, 'display_name', '') or 'Untitled Course',
             # Get org, number, run from the course key, not the course object
@@ -774,6 +826,23 @@ def course_detail_api(request, course_key_string):
             'start_date': getattr(course, 'start', None).isoformat() if getattr(course, 'start', None) else None,
             'end_date': getattr(course, 'end', None).isoformat() if getattr(course, 'end', None) else None,
         }
+        # Include newly-added fields from modulestore block if present
+        try:
+            # Prefer CourseDetails.fetch which consolidates about attributes and block attributes
+            try:
+                details = CourseDetails.fetch(course_key)
+                course_data['online_course_link'] = getattr(details, 'online_course_link', '')
+                course_data['instructor'] = getattr(details, 'instructor', '')
+                course_data['estimated_hours'] = getattr(details, 'estimated_hours', 0)
+            except Exception:
+                # Fallback: read directly from course block
+                course_data['online_course_link'] = getattr(course, 'online_course_link', '')
+                course_data['instructor'] = getattr(course, 'instructor', '')
+                course_data['estimated_hours'] = getattr(course, 'estimated_hours', 0)
+        except Exception:
+            course_data['online_course_link'] = ''
+            course_data['instructor'] = ''
+            course_data['estimated_hours'] = 0
         
         return JsonResponse(course_data)
         
@@ -874,6 +943,9 @@ def update_course_api(request):
     short_description = payload.get('short_description', '').strip()
     start_date_str = payload.get('start_date')
     end_date_str = payload.get('end_date')
+    online_course_link = payload.get('online_course_link', '').strip()
+    instructor = payload.get('instructor', '').strip()
+    estimated_hours = payload.get('estimated_hours')
 
     if not course_key_string:
         return JsonResponse({'error': 'Course key is required'}, status=400)
@@ -899,11 +971,25 @@ def update_course_api(request):
             'short_description': short_description,
         }
         
+        # Add new fields
+        if online_course_link:
+            course_update_data['online_course_link'] = online_course_link
+        if instructor:
+            course_update_data['instructor'] = instructor
+        if estimated_hours is not None:
+            course_update_data['estimated_hours'] = estimated_hours
+        
         # Add date fields if provided - CourseDetails.update_from_json expects these field names
         if start_date_str:
             course_update_data['start_date'] = start_date_str
         if end_date_str:
             course_update_data['end_date'] = end_date_str
+        # Ensure 'overview' and 'intro_video' keys exist to avoid KeyError in CourseDetails
+        # CourseDetails.update_from_json accesses jsondict['overview'] and jsondict['intro_video']
+        # directly, so provide defaults when the client does not supply them.
+        if 'overview' not in course_update_data:
+            course_update_data['overview'] = payload.get('overview', '')
+        course_update_data['intro_video'] = payload.get('intro_video', '')
             
         # Use the proper CourseDetails.update_from_json method which handles all the complexity
         # of updating course fields and about items correctly
@@ -917,6 +1003,9 @@ def update_course_api(request):
             'number': course_key.course,
             'run': course_key.run,
             'short_description': updated_course_details.short_description,
+            'online_course_link': getattr(updated_course_details, 'online_course_link', ''),
+            'instructor': getattr(updated_course_details, 'instructor', ''),
+            'estimated_hours': getattr(updated_course_details, 'estimated_hours', 0),
             'start_date': updated_course_details.start_date.isoformat() if updated_course_details.start_date else None,
             'end_date': updated_course_details.end_date.isoformat() if updated_course_details.end_date else None,
             'message': 'Đã cập nhật khóa học thành công!'

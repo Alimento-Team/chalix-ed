@@ -13,17 +13,28 @@
   <%namespace name='static' file='static_content.html' />
 
   <%block name="requirejs">
-    require(["js/factories/outline"], function (OutlineFactory) {
+    require(["js/factories/outline", "js/course-details-quiz"], function (OutlineFactory, CourseDetailsQuiz) {
     OutlineFactory(
     ${course_structure | n, dump_js_escaped_json},
     ${initial_state | n, dump_js_escaped_json},
     ${initial_user_clipboard | n, dump_js_escaped_json}
     );
+    
+    // Initialize course details and quiz functionality
+    $(document).ready(function() {
+        CourseDetailsQuiz.CourseDetailsManager.init("${context_course.id | n, js_escaped_string}");
+        
+        // Wait for the outline to be rendered, then add quiz sections
+        setTimeout(function() {
+            CourseDetailsQuiz.QuizIntegration.init();
+        }, 1000);
+    });
     });
   </%block>
 
   <%block name="header_extras">
     <link rel="stylesheet" type="text/css" href="${static.url('js/vendor/timepicker/jquery.timepicker.css')}" />
+    <link rel="stylesheet" type="text/css" href="${static.url('css/course-details-outline.css')}" />
     % for template_name in ['course-outline', 'xblock-string-field-editor', 'basic-modal', 'modal-button',
     'course-outline-modal', 'due-date-editor', 'self-paced-due-date-editor', 'release-date-editor', 'grading-editor',
     'publish-editor', 'staff-lock-editor', 'unit-access-editor', 'discussion-editor', 'content-visibility-editor',
@@ -260,6 +271,30 @@
     <div class="wrapper-content wrapper">
       <section class="content">
         <article class="content-primary" role="main">
+          <!-- Course Details Section -->
+          <div class="course-details-section">
+            <div class="course-details-header">
+              <h2 class="course-details-title">${_("Course Information")}</h2>
+              <button class="button button-primary button-edit-course-details" data-course-key="${context_course.id}">
+                <span class="icon fa fa-edit" aria-hidden="true"></span>${_("Edit Course Details")}
+              </button>
+            </div>
+            <div class="course-details-display">
+              <div class="course-detail-item">
+                <label>${_("Estimated Hours")}:</label>
+                <span id="display-estimated-hours" class="detail-value">${_("Not set")}</span>
+              </div>
+              <div class="course-detail-item">
+                <label>${_("Online Meeting Link")}:</label>
+                <span id="display-online-meeting-link" class="detail-value">${_("Not set")}</span>
+              </div>
+              <div class="course-detail-item">
+                <label>${_("Assigned Instructor")}:</label>
+                <span id="display-assigned-instructor" class="detail-value">${_("Not set")}</span>
+              </div>
+            </div>
+          </div>
+
           <div class="course-status">
             ## set width dynamically depending upon whether course has a start date to ensure spacing looks good
             % if course_release_date == 'Set Date':
