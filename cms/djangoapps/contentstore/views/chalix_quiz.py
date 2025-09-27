@@ -8,7 +8,7 @@ from datetime import datetime
 
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
-from django.views.decorators.csrf import ensure_csrf_cookie
+from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from django.core.exceptions import ValidationError
 from django.db import transaction
@@ -37,6 +37,7 @@ from cms.djangoapps.contentstore.models import ChalixQuiz, ChalixQuizQuestion, C
 logger = logging.getLogger(__name__)
 
 
+@csrf_exempt
 @login_required
 @require_POST
 def create_quiz_api(request):
@@ -273,6 +274,7 @@ def list_quizzes_api(request, course_key_string):
         return JsonResponse({'error': 'Internal server error'}, status=500)
 
 
+@csrf_exempt
 @login_required
 @require_POST
 def update_quiz_api(request, quiz_id):
@@ -375,6 +377,7 @@ def update_quiz_api(request, quiz_id):
         return JsonResponse({'error': 'Internal server error'}, status=500)
 
 
+@csrf_exempt
 @login_required
 @require_POST
 def delete_quiz_api(request, quiz_id):

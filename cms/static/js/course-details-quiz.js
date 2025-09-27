@@ -65,8 +65,7 @@ define(['jquery', 'underscore', 'gettext'], function($, _, gettext) {
                 url: apiUrl,
                 method: 'GET',
                 headers: {
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'X-CSRFToken': $('[name=csrfmiddlewaretoken]').val() || $('[name="csrftoken"]').attr('content')
+                    'X-Requested-With': 'XMLHttpRequest'
                 }
             })
                 .done(function(data) {
@@ -148,36 +147,12 @@ define(['jquery', 'underscore', 'gettext'], function($, _, gettext) {
                 method: 'GET',
                 data: { parent_locator: subsectionId },
                 headers: {
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'X-CSRFToken': $('[name=csrfmiddlewaretoken]').val() || $('[name="csrftoken"]').attr('content')
+                    'X-Requested-With': 'XMLHttpRequest'
                 }
             })
             .done(function(response) {
                 if (response.success && response.quizzes) {
-                    var quizListHtml = '<ul class="quiz-list">';
-                    
-                    if (response.quizzes.length === 0) {
-                        quizListHtml += '<li class="quiz-empty-state">' + gettext('No quizzes created yet') + '</li>';
-                    } else {
-                        response.quizzes.forEach(function(quiz) {
-                            quizListHtml += `
-                                <li class="quiz-item">
-                                    <div class="quiz-item-content">
-                                        <h5 class="quiz-question">${quiz.title}</h5>
-                                        <div class="quiz-meta">${quiz.question_count} questions</div>
-                                    </div>
-                                    <div class="quiz-actions">
-                                        <button class="quiz-action-btn edit" data-quiz-id="${quiz.id}">${gettext('Edit')}</button>
-                                        <button class="quiz-action-btn delete" data-quiz-id="${quiz.id}">${gettext('Delete')}</button>
-                                    </div>
-                                </li>
-                            `;
-                        });
-                    }
-                    
-                    quizListHtml += '</ul>';
-                    quizSection.find('.quiz-list').remove();
-                    quizSection.append(quizListHtml);
+                    self.updateQuizDisplay(subsectionId, response.quizzes);
                 }
             })
             .fail(function(xhr) {
@@ -230,13 +205,21 @@ define(['jquery', 'underscore', 'gettext'], function($, _, gettext) {
                 course_key: this.courseKey
             };
 
-            $.post('/api/chalix/dashboard/update-course/', formData)
+            $.ajax({
+                url: '/api/chalix/dashboard/update-course/',
+                type: 'POST',
+                data: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
                 .done(function(data) {
                     self.displayCourseDetails(data);
                     modal.removeClass('is-shown').remove();
                     self.showSuccessMessage(gettext('Course details updated successfully!'));
                 })
-                .fail(function() {
+                .fail(function(xhr) {
+                    console.error('Course details save failed:', xhr);
                     self.showErrorMessage(gettext('Failed to update course details'));
                 });
         },
@@ -253,6 +236,22 @@ define(['jquery', 'underscore', 'gettext'], function($, _, gettext) {
             if (!quizData) {
                 this.addQuizChoice(modal.find('.quiz-choices-container'));
                 this.addQuizChoice(modal.find('.quiz-choices-container'));
+            } else if (quizData.questions && quizData.questions.length > 0) {
+                // Populate existing quiz data
+                var question = quizData.questions[0]; // Use first question for now
+                modal.find('[name="question"]').val(question.question_text);
+                
+                // Set question type
+                var questionType = question.question_type === 'multiple_choice' ? 'multiple' : 'single';
+                modal.find('[name="quiz_type"][value="' + questionType + '"]').prop('checked', true);
+                
+                // Clear default choices and add existing ones
+                modal.find('.quiz-choices-container').empty();
+                if (question.choices) {
+                    question.choices.forEach(function(choice) {
+                        self.addQuizChoice(modal.find('.quiz-choices-container'), choice.text, choice.is_correct);
+                    });
+                }
             }
 
             // Handle events
@@ -262,8 +261,13 @@ define(['jquery', 'underscore', 'gettext'], function($, _, gettext) {
         getQuizModalHtml: function(subsectionTitle, quizData) {
             var isEdit = !!quizData;
             var modalTitle = isEdit ? gettext('Edit Quiz Question') : gettext('Create Quiz Question');
-            var question = quizData ? quizData.question : '';
-            var isMultiple = quizData ? quizData.is_multiple_choice : false;
+            var question = '';
+            var isMultiple = false;
+            
+            if (quizData && quizData.questions && quizData.questions.length > 0) {
+                question = quizData.questions[0].question_text;
+                isMultiple = quizData.questions[0].question_type === 'multiple_choice';
+            }
 
             return `
                 <div id="quiz-modal" class="quiz-modal">
@@ -296,7 +300,6 @@ define(['jquery', 'underscore', 'gettext'], function($, _, gettext) {
                                 <div class="quiz-form-group">
                                     <label class="quiz-form-label">${gettext('Answer Choices')}</label>
                                     <div class="quiz-choices-container">
-                                        ${this.getChoicesHtml(quizData ? quizData.choices : [])}
                                     </div>
                                     <button type="button" class="quiz-add-choice">${gettext('Add Choice')}</button>
                                 </div>
@@ -311,19 +314,7 @@ define(['jquery', 'underscore', 'gettext'], function($, _, gettext) {
             `;
         },
 
-        getChoicesHtml: function(choices) {
-            if (!choices || choices.length === 0) return '';
-            
-            return choices.map(function(choice, index) {
-                return `
-                    <div class="quiz-choice-item">
-                        <input type="text" class="quiz-choice-input" value="${choice.text}" placeholder="${gettext('Enter choice text...')}" required>
-                        <input type="checkbox" class="quiz-choice-correct" ${choice.is_correct ? 'checked' : ''} title="${gettext('Mark as correct answer')}">
-                        <button type="button" class="quiz-choice-remove">&times;</button>
-                    </div>
-                `;
-            }).join('');
-        },
+
 
         bindQuizModalEvents: function(modal, subsectionId, quizData) {
             var self = this;
@@ -363,11 +354,14 @@ define(['jquery', 'underscore', 'gettext'], function($, _, gettext) {
             });
         },
 
-        addQuizChoice: function(container) {
+        addQuizChoice: function(container, text, isCorrect) {
+            text = text || '';
+            isCorrect = isCorrect || false;
+            
             var choiceHtml = `
                 <div class="quiz-choice-item">
-                    <input type="text" class="quiz-choice-input" placeholder="${gettext('Enter choice text...')}" required>
-                    <input type="checkbox" class="quiz-choice-correct" title="${gettext('Mark as correct answer')}">
+                    <input type="text" class="quiz-choice-input" placeholder="${gettext('Enter choice text...')}" value="${text}" required>
+                    <input type="checkbox" class="quiz-choice-correct" title="${gettext('Mark as correct answer')}" ${isCorrect ? 'checked' : ''}>
                     <button type="button" class="quiz-choice-remove">&times;</button>
                 </div>
             `;
@@ -382,20 +376,29 @@ define(['jquery', 'underscore', 'gettext'], function($, _, gettext) {
                 return;
             }
 
-            formData.subsection_id = subsectionId;
+            formData.parent_locator = subsectionId;
             formData.course_key = this.courseKey;
 
             var url = existingQuizData ? 
                 '/api/chalix/quiz/update/' + existingQuizData.id + '/' : 
                 '/api/chalix/quiz/create/';
 
-            $.post(url, JSON.stringify(formData), null, 'json')
+            $.ajax({
+                url: url,
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(formData),
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
                 .done(function(data) {
                     modal.removeClass('is-shown').remove();
                     self.refreshQuizList(subsectionId);
                     self.showSuccessMessage(gettext('Quiz saved successfully!'));
                 })
-                .fail(function() {
+                .fail(function(xhr) {
+                    console.error('Quiz save failed:', xhr);
                     self.showErrorMessage(gettext('Failed to save quiz'));
                 });
         },
@@ -417,24 +420,34 @@ define(['jquery', 'underscore', 'gettext'], function($, _, gettext) {
             });
 
             return {
-                question: question,
-                is_multiple_choice: isMultiple,
-                choices: choices
+                quiz_title: question, // Use question as title for now
+                quiz_description: '',
+                questions: [{
+                    question_text: question,
+                    question_type: isMultiple ? 'multiple_choice' : 'single_choice',
+                    choices: choices
+                }]
             };
         },
 
         validateQuizForm: function(formData) {
-            if (!formData.question.trim()) {
+            if (!formData.quiz_title || !formData.quiz_title.trim()) {
                 this.showErrorMessage(gettext('Please enter a question'));
                 return false;
             }
 
-            if (formData.choices.length < 2) {
+            if (!formData.questions || formData.questions.length === 0) {
+                this.showErrorMessage(gettext('At least one question is required'));
+                return false;
+            }
+
+            var question = formData.questions[0];
+            if (!question.choices || question.choices.length < 2) {
                 this.showErrorMessage(gettext('Please provide at least 2 choices'));
                 return false;
             }
 
-            var hasCorrectAnswer = formData.choices.some(function(choice) {
+            var hasCorrectAnswer = question.choices.some(function(choice) {
                 return choice.is_correct;
             });
 
@@ -448,11 +461,18 @@ define(['jquery', 'underscore', 'gettext'], function($, _, gettext) {
 
         editQuiz: function(quizId) {
             var self = this;
-            $.get('/api/chalix/quiz/' + quizId + '/')
+            $.ajax({
+                url: '/api/chalix/quiz/' + quizId + '/',
+                type: 'GET',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
                 .done(function(quizData) {
                     self.openQuizModal(quizData.subsection_id, quizData.subsection_title, quizData);
                 })
-                .fail(function() {
+                .fail(function(xhr) {
+                    console.error('Failed to load quiz data:', xhr);
                     self.showErrorMessage(gettext('Failed to load quiz data'));
                 });
         },
@@ -462,25 +482,23 @@ define(['jquery', 'underscore', 'gettext'], function($, _, gettext) {
             if (confirm(gettext('Are you sure you want to delete this quiz?'))) {
                 $.ajax({
                     url: '/api/chalix/quiz/delete/' + quizId + '/',
-                    type: 'DELETE'
+                    type: 'DELETE',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
                 })
                 .done(function() {
                     $('[data-quiz-id="' + quizId + '"]').closest('.quiz-item').remove();
                     self.showSuccessMessage(gettext('Quiz deleted successfully!'));
                 })
-                .fail(function() {
+                .fail(function(xhr) {
+                    console.error('Quiz delete failed:', xhr);
                     self.showErrorMessage(gettext('Failed to delete quiz'));
                 });
             }
         },
 
-        refreshQuizList: function(subsectionId) {
-            var self = this;
-            $.get('/api/chalix/quiz/list/' + subsectionId + '/')
-                .done(function(quizzes) {
-                    self.updateQuizDisplay(subsectionId, quizzes);
-                });
-        },
+
 
         updateQuizDisplay: function(subsectionId, quizzes) {
             var container = $('[data-subsection-id="' + subsectionId + '"] .quiz-list');
@@ -493,8 +511,8 @@ define(['jquery', 'underscore', 'gettext'], function($, _, gettext) {
                     var quizHtml = `
                         <div class="quiz-item">
                             <div class="quiz-item-content">
-                                <div class="quiz-question">${quiz.question}</div>
-                                <div class="quiz-meta">${quiz.choices.length} ${gettext('choices')} • ${quiz.is_multiple_choice ? gettext('Multiple choice') : gettext('Single choice')}</div>
+                                <div class="quiz-question">${quiz.title}</div>
+                                <div class="quiz-meta">${quiz.question_count} ${gettext('questions')}</div>
                             </div>
                             <div class="quiz-actions">
                                 <button class="quiz-action-btn edit" data-quiz-id="${quiz.id}">${gettext('Edit')}</button>

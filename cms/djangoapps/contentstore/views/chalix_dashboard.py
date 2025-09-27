@@ -268,29 +268,56 @@ def create_course_api(request):
     try:
         require_role(request.user, ['giang_vien', 'co_quan'])
     except PermissionDenied:
-        return JsonResponse({'error': 'Bạn không có quyền tạo khóa học'}, status=403)
+        return JsonResponse({'errMsg': 'Bạn không có quyền tạo khóa học.'}, status=403)
     
+    def _get_payload_value(data, *keys, default=''):
+        """Fetch the first non-empty value from payload using provided keys."""
+        for key in keys:
+            if key in data:
+                value = data.get(key)
+                if isinstance(value, str):
+                    value = value.strip()
+                if value not in (None, ''):
+                    return value
+        return default
+
     try:
         payload = json.loads(request.body.decode('utf-8'))
-    except Exception as e:
-        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception:
+        return JsonResponse({'errMsg': 'Dữ liệu gửi lên không hợp lệ.'}, status=400)
 
     # Required fields for OpenEDX course creation
-    title = payload.get('title', '').strip()
-    org = payload.get('org', 'chalix').strip()
-    number = payload.get('number', '').strip()
-    run = payload.get('run', '2024').strip()
+    title = _get_payload_value(payload, 'title', 'display_name', 'displayName')
+    org = _get_payload_value(payload, 'org', default='chalix')
+    number = _get_payload_value(payload, 'number')
+    run = _get_payload_value(payload, 'run', default='2024')
     
     # Optional fields
-    short_description = payload.get('short_description', '').strip()
-    template_program_id = payload.get('template_program_id')
-    course_type = payload.get('course_type', '')
-    online_course_link = payload.get('online_course_link', '').strip()
-    instructor = payload.get('instructor', '').strip()
-    estimated_hours = payload.get('estimated_hours')
+    short_description = _get_payload_value(payload, 'short_description', 'shortDescription')
+    template_program_id = _get_payload_value(payload, 'template_program_id', 'templateProgramId', default=None)
+    course_type = _get_payload_value(payload, 'course_type', 'courseType', default='')
+    online_course_link = _get_payload_value(payload, 'online_course_link', 'onlineCourseLink', default='')
+    instructor = _get_payload_value(payload, 'instructor', default='')
+    estimated_hours_raw = _get_payload_value(payload, 'estimated_hours', 'estimatedHours', default=None)
+
+    # Convert numeric fields
+    estimated_hours = None
+    if estimated_hours_raw not in (None, ''):
+        try:
+            estimated_hours = int(estimated_hours_raw)
+        except (TypeError, ValueError):
+            return JsonResponse({'errMsg': 'Thời lượng dự kiến phải là số nguyên.'}, status=400)
+
+    if template_program_id in (None, ''):
+        template_program_id = None
+    else:
+        try:
+            template_program_id = int(template_program_id)
+        except (TypeError, ValueError):
+            return JsonResponse({'errMsg': 'Mã chương trình mẫu không hợp lệ.'}, status=400)
 
     if not title:
-        return JsonResponse({'error': 'Title is required'}, status=400)
+        return JsonResponse({'errMsg': 'Tên khóa học là bắt buộc.'}, status=400)
     
     # Auto-generate course number if not provided
     if not number:
@@ -370,7 +397,7 @@ def create_course_api(request):
                 CourseDetails.update_from_json(course_key, course_update_data, request.user)
                 logger.info(f"[CHALIX] Updated course with new fields: {course_update_data}")
             except Exception as update_error:
-                logger.warning(f"[CHALIX] Failed to update course with new fields: {update_error}")
+                    logger.warning(f"[CHALIX] Failed to update course with new fields: {update_error}")
                 # Don't fail the whole creation if field update fails
 
         # Create LocalCourse record to track the course-program relationship
@@ -413,24 +440,44 @@ def create_course_api(request):
                 'topics_count': len(program_topics)
             }
 
-        return JsonResponse(result)
+        # Align success payload with Studio expectations
+        success_payload = {
+            'url': result['studio_url'],
+            'studio_url': result['studio_url'],
+            'course_key': result['course_key'],
+            'local_course_id': result['local_course_id'],
+            'title': result['title'],
+            'org': result['org'],
+            'number': result['number'],
+            'run': result['run'],
+            'course_type': result['course_type'],
+            'short_description': result['short_description'],
+            'online_course_link': result['online_course_link'],
+            'instructor': result['instructor'],
+            'estimated_hours': result['estimated_hours'],
+            'units_created': result['units_created'],
+        }
+        if template_program:
+            success_payload['template_program'] = result['template_program']
+
+        return JsonResponse(success_payload)
 
     except DuplicateCourseError:
         return JsonResponse({
-            'error': 'Khóa học với mã số này đã tồn tại. Vui lòng chọn mã số khác.',
+            'errMsg': 'Khóa học với mã số này đã tồn tại. Vui lòng chọn mã số khác.',
             'error_code': 'DUPLICATE_COURSE'
         }, status=400)
     except ValidationError as ex:
-        return JsonResponse({'error': str(ex)}, status=400)
+        return JsonResponse({'errMsg': str(ex)}, status=400)
     except Exception as e:
         # Log the error and return a generic error response
         import traceback
-        error_details = f"Course creation error: {str(e)}\n{traceback.format_exc()}"
-        print(error_details)  # This will appear in CMS logs
+        logger.exception("[CHALIX] Course creation error: %s", e)
         return JsonResponse({
-            'error': 'Có lỗi xảy ra khi tạo khóa học. Vui lòng thử lại.',
+            'errMsg': 'Có lỗi xảy ra khi tạo khóa học. Vui lòng thử lại.',
             'error_code': 'CREATION_FAILED',
-            'debug': str(e)  # Include error details for debugging
+            'debug': str(e),
+            'trace': traceback.format_exc(),
         }, status=500)
 
 

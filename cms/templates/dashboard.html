@@ -21,8 +21,8 @@ platform_name = getattr(settings, 'PLATFORM_NAME', None) or getattr(settings, 'L
 <%block name="bodyclass">is-signedin dashboard view-dashboard chalix-cms</%block>
 
 <%block name="header_extras">
-    <!-- Chalix CMS Dashboard Styles -->
-    <link rel="stylesheet" type="text/css" href="${static.url('css/chalix-dashboard.css')}" />
+    <!-- Chalix CMS Dashboard Styles (use pipeline bundle) -->
+    ${static.css('style-main-v1')}
     
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
