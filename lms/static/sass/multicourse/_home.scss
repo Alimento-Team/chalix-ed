@@ -302,8 +302,7 @@ $course-search-input-height: (
       margin: 80px auto 60px auto !important;
       max-width: 1200px !important;
       position: relative !important;
-      background: rgba(0, 255, 0, 0.1) !important;
-      /* Debug: light green background */
+      background: transparent !important;
 
       .feature-item,
       .feature-left-top,
@@ -319,10 +318,8 @@ $course-search-input-height: (
         flex-direction: column !important;
         align-items: center !important;
         text-align: center !important;
-        background: rgba(255, 0, 0, 0.1) !important;
-        /* Debug: light red background */
-        border: 2px solid blue !important;
-        /* Debug: blue border */
+        background: transparent !important;
+        border: none !important;
 
         .feature-image {
           width: 280px !important;

@@ -11,6 +11,33 @@ from openedx.core.djangolib.markup import HTML, Text %>
     margin-left: calc(-50vw + 50%) !important;
     position: relative !important;
 }
+    /* Process flow styles: horizontal on wide screens, stacked on small screens */
+    .process-container {
+        display: flex;
+        flex-wrap: nowrap;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+        max-width: 1200px;
+        margin: 80px auto 40px auto;
+        padding: 0 20px;
+        gap: 20px;
+    }
+    .process-step {
+        text-align: center;
+        position: relative;
+        flex: 1 1 0;
+        min-width: 160px;
+        max-width: 260px;
+    }
+    .step-circle { width: 60px; height: 60px; background: #3494c8; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; }
+    .step-content { max-width: 220px; margin: 0 auto; }
+    .process-arrow { flex: 0 0 60px; display: flex; align-items: center; justify-content: center; }
+    .process-arrow svg { width: 36px; height: 12px; }
+    @media (max-width: 900px) {
+        .process-container { flex-direction: column; gap: 32px; }
+        .process-arrow { display: none; }
+    }
 </style>
 
     <!-- Main Landing Page Content -->
@@ -69,7 +96,7 @@ from openedx.core.djangolib.markup import HTML, Text %>
 
         <!-- Process Container -->
                 <!-- Process Section -->
-        <div class="process-container" style="display: flex; align-items: flex-start; justify-content: space-between; width: 100%; max-width: 1000px; margin: 80px auto 40px auto; padding: 0 20px; gap: 5px;">
+    <div class="process-container">
             <!-- Process Step 1: Bộ Xây dựng -->
             <div class="process-step step-1" style="text-align: center; position: relative; flex: 1; min-width: 160px; max-width: 180px;">
                 <div class="step-circle" style="width: 60px; height: 60px; background: #3494c8; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px;">
@@ -82,7 +109,12 @@ from openedx.core.djangolib.markup import HTML, Text %>
             </div>
 
             <!-- Arrow 1 -->
-            <div style="width: 30px; height: 2px; background: #999; margin-top: 40px; flex-shrink: 0;"></div>
+            <div class="process-arrow">
+                <svg viewBox="0 0 36 12" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <line x1="0" y1="6" x2="28" y2="6" stroke="#999" stroke-width="2" stroke-linecap="round" />
+                    <polyline points="22,0 36,6 22,12" fill="none" stroke="#999" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+            </div>
 
             <!-- Process Step 2: Cơ quan -->
             <div class="process-step step-2" style="text-align: center; position: relative; flex: 1; min-width: 160px; max-width: 180px;">
@@ -96,7 +128,12 @@ from openedx.core.djangolib.markup import HTML, Text %>
             </div>
 
             <!-- Arrow 2 -->
-            <div style="width: 30px; height: 2px; background: #999; margin-top: 40px; flex-shrink: 0;"></div>
+            <div class="process-arrow">
+                <svg viewBox="0 0 36 12" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <line x1="0" y1="6" x2="28" y2="6" stroke="#999" stroke-width="2" stroke-linecap="round" />
+                    <polyline points="22,0 36,6 22,12" fill="none" stroke="#999" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+            </div>
 
             <!-- Process Step 3: CC, VC -->
             <div class="process-step step-3" style="text-align: center; position: relative; flex: 1; min-width: 160px; max-width: 180px;">
@@ -110,7 +147,12 @@ from openedx.core.djangolib.markup import HTML, Text %>
             </div>
 
             <!-- Arrow 3 -->
-            <div style="width: 30px; height: 2px; background: #999; margin-top: 40px; flex-shrink: 0;"></div>
+            <div class="process-arrow">
+                <svg viewBox="0 0 36 12" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <line x1="0" y1="6" x2="28" y2="6" stroke="#999" stroke-width="2" stroke-linecap="round" />
+                    <polyline points="22,0 36,6 22,12" fill="none" stroke="#999" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+            </div>
 
             <!-- Process Step 4: Cá nhân hóa học tập -->
             <div class="process-step step-4" style="text-align: center; position: relative; flex: 1; min-width: 160px; max-width: 200px;">

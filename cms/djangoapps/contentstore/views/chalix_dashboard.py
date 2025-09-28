@@ -340,10 +340,6 @@ def create_course_api(request):
             'course_type': course_type,
         }
         
-        # Add short description if provided
-        if short_description:
-            course_fields['short_description'] = short_description
-        
         # Create the course using OpenEDX standard method
         new_course = create_new_course(
             user=request.user,
@@ -378,10 +374,13 @@ def create_course_api(request):
             logger.info(f"[CHALIX] No template program provided, skipping structure creation")
 
         # Update course with new fields if provided
-        if online_course_link or instructor or estimated_hours is not None:
+        updated_course_details = None
+        if short_description or online_course_link or instructor or estimated_hours is not None:
             try:
                 from openedx.core.djangoapps.models.course_details import CourseDetails
                 course_update_data = {}
+                if short_description:
+                    course_update_data['short_description'] = short_description
                 if online_course_link:
                     course_update_data['online_course_link'] = online_course_link
                 if instructor:
@@ -394,7 +393,7 @@ def create_course_api(request):
                 course_update_data['intro_video'] = ''
                 
                 # Update the course with new fields
-                CourseDetails.update_from_json(course_key, course_update_data, request.user)
+                updated_course_details = CourseDetails.update_from_json(course_key, course_update_data, request.user)
                 logger.info(f"[CHALIX] Updated course with new fields: {course_update_data}")
             except Exception as update_error:
                     logger.warning(f"[CHALIX] Failed to update course with new fields: {update_error}")
@@ -402,9 +401,13 @@ def create_course_api(request):
 
         # Create LocalCourse record to track the course-program relationship
         # Persist a LocalCourse record and store the modulestore course key string
+        local_course_short_description = short_description if short_description else ''
+        if updated_course_details:
+            local_course_short_description = getattr(updated_course_details, 'short_description', local_course_short_description)
+        
         local_course = LocalCourse.objects.create(
             title=new_course.display_name,
-            short_description=course_fields.get('short_description', ''),
+            short_description=local_course_short_description,
             template_program=template_program,
             course_type=course_fields.get('course_type', ''),
             created_by=request.user if request.user.is_authenticated else None,
