@@ -77,8 +77,8 @@ from lms.djangoapps.branding import api as branding_api %>
 
                     <!-- Teacher Dashboard Button (only for instructors/staff) -->
                     % if user.is_authenticated:
-                    <% from common.djangoapps.student.roles import CourseInstructorRole, CourseStaffRole
-is_teacher=CourseInstructorRole.user_has_role(user) or CourseStaffRole.user_has_role(user) %>
+                    <% from common.djangoapps.student.models import CourseAccessRole
+is_teacher = bool(user.is_staff) or CourseAccessRole.objects.filter(user=user, role__in=['instructor', 'staff']).exists() %>
                         % if is_teacher:
                         <div class="chalix-teacher-button">
                             <a href="/teacher-dashboard/" class="btn-teacher">Giảng Dạy</a>

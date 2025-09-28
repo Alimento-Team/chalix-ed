@@ -144,7 +144,13 @@ class ContainerHandlerView(APIView, ContainerHandlerMixin):
             except ItemNotFoundError:
                 return HttpResponseBadRequest()
 
-            context = get_container_handler_context(request, usage_key, course, xblock)
+            if xblock.category not in ('vertical', 'sequential'):
+                return HttpResponseBadRequest(f"Container handler is only for verticals or sequentials, got {xblock.category}")
+
+            try:
+                context = get_container_handler_context(request, usage_key, course, xblock)
+            except ValueError as e:
+                return HttpResponseBadRequest(str(e))
             context.update({
                 'draft_preview_link': preview_lms_link,
                 'published_preview_link': lms_link,

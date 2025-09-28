@@ -111,63 +111,76 @@ class SimplifiedOutlineTabView(RetrieveAPIView):
 
     def _get_simplified_course_structure(self, course, user):
         """
-        Get the simplified course structure: course -> units only.
+        Get the simplified course structure: course -> modules -> units.
+        If the course has no chapters/sequentials, treat the course as a single module.
         """
         modulestore_instance = modulestore()
-
-        # Get all units directly from the course (verticals)
-        units = []
+        modules = []
         total_units = 0
         completed_units = 0
 
         # Get course children from modulestore
         course_children = modulestore_instance.get_children(course.location, depth=None)
 
-        # Check if this course uses simplified structure (units directly under course)
-        direct_units = [child for child in course_children if child.category == 'vertical']
+        # Determine if course has chapter/sequential structure
+        chapter_children = [child for child in course_children if child.category == 'chapter']
+        vertical_children = [child for child in course_children if child.category == 'vertical']
 
-        if direct_units:
-            # Simplified structure: units are direct children of course
-            for unit_block in direct_units:
-                total_units += 1
-                unit_data = self._process_unit(unit_block, user, modulestore_instance)
+        if chapter_children:
+            # Traditional structure: chapters (modules) -> sequentials -> verticals (units)
+            for module_block in chapter_children:
+                unit_list = []
+                module_unit_count = 0
+                module_complete_count = 0
 
-                if unit_data['complete']:
-                    completed_units += 1
-
-                units.append(unit_data)
-        else:
-            # Traditional structure: find units in chapters/sections
-            for module_block in course_children:
-                if module_block.category != 'chapter':
-                    continue
-
-                # Get module children (units, formerly sequentials)
                 module_children = modulestore_instance.get_children(module_block.location, depth=None)
-
                 for section_block in module_children:
                     if section_block.category != 'sequential':
                         continue
-
-                    # Get section children (actual units/verticals)
                     section_children = modulestore_instance.get_children(section_block.location, depth=None)
-
                     for unit_block in section_children:
                         if unit_block.category != 'vertical':
                             continue
-
+                        module_unit_count += 1
                         total_units += 1
                         unit_data = self._process_unit(unit_block, user, modulestore_instance)
-
                         if unit_data['complete']:
                             completed_units += 1
+                            module_complete_count += 1
+                        unit_list.append(unit_data)
 
-                        units.append(unit_data)
+                modules.append({
+                    'id': str(module_block.location),
+                    'title': module_block.display_name,
+                    'units_count': module_unit_count,
+                    'complete': module_unit_count > 0 and module_unit_count == module_complete_count,
+                    'units': unit_list,
+                })
+        elif vertical_children:
+            # Simplified structure: units directly under course, wrap into a single module
+            unit_list = []
+            module_unit_count = 0
+            module_complete_count = 0
+            for unit_block in vertical_children:
+                module_unit_count += 1
+                total_units += 1
+                unit_data = self._process_unit(unit_block, user, modulestore_instance)
+                if unit_data['complete']:
+                    completed_units += 1
+                    module_complete_count += 1
+                unit_list.append(unit_data)
+
+            modules.append({
+                'id': f"{str(course.location)}@root",
+                'title': course.display_name,
+                'units_count': module_unit_count,
+                'complete': module_unit_count > 0 and module_unit_count == module_complete_count,
+                'units': unit_list,
+            })
 
         # Calculate progress
         progress_percentage = (completed_units / total_units * 100) if total_units > 0 else 0
 
-        # Get instructor name from course metadata
         instructor_name = self._get_instructor_name(course)
 
         return {
@@ -178,7 +191,7 @@ class SimplifiedOutlineTabView(RetrieveAPIView):
                 'completed_units': completed_units,
                 'progress_percentage': progress_percentage,
             },
-            'units': units,
+            'modules': modules,
         }
 
     def _process_unit(self, unit_block, user, modulestore_instance):

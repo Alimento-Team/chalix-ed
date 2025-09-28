@@ -6,6 +6,8 @@ Contains all the URLs for the Course Home
 from django.conf import settings
 from django.urls import re_path
 
+from django.urls import include
+
 from lms.djangoapps.course_home_api.course_metadata.views import CourseHomeMetadataView
 from lms.djangoapps.course_home_api.dates.views import DatesTabView
 from lms.djangoapps.course_home_api.outline.views import (
@@ -17,6 +19,8 @@ from lms.djangoapps.course_home_api.outline.views import (
 )
 from lms.djangoapps.course_home_api.outline.simplified_views import SimplifiedOutlineTabView
 from lms.djangoapps.course_home_api.progress.views import ProgressTabView
+from lms.djangoapps.course_home_api.reviews.views import CourseReviewView, CourseReviewSummaryView
+from lms.djangoapps.course_home_api.studio_proxy.views import StudioProxyView
 
 # This API is a BFF ("backend for frontend") designed for the learning MFE. It's not versioned because there is no
 # guarantee of stability over time. It may change from one Open edX release to another. Don't write any scripts
@@ -87,5 +91,39 @@ urlpatterns += [
         fr'progress/{settings.COURSE_KEY_PATTERN}',
         ProgressTabView.as_view(),
         name='progress-tab'
+    ),
+]
+
+# Reviews URLs (emoji-based quick review)
+urlpatterns += [
+    re_path(
+        fr'reviews/{settings.COURSE_KEY_PATTERN}$',
+        CourseReviewView.as_view(),
+        name='course-review'
+    ),
+    re_path(
+        fr'reviews/{settings.COURSE_KEY_PATTERN}/summary$',
+        CourseReviewSummaryView.as_view(),
+        name='course-review-summary'
+    ),
+    # Legacy proxy endpoints - deprecated in favor of content API
+    # Kept for backward compatibility but redirected to content API
+    re_path(
+        fr'units/(?P<unit_id>[^/]+)/(?P<media_type>videos|slides)/$',
+        StudioProxyView.as_view(),
+        name='course-home-unit-media-proxy',
+    ),
+    re_path(
+        fr'container_handler/(?P<unit_id>[^/]+)$',
+        StudioProxyView.as_view(),
+        name='course-home-unit-container-proxy',
+    ),
+]
+
+# Content API URLs (mirrors of CMS contentstore for read-only access)
+urlpatterns += [
+    re_path(
+        r'^content/',
+        include('lms.djangoapps.course_home_api.content.urls')
     ),
 ]

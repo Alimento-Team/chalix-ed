@@ -27,6 +27,17 @@ class SimplifiedUnitSerializer(serializers.Serializer):
     complete = serializers.BooleanField()
 
 
+class SimplifiedModuleSerializer(serializers.Serializer):
+    """
+    Serializer for simplified module objects which contain units
+    """
+    id = serializers.CharField()
+    title = serializers.CharField()
+    units_count = serializers.IntegerField()
+    complete = serializers.BooleanField()
+    units = SimplifiedUnitSerializer(many=True)
+
+
 class CourseInfoSerializer(serializers.Serializer):
     """
     Serializer for course information
@@ -43,4 +54,5 @@ class SimplifiedOutlineTabSerializer(serializers.Serializer):
     Serializer for the Simplified Outline Tab
     """
     course_info = CourseInfoSerializer()
-    units = SimplifiedUnitSerializer(many=True)
+    # New shape expected by the MFE: modules -> units
+    modules = SimplifiedModuleSerializer(many=True)

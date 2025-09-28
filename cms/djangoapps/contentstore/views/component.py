@@ -172,7 +172,10 @@ def container_handler(request, usage_key_string):  # pylint: disable=too-many-st
                 if split_xblock := get_parent_if_split_test(xblock):
                     return redirect(get_unit_url(course.id, split_xblock.location))
 
-            container_handler_context = get_container_handler_context(request, usage_key, course, xblock)
+            try:
+                container_handler_context = get_container_handler_context(request, usage_key, course, xblock)
+            except ValueError as e:
+                return HttpResponseBadRequest(str(e))
             container_handler_context.update({
                 'draft_preview_link': preview_lms_link,
                 'published_preview_link': lms_link,
@@ -208,7 +211,10 @@ def container_embed_handler(request, usage_key_string):  # pylint: disable=too-m
         except ItemNotFoundError:
             raise Http404  # lint-amnesty, pylint: disable=raise-missing-from
 
-        container_handler_context = get_container_handler_context(request, usage_key, course, xblock)
+        try:
+            container_handler_context = get_container_handler_context(request, usage_key, course, xblock)
+        except ValueError as e:
+            return HttpResponseBadRequest(str(e))
         return render_to_response('container_chromeless.html', container_handler_context)
 
 
