@@ -450,6 +450,8 @@ FEATURES = {
     # Hide any Personally Identifiable Information from application logs
     'SQUELCH_PII_IN_LOGS': True,
 
+# ...existing code...
+
     # .. toggle_name: FEATURES['EMBARGO']
     # .. toggle_implementation: DjangoSetting
     # .. toggle_default: False
@@ -5196,6 +5198,14 @@ ENABLE_DYNAMIC_REGISTRATION_FIELDS = False
 ENFORCE_SESSION_EMAIL_MATCH = False
 
 ############### Settings for the ace_common plugin #################
+
+# Learning analytics settings
+# When True, any newly created CourseOverview will trigger an attempt to enroll
+# all existing users into the course. WARNING: enabling this on large sites
+# may create large DB load. Default is True per user request.
+LEARNING_ANALYTICS_AUTO_ENROLL_ALL = True
+# When True, superusers and staff are skipped from auto-enrollment.
+LEARNING_ANALYTICS_AUTO_ENROLL_SKIP_STAFF = True
 # Note that all settings are actually defined by the plugin
 # pylint: disable=wrong-import-position
 ACE_ROUTING_KEY = ace_common_settings.ACE_ROUTING_KEY

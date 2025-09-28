@@ -39,19 +39,21 @@ class LearnerBehaviorAdmin(admin.ModelAdmin):
 @admin.register(LearningHoursRequirement)
 class LearningHoursRequirementAdmin(admin.ModelAdmin):
     list_display = [
-        'user', 'year', 'required_hours', 'completed_hours', 
-        'progress_percentage', 'status_display', 'deadline'
+        'user', 'current_year', 'required_hours', 'completed_hours',
+        'progress_percentage', 'status_display'
     ]
-    list_filter = ['year', 'deadline', 'created']
+    list_filter = ['current_year', 'created_at']
     search_fields = ['user__username', 'user__email']
-    readonly_fields = ['created', 'modified']
+    readonly_fields = ['created_at', 'updated_at']
     
     def completed_hours(self, obj):
-        return f"{obj.get_completed_hours():.1f}h"
+        # models provide completed_hours property
+        return f"{obj.completed_hours:.1f}h"
     completed_hours.short_description = "Completed Hours"
     
     def progress_percentage(self, obj):
-        percentage = obj.get_progress_percentage()
+        # models expose completion_percentage property
+        percentage = obj.completion_percentage
         color = 'green' if percentage >= 100 else 'orange' if percentage >= 70 else 'red'
         return format_html(
             '<div style="width: 100px; background: #f0f0f0; border-radius: 3px;">'
@@ -63,13 +65,16 @@ class LearningHoursRequirementAdmin(admin.ModelAdmin):
     progress_percentage.short_description = "Progress"
     
     def status_display(self, obj):
-        if obj.is_completed():
+        # Provide a simple human readable status based on model fields
+        if getattr(obj, 'is_completed', False):
             return format_html('<span style="color: green;">✓ Completed</span>')
-        elif obj.is_overdue():
-            return format_html('<span style="color: red;">⚠ Overdue</span>')
-        else:
-            days_left = (obj.deadline - timezone.now().date()).days
-            return format_html('<span style="color: orange;">{} days left</span>', days_left)
+        if obj.status == 'approved':
+            return format_html('<span style="color: green;">Approved</span>')
+        if obj.status == 'rejected':
+            return format_html('<span style="color: red;">Rejected</span>')
+        if obj.status == 'pending':
+            return format_html('<span style="color: orange;">Pending</span>')
+        return format_html('<span>{}</span>', obj.status or 'In progress')
     status_display.short_description = "Status"
     
     actions = ['mark_completed', 'extend_deadline']
@@ -93,16 +98,16 @@ class LearningHoursRequirementAdmin(admin.ModelAdmin):
 @admin.register(LearningHoursApproval)
 class LearningHoursApprovalAdmin(admin.ModelAdmin):
     list_display = [
-        'user', 'learning_requirement', 'status', 'requested_hours',
-        'approved_hours', 'requested_date', 'approved_date', 'approver'
+        'user', 'requirement', 'status', 'requested_hours',
+        'approved_hours', 'created_at', 'review_date', 'reviewed_by'
     ]
-    list_filter = ['status', 'requested_date', 'approved_date']
-    search_fields = ['user__username', 'user__email', 'approver__username']
-    readonly_fields = ['requested_date', 'created', 'modified']
+    list_filter = ['status', 'created_at', 'review_date']
+    search_fields = ['requirement__user__username', 'requirement__user__email', 'reviewed_by__username']
+    readonly_fields = ['created_at', 'updated_at']
     
     def get_queryset(self, request):
         return super().get_queryset(request).select_related(
-            'user', 'learning_requirement', 'approver'
+            'requirement', 'reviewed_by'
         )
     
     actions = ['approve_requests', 'reject_requests']
@@ -114,8 +119,8 @@ class LearningHoursApprovalAdmin(admin.ModelAdmin):
         for approval in pending_requests:
             approval.status = 'approved'
             approval.approved_hours = approval.requested_hours
-            approval.approver = request.user
-            approval.approved_date = timezone.now()
+            approval.reviewed_by = request.user
+            approval.review_date = timezone.now()
             approval.save()
             
         self.message_user(request, f"Approved {count} requests.")
@@ -127,8 +132,8 @@ class LearningHoursApprovalAdmin(admin.ModelAdmin):
         
         for approval in pending_requests:
             approval.status = 'rejected'
-            approval.approver = request.user
-            approval.approved_date = timezone.now()
+            approval.reviewed_by = request.user
+            approval.review_date = timezone.now()
             approval.save()
             
         self.message_user(request, f"Rejected {count} requests.")
@@ -137,5 +142,11 @@ class LearningHoursApprovalAdmin(admin.ModelAdmin):
     def get_readonly_fields(self, request, obj=None):
         # Make approved/rejected requests mostly readonly
         if obj and obj.status in ['approved', 'rejected']:
-            return self.readonly_fields + ['status', 'approved_hours', 'notes']
+            return self.readonly_fields + ['status', 'approved_hours', 'review_comments']
         return self.readonly_fields
+
+    def user(self, obj):
+        # LearningHoursApproval links to a requirement which links to a user
+        return obj.requirement.user
+    user.short_description = 'User'
+    user.admin_order_field = 'requirement__user'

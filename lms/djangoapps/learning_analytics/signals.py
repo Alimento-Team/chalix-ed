@@ -1,3 +1,71 @@
+"""Signals for learning_analytics.
+
+Auto-enroll all existing users into a course when a CourseOverview is created.
+This behavior is guarded by settings.LEARNING_ANALYTICS_AUTO_ENROLL_ALL (default False)
+and will skip staff/superusers if LEARNING_ANALYTICS_AUTO_ENROLL_SKIP_STAFF is True.
+"""
+import logging
+
+from django.conf import settings
+from django.db import transaction
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+from django.contrib.auth import get_user_model
+
+from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
+from common.djangoapps.student.models.course_enrollment import CourseEnrollment, AlreadyEnrolledError
+
+log = logging.getLogger(__name__)
+
+
+@receiver(post_save, sender=CourseOverview)
+def auto_enroll_all_users_on_course_create(sender, instance, created, **kwargs):
+    """Enroll all existing users into a newly created course overview.
+
+    This is intentionally opt-in via settings to avoid surprising behavior.
+    """
+    if not created:
+        return
+
+    if not getattr(settings, 'LEARNING_ANALYTICS_AUTO_ENROLL_ALL', False):
+        log.debug('LEARNING_ANALYTICS_AUTO_ENROLL_ALL is disabled; skipping auto-enroll for %s', instance.id)
+        return
+
+    skip_staff = getattr(settings, 'LEARNING_ANALYTICS_AUTO_ENROLL_SKIP_STAFF', True)
+
+    User = get_user_model()
+    course_key = instance.id
+
+    # Use a transaction per batch to avoid partial updates in case of errors.
+    users_qs = User.objects.all()
+    if skip_staff:
+        users_qs = users_qs.filter(is_staff=False, is_superuser=False)
+
+    total = users_qs.count()
+    log.info('Auto-enrolling %d users into course %s', total, course_key)
+
+    # Iterate in batches to avoid loading all users into memory
+    batch_size = 500
+    offset = 0
+    while True:
+        batch = list(users_qs[offset:offset + batch_size])
+        if not batch:
+            break
+
+        with transaction.atomic():
+            for user in batch:
+                try:
+                    # CourseEnrollment.enroll is idempotent in practice; it logs if already enrolled.
+                    CourseEnrollment.enroll(user, course_key, check_access=False)
+                except AlreadyEnrolledError:
+                    # Silently ignore; user already enrolled
+                    continue
+                except Exception as exc:  # pylint: disable=broad-except
+                    log.exception('Failed to auto-enroll user %s into %s: %s', user.username, course_key, exc)
+
+        offset += batch_size
+
+    log.info('Auto-enroll completed for course %s', course_key)
 """
 Signals to automatically track learning hours and activities.
 """
