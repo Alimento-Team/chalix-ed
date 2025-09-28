@@ -40,7 +40,7 @@ class LearningHoursRequirement(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
-        app_label = 'lms.djangoapps.learning_analytics'
+        app_label = 'learning_analytics'
         unique_together = ('user', 'current_year')
 
     @property
@@ -109,7 +109,7 @@ class LearningHoursApproval(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
-        app_label = 'lms.djangoapps.learning_analytics'
+        app_label = 'learning_analytics'
         ordering = ['-created_at']
 
 
@@ -133,4 +133,4 @@ class OrganizationLearningPolicy(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
-        app_label = 'lms.djangoapps.learning_analytics'
+        app_label = 'learning_analytics'

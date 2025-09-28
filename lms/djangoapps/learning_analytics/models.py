@@ -40,7 +40,7 @@ class LearnerBehavior(models.Model):
     modified = models.DateTimeField(auto_now=True)
 
     class Meta:
-        app_label = 'lms.djangoapps.learning_analytics'
+        app_label = 'learning_analytics'
         unique_together = ('user', 'course_id')
         ordering = ['-last_activity']
 
@@ -90,7 +90,7 @@ class CourseCreditHours(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        app_label = 'lms.djangoapps.learning_analytics'
+        app_label = 'learning_analytics'
         verbose_name = "Course Credit Hours"
         verbose_name_plural = "Course Credit Hours"
 
@@ -131,7 +131,7 @@ class StudentCourseProgress(models.Model):
     last_activity_date = models.DateTimeField(null=True, blank=True)
 
     class Meta:
-        app_label = 'lms.djangoapps.learning_analytics'
+        app_label = 'learning_analytics'
         unique_together = ('user', 'course_id')
         ordering = ['-enrollment_date']
 
@@ -189,7 +189,7 @@ class LearningHoursRequirement(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        app_label = 'lms.djangoapps.learning_analytics'
+        app_label = 'learning_analytics'
         unique_together = ('user', 'current_year')
 
     def __str__(self):
@@ -273,7 +273,7 @@ class LearningHoursApproval(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        app_label = 'lms.djangoapps.learning_analytics'
+        app_label = 'learning_analytics'
         ordering = ['-created_at']
 
     def __str__(self):
@@ -299,7 +299,7 @@ class LearnerRecommendation(models.Model):
     is_active = models.BooleanField(default=True)
 
     class Meta:
-        app_label = 'lms.djangoapps.learning_analytics'
+        app_label = 'learning_analytics'
         ordering = ['-confidence_score', '-created_at']
 
 
@@ -324,7 +324,7 @@ class LearningGoal(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        app_label = 'lms.djangoapps.learning_analytics'
+        app_label = 'learning_analytics'
 
     @property
     def progress_percentage(self):
