@@ -5206,6 +5206,10 @@ ENFORCE_SESSION_EMAIL_MATCH = False
 LEARNING_ANALYTICS_AUTO_ENROLL_ALL = True
 # When True, superusers and staff are skipped from auto-enrollment.
 LEARNING_ANALYTICS_AUTO_ENROLL_SKIP_STAFF = True
+# When True, on user login we auto-enroll the user into any CourseEnrollmentAllowed
+# entries for their email that have auto_enroll=True. This helps ensure users see
+# their courses on the learner dashboard after account creation.
+LEARNING_ANALYTICS_AUTO_ENROLL_FROM_ALLOWEDS_ON_LOGIN = True
 # Note that all settings are actually defined by the plugin
 # pylint: disable=wrong-import-position
 ACE_ROUTING_KEY = ace_common_settings.ACE_ROUTING_KEY

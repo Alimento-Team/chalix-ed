@@ -127,10 +127,44 @@ def track_course_completion(sender, instance, created, **kwargs):
 
 @receiver(user_logged_in)
 def update_login_frequency(sender, request, user, **kwargs):
-    """Update login frequency for learning analytics."""
-    # This would typically be handled by a more sophisticated tracking system
-    # For now, we'll skip detailed login tracking
-    pass
+    """Perform lightweight login-time tasks.
+
+    - Optionally auto-enroll a user into courses for which a CourseEnrollmentAllowed
+      entry exists with auto_enroll=True (feature-gated).
+    """
+    try:
+        if getattr(settings, 'LEARNING_ANALYTICS_AUTO_ENROLL_FROM_ALLOWEDS_ON_LOGIN', True):
+            # Local import to avoid import cycles on startup
+            from common.djangoapps.student.models import CourseEnrollmentAllowed  # pylint: disable=import-outside-toplevel
+
+            alloweds_qs = CourseEnrollmentAllowed.objects.filter(
+                email=user.email,
+                auto_enroll=True,
+            )
+
+            count = alloweds_qs.count()
+            if count:
+                log.info('Auto-enrolling %s from %d alloweds on login', user.username, count)
+            for cea in alloweds_qs:
+                course_key = cea.course_id
+                try:
+                    # Enroll regardless of enrollment window; we intentionally pass check_access=False
+                    CourseEnrollment.enroll(user, course_key, check_access=False)
+                    # Link the CEA to the user if it isn't already linked, mirroring built-in behavior
+                    if not getattr(cea, 'user_id', None):
+                        cea.user = user
+                        cea.save(update_fields=['user'])
+                except AlreadyEnrolledError:
+                    # Ensure linkage even if already enrolled
+                    if not getattr(cea, 'user_id', None):
+                        cea.user = user
+                        cea.save(update_fields=['user'])
+                    continue
+                except Exception as exc:  # pylint: disable=broad-except
+                    log.exception('Login auto-enroll failed for user %s into %s: %s', user.username, course_key, exc)
+    except Exception:  # pylint: disable=broad-except
+        # We never want login to fail due to non-critical enrollment logic
+        log.exception('Unexpected error during login-time auto-enroll processing for %s', getattr(user, 'username', 'unknown'))
 
 
 # Custom signal for video tracking

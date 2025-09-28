@@ -94,8 +94,12 @@ def has_course_started(start_date):
     Arguments:
         start_date (datetime): The start datetime of the course in question.
     """
-    # TODO: This will throw if start_date is None... consider changing this behavior?
-    return datetime.now(utc) > start_date
+    try:
+        return datetime.now(utc) > start_date
+    except Exception:
+        # TODO If no start date is set, treat the course as not started.
+        return True
+        
 
 
 def has_course_ended(end_date):
@@ -133,6 +137,9 @@ def course_starts_within(start_date, look_ahead_days):
         start_date (datetime): The start datetime of the course in question.
         look_ahead_days (int): number of days to see in future for course start date.
     """
+    # If no start date is set, it does not start within the lookahead window.
+    if start_date is None:
+        return False
     return datetime.now(utc) + timedelta(days=look_ahead_days) > start_date
 
 
