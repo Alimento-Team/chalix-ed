@@ -49,35 +49,35 @@ from openedx.core.djangolib.markup import HTML, Text %>
         <div class="features-container" style="display: grid !important; grid-template-columns: repeat(3, 1fr) !important; gap: 40px 20px !important; padding: 20px; margin: 80px auto 60px auto; max-width: 1200px; justify-items: center;">
             <!-- Feature 1: AI gợi ý khóa học phù hợp (center top) -->
             <div class="feature-item feature-center-top" style="padding: 20px; text-align: center; display: flex; flex-direction: column; align-items: center;">
-                <img src="/static/images/ai-khp.png"
+                <img src="/static/images/ai_khp.png"
                     alt="AI khóa học phù hợp" class="feature-image" style="width: 280px; height: 160px; margin-bottom: 14px; border-radius: 8px; box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25); object-fit: cover;" />
                 <div class="feature-text" style="font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 500; line-height: 19.36px; color: #0054a6; margin: 0;">AI gợi ý khóa học phù hợp<br />với năng lực của CC, VC</div>
             </div>
 
             <!-- Feature 2: AI nhận diện cảm xúc (right top) -->
             <div class="feature-item feature-right-top" style="padding: 20px; text-align: center; display: flex; flex-direction: column; align-items: center;">
-                <img src="/static/images/ai-cx.png"
+                <img src="/static/images/ai_cx.png"
                     alt="AI nhận diện cảm xúc" class="feature-image" style="width: 280px; height: 160px; margin-bottom: 14px; border-radius: 8px; box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25); object-fit: cover;" />
                 <div class="feature-text" style="font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 500; line-height: 19.36px; color: #0054a6; margin: 0;">AI nhận diện cảm xúc người học<br />dựa trên khuôn mặt</div>
             </div>
 
             <!-- Feature 3: AI dự đoán năng lực (left top) -->
             <div class="feature-item feature-left-top" style="padding: 20px; text-align: center; display: flex; flex-direction: column; align-items: center;">
-                <img src="http://localhost:3845/assets/62ab52a8c5f1580e04028a7155be46388f32b45a.png"
+                <img src="/static/images/ai_dudo.png"
                     alt="AI dự đoán năng lực" class="feature-image" style="width: 280px; height: 160px; margin-bottom: 14px; border-radius: 8px; box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25); object-fit: cover;" />
                 <div class="feature-text" style="font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 500; line-height: 19.36px; color: #0054a6; margin: 0;">AI dự đoán năng lực<br />người học</div>
             </div>
 
             <!-- Feature 4: Cá nhân hóa người học (left bottom) -->
             <div class="feature-item feature-left-bottom" style="padding: 20px; text-align: center; display: flex; flex-direction: column; align-items: center;">
-                <img src="/static/images/ai-cnh.png"
+                <img src="/static/images/ai_cnh.png"
                     alt="Cá nhân hóa người học" class="feature-image" style="width: 280px; height: 160px; margin-bottom: 14px; border-radius: 8px; box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25); object-fit: cover;" />
                 <div class="feature-text" style="font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 500; line-height: 19.36px; color: #0054a6; margin: 0;">Cá nhân hóa người học</div>
             </div>
 
             <!-- Feature 5: Hệ thống gợi ý xây dựng (center bottom) -->
             <div class="feature-item feature-center-bottom" style="padding: 20px; text-align: center; display: flex; flex-direction: column; align-items: center;">
-                <img src="/static/images/ai-cth.png"
+                <img src="/static/images/ai_cth.png"
                     alt="Hệ thống gợi ý" class="feature-image" style="width: 280px; height: 160px; margin-bottom: 14px; border-radius: 8px; box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25); object-fit: cover;" />
                 <div class="feature-text" style="font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 500; line-height: 19.36px; color: #0054a6; margin: 0;">Hệ thống gợi ý xây dựng, điều<br />chỉnh chương trình học,<br />bài giảng
                 </div>
@@ -85,7 +85,7 @@ from openedx.core.djangolib.markup import HTML, Text %>
 
             <!-- Feature 6: Diễn đàn trao đổi (right bottom) -->
             <div class="feature-item feature-right-bottom" style="padding: 20px; text-align: center; display: flex; flex-direction: column; align-items: center;">
-                <img src="/static/images/ai-dida.png"
+                <img src="/static/images/ai_dida.png"
                     alt="Diễn đàn trao đổi" class="feature-image" style="width: 280px; height: 160px; margin-bottom: 14px; border-radius: 8px; box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25); object-fit: cover;" />
                 <div class="feature-text" style="font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 500; line-height: 19.36px; color: #0054a6; margin: 0;">Diễn đàn trao đổi, chia sẻ kiến thức</div>
             </div>
@@ -96,7 +96,7 @@ from openedx.core.djangolib.markup import HTML, Text %>
 
         <!-- Process Container -->
                 <!-- Process Section -->
-    <div class="process-container">
+    <div class="process-container" style="display:flex;flex-direction:row;flex-wrap:nowrap;align-items:center;justify-content:space-between;gap:20px;">
             <!-- Process Step 1: Bộ Xây dựng -->
             <div class="process-step step-1" style="text-align: center; position: relative; flex: 1; min-width: 160px; max-width: 180px;">
                 <div class="step-circle" style="width: 60px; height: 60px; background: #3494c8; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px;">
