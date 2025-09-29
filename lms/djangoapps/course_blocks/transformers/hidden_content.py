@@ -100,7 +100,18 @@ class HiddenContentTransformer(BlockStructureTransformer):
         be hidden, given the current time.
         """
         hide_after_due = self._get_merged_hide_after_due(block_structure, block_key)
-        self_paced = block_structure[block_structure.root_block_usage_key].self_paced
+        # Prefer the requested XBlock field from the root course block. In some
+        # circumstances (e.g., stale persisted block structures or version
+        # mismatches), the attribute may be absent. Be defensive and fall back
+        # to fetching via get_xblock_field, defaulting to instructor-paced.
+        try:
+            self_paced = block_structure[block_structure.root_block_usage_key].self_paced
+        except AttributeError:
+            self_paced = block_structure.get_xblock_field(
+                block_structure.root_block_usage_key,
+                'self_paced',
+                False,
+            ) or False
         if self_paced:
             hidden_date = self._get_merged_end_date(block_structure, block_key)
         else:
