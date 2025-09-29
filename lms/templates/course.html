@@ -9,7 +9,13 @@ from django.urls import reverse
   <a href="${reverse('about_course', args=[str(course.id)])}">
     <header class="course-image">
       <div class="cover-image">
-        <img src="${course.course_image_url}" alt="${course.display_name_with_default} ${course.display_number_with_default}" />
+        % if course.course_image_url:
+            <!-- Use the course image when available; if it 404s, onerror will swap to the site fallback -->
+            <img src="${course.course_image_url}" alt="${course.display_name_with_default} ${course.display_number_with_default}" onerror="this.onerror=null;this.src='/static/images/ai_cth.png';" />
+        % else:
+            <!-- No course image set: use the fallback static image -->
+            <img src="/static/images/ai_cth.png" alt="${course.display_name_with_default} ${course.display_number_with_default}" />
+        % endif
         <div class="learn-more" aria-hidden="true">${_("LEARN MORE")}</div>
       </div>
     </header>
