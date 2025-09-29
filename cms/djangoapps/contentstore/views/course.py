@@ -51,6 +51,7 @@ from common.djangoapps.student.auth import (
     has_studio_advanced_settings_access,
     is_content_creator,
 )
+from common.djangoapps.student.models import CourseEnrollment
 from common.djangoapps.student.roles import (
     CourseInstructorRole,
     CourseStaffRole,
@@ -1048,6 +1049,51 @@ def _create_or_rerun_course(request):
         )
 
 
+def auto_enroll_all_students(course_key):
+    """
+    Automatically enroll all existing students in the new course.
+    This function enrolls all users who are not staff/superuser in the new course.
+    """
+    try:
+        # Get all users who are not staff/superuser (regular students)
+        students = User.objects.filter(
+            is_active=True,
+            is_staff=False,
+            is_superuser=False
+        ).exclude(
+            # Exclude users who already have instructor/staff roles in any course
+            courseaccessrole__role__in=['instructor', 'staff']
+        ).distinct()
+        
+        enrolled_count = 0
+        for student in students:
+            try:
+                # Check if student is already enrolled
+                if not CourseEnrollment.is_enrolled(student, course_key):
+                    # Get enrollment mode from settings or default to audit
+                    enrollment_mode = getattr(settings, 'AUTO_ENROLL_DEFAULT_MODE', 'audit')
+                    # Enroll student in the specified mode
+                    CourseEnrollment.enroll(
+                        user=student,
+                        course_key=course_key,
+                        mode=enrollment_mode,
+                        check_access=False
+                    )
+                    enrolled_count += 1
+                    log.info("Auto-enrolled user %s in course %s", student.username, course_key)
+            except Exception as e:
+                # Log the error but continue with other students
+                log.warning("Failed to auto-enroll user %s in course %s: %s", 
+                           student.username, course_key, str(e))
+                
+        log.info("Auto-enrolled %d students in course %s", enrolled_count, course_key)
+        return enrolled_count
+        
+    except Exception as e:
+        log.error("Failed to auto-enroll students in course %s: %s", course_key, str(e))
+        return 0
+
+
 def create_new_course(user, org, number, run, fields):
     """
     Create a new course run.
@@ -1071,6 +1117,15 @@ def create_new_course(user, org, number, run, fields):
     if default_enable_flexible_peer_openassessments(new_course.id):
         new_course.force_on_flexible_peer_openassessments = True
     modulestore().update_item(new_course, new_course.published_by)
+
+    # Auto-enroll all students in the new course if feature is enabled
+    if getattr(settings, 'FEATURES', {}).get('ENABLE_AUTO_ENROLL_ON_COURSE_CREATE', False):
+        try:
+            enrolled_count = auto_enroll_all_students(new_course.id)
+            log.info("Successfully auto-enrolled %d students in new course %s", enrolled_count, new_course.id)
+        except Exception as e:
+            log.error("Auto-enrollment failed for course %s: %s", new_course.id, str(e))
+            # Don't raise the exception - course creation should still succeed even if auto-enrollment fails
 
     return new_course
 
