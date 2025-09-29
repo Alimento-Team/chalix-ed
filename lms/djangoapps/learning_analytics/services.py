@@ -151,7 +151,7 @@ class LearningHoursService:
         try:
             requirement = LearningHoursRequirement.objects.get(
                 user=user,
-                year=year
+                current_year=year
             )
             required_hours = requirement.required_hours
             status = requirement.status
@@ -165,7 +165,7 @@ class LearningHoursService:
         # Get pending approvals
         pending_approvals = LearningHoursApproval.objects.filter(
             requirement__user=user,
-            requirement__year=year,
+            requirement__current_year=year,
             status='pending'
         )
         pending_hours = sum(approval.requested_hours for approval in pending_approvals)
@@ -195,7 +195,7 @@ class LearningHoursService:
         """
         requirement, created = LearningHoursRequirement.objects.get_or_create(
             user=user,
-            year=year,
+            current_year=year,
             defaults={
                 'required_hours': required_hours,
                 'status': 'in_progress'
@@ -227,7 +227,7 @@ class LearningHoursService:
         try:
             requirement = LearningHoursRequirement.objects.get(
                 user=user,
-                year=year
+                current_year=year
             )
         except LearningHoursRequirement.DoesNotExist:
             requirement = LearningHoursService.create_learning_requirement(user, 40, year)
