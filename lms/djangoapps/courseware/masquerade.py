@@ -392,7 +392,7 @@ def check_content_start_date_for_masquerade_user(course_key, user, request, cour
     if chapter_start and section_start:
         most_future_date = max(course_start, chapter_start, section_start)
     _is_masquerading = get_course_masquerade(user, course_key)
-    if now < most_future_date and _is_masquerading:
+    if most_future_date and now < most_future_date and _is_masquerading:
         group_masquerade = is_masquerading_as_student(user, course_key)
         specific_student_masquerade = is_masquerading_as_specific_student(user, course_key)
         is_staff = has_staff_roles(user, course_key)
