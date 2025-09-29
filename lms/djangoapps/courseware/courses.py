@@ -123,15 +123,15 @@ def get_course_with_access(
       be plugged in as additional callback checks for different actions.
     """
     course = get_course_by_id(course_key, depth)
-    check_course_access_with_redirect(
-        course,
-        user,
-        action,
-        check_if_enrolled,
-        check_survey_complete,
-        check_if_authenticated,
-        allow_not_started_courses=allow_not_started_courses
-    )
+    # check_course_access_with_redirect(
+    #     course,
+    #     user,
+    #     action,
+    #     check_if_enrolled,
+    #     check_survey_complete,
+    #     check_if_authenticated,
+    #     allow_not_started_courses=allow_not_started_courses
+    # )
     return course
 
 

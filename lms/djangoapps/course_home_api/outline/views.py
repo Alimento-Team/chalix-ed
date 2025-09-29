@@ -192,7 +192,20 @@ class OutlineTabView(RetrieveAPIView):
         monitoring_utils.set_custom_attribute('user_id', request.user.id)
         monitoring_utils.set_custom_attribute('is_staff', request.user.is_staff)
 
-        course = get_course_or_403(request.user, 'load', course_key, check_if_enrolled=False)
+        # Allow access to courses that haven't started yet for better UX
+        try:
+            course = get_course_or_403(request.user, 'load', course_key, check_if_enrolled=False)
+        except Exception as e:
+            # If access denied due to course not started, try with allow_not_started_courses=True
+            from lms.djangoapps.courseware.courses import get_course_with_access
+            if ('Course has not started' in str(e) or 'course_not_started' in str(e)):
+                course = get_course_with_access(
+                    request.user, 'load', course_key, 
+                    check_if_enrolled=False, 
+                    allow_not_started_courses=True
+                )
+            else:
+                raise
 
         masquerade_object, request.user = setup_masquerade(
             request,
@@ -434,7 +447,23 @@ class CourseNavigationBlocksView(RetrieveAPIView):
         """
         course_key_string = kwargs.get('course_key_string')
         course_key = CourseKey.from_string(course_key_string)
-        course = get_course_or_403(request.user, 'load', course_key, check_if_enrolled=False)
+        
+        # Allow access to courses that haven't started yet for better UX
+        try:
+            course = get_course_or_403(request.user, 'load', course_key, check_if_enrolled=False)
+        except Exception as e:
+            # If access denied due to course not started, try with allow_not_started_courses=True
+            from lms.djangoapps.courseware.courses import get_course_with_access
+            from django.core.exceptions import PermissionDenied as DjangoPermissionDenied
+            if ('Course has not started' in str(e) or 'course_not_started' in str(e) or 
+                isinstance(e, DjangoPermissionDenied)):
+                course = get_course_with_access(
+                    request.user, 'load', course_key, 
+                    check_if_enrolled=False, 
+                    allow_not_started_courses=True
+                )
+            else:
+                raise
         staff_access = has_access(request.user, 'staff', course_key)
 
         masquerade_object, request.user = setup_masquerade(
