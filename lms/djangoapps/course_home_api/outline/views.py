@@ -193,6 +193,7 @@ class OutlineTabView(RetrieveAPIView):
         monitoring_utils.set_custom_attribute('is_staff', request.user.is_staff)
 
         # Allow access to courses that haven't started yet for better UX
+        allow_future_content = False
         try:
             course = get_course_or_403(request.user, 'load', course_key, check_if_enrolled=False)
         except Exception as e:
@@ -204,6 +205,7 @@ class OutlineTabView(RetrieveAPIView):
                     check_if_enrolled=False, 
                     allow_not_started_courses=True
                 )
+                allow_future_content = True
             else:
                 raise
 
@@ -260,7 +262,9 @@ class OutlineTabView(RetrieveAPIView):
         show_enrolled = is_enrolled or is_staff
         enable_proctored_exams = False
         if show_enrolled:
-            course_blocks = get_course_outline_block_tree(request, course_key_string, request.user)
+            course_blocks = get_course_outline_block_tree(
+                request, course_key_string, request.user, allow_start_dates_in_future=allow_future_content
+            )
             date_blocks = get_course_date_blocks(course, request.user, request, num_assignments=1)
             dates_widget['course_date_blocks'] = [block for block in date_blocks if not isinstance(block, TodaysDate)]
 
@@ -291,11 +295,25 @@ class OutlineTabView(RetrieveAPIView):
                 })
                 resume_course['url'] = request.build_absolute_uri(resume_path)
             except UnavailableCompletionData:
-                start_block = get_start_block(course_blocks)
-                resume_course['url'] = start_block['lms_web_url']
+                # Learner has no completion data yet; pick a reasonable start.
+                # Be defensive in case course_blocks could not be constructed.
+                if course_blocks:
+                    start_block = get_start_block(course_blocks)
+                    # start_block may still be None or missing fields for edge cases
+                    if start_block and start_block.get('lms_web_url'):
+                        resume_course['url'] = start_block['lms_web_url']
+                    else:
+                        # Fallback: send to course home in the learning MFE
+                        resume_course['url'] = get_learning_mfe_home_url(course_key=course.id)
+                else:
+                    # No blocks available (e.g., hidden/unpublished or structure build issues);
+                    # link to course home as a safe default.
+                    resume_course['url'] = get_learning_mfe_home_url(course_key=course.id)
 
         elif allow_public_outline or allow_public or user_is_masquerading:
-            course_blocks = get_course_outline_block_tree(request, course_key_string, None)
+            course_blocks = get_course_outline_block_tree(
+                request, course_key_string, None, allow_start_dates_in_future=allow_future_content
+            )
             if allow_public or user_is_masquerading:
                 handouts_html = get_course_info_section(request, request.user, course, 'handouts')
 

@@ -1903,16 +1903,16 @@
                             </div>
                             
                             <div class="lm-detail-section">
-                                <h4>Đơn vị học tập</h4>
+                                <h4>Chuyên đề</h4>
                                 <div class="lm-detail-units">
                                     ${course.units && course.units.length > 0 
                                         ? course.units.map(unit => `
                                             <div class="lm-detail-unit">
-                                                <h5>${escapeHtml(unit.title || unit.name || 'Đơn vị học tập')}</h5>
+                                                <h5>${escapeHtml(unit.title || unit.name || 'Chuyên đề')}</h5>
                                                 <p>${escapeHtml(unit.description || 'Chưa có mô tả')}</p>
                                             </div>
                                         `).join('')
-                                        : '<p class="lm-detail-empty">Chưa có đơn vị học tập nào</p>'
+                                        : '<p class="lm-detail-empty">Chưa có chuyên đề nào</p>'
                                     }
                                 </div>
                             </div>
@@ -2108,14 +2108,14 @@
                         </div>
                         
                         <div class="lm-form-group">
-                            <label class="lm-form-label">Đơn vị học tập</label>
+                            <label class="lm-form-label">Chuyên đề</label>
                             <div class="lm-topics-editor" id="units-editor">
                                 <div id="units-list">
                                     ${(course.units || []).map((unit, index) => `
                                         <div class="lm-edit-topic-item" data-index="${index}">
                                             <input type="text" class="lm-topic-input" 
                                                    value="${escapeHtml(unit.title || unit.name || '')}" 
-                                                   placeholder="Tên đơn vị học tập">
+                                                   placeholder="Tên chuyên đề">
                                             <button type="button" class="lm-remove-topic" onclick="removeUnit(${index})">&times;</button>
                                         </div>
                                     `).join('')}
@@ -2165,7 +2165,7 @@
             newUnit.setAttribute('data-index', unitsCount);
             newUnit.innerHTML = `
                 <input type="text" class="lm-topic-input" 
-                       value="" placeholder="Tên đơn vị học tập">
+                       value="" placeholder="Tên chuyên đề">
                 <button type="button" class="lm-remove-topic" onclick="this.parentElement.remove()">&times;</button>
             `;
             unitsList.appendChild(newUnit);
@@ -2540,7 +2540,7 @@
                             <select id="source-program" name="source_program" class="lm-form-input">
                                 <option value="">Đang tải danh sách chương trình...</option>
                             </select>
-                            <small class="lm-form-help">Các đơn vị học tập sẽ được tạo từ các chuyên đề của chương trình</small>
+                            <small class="lm-form-help">Các chuyên đề sẽ được tạo từ các chuyên đề của chương trình</small>
                         </div>
                         
                         <div class="lm-form-group">
@@ -2572,12 +2572,6 @@
                                 </select>
                             </div>
                         </div>
-                        
-                        <div class="lm-form-group">
-                            <label class="lm-form-label" for="new-course-duration">Thời lượng</label>
-                            <input type="text" id="new-course-duration" name="duration" class="lm-form-input" 
-                                   placeholder="Ví dụ: 8 tuần, 40 giờ">
-                        </div>
 
                         <div class="lm-form-group">
                             <label class="lm-form-label" for="new-course-estimated-hours">Thời lượng ước tính (giờ)</label>
@@ -2605,7 +2599,7 @@
                         </div>
                         
                         <div class="lm-form-group" id="manual-units" style="display: none;">
-                            <label class="lm-form-label">Đơn vị học tập</label>
+                            <label class="lm-form-label">Chuyên đề</label>
                             <div class="lm-topics-editor" id="new-units-editor">
                                 <div id="new-units-list">
                                 </div>
@@ -2614,7 +2608,7 @@
                         </div>
                         
                         <div class="lm-form-group" id="program-units-preview" style="display: none;">
-                            <label class="lm-form-label">Đơn vị học tập sẽ được tạo</label>
+                            <label class="lm-form-label">Chuyên đề sẽ được tạo</label>
                             <div class="lm-program-units-preview" id="units-preview">
                             </div>
                         </div>
@@ -2691,7 +2685,7 @@
             newUnit.setAttribute('data-index', unitsCount);
             newUnit.innerHTML = `
                 <input type="text" class="lm-topic-input" 
-                       value="" placeholder="Tên đơn vị học tập">
+                       value="" placeholder="Tên chuyên đề">
                 <button type="button" class="lm-remove-topic" onclick="this.parentElement.remove()">&times;</button>
             `;
             unitsList.appendChild(newUnit);
@@ -2984,7 +2978,7 @@
                 ${unitsHtml}
             </div>
             <p class="lm-preview-note">
-                <strong>Lưu ý:</strong> Mỗi chuyên đề sẽ trở thành một đơn vị học tập trong khóa học mới
+                <strong>Lưu ý:</strong> Mỗi chuyên đề sẽ trở thành một chuyên đề trong khóa học mới
             </p>
         `;
     }
@@ -3052,7 +3046,7 @@
                         return {
                             title: topicTitle,
                             name: topicTitle,
-                            description: topic.description || `Đơn vị học tập được tạo từ chuyên đề "${topicTitle}"`,
+                            description: topic.description || `Chuyên đề được tạo từ chuyên đề "${topicTitle}"`,
                             order: index,
                             source_topic: topic
                         };
@@ -3075,7 +3069,7 @@
                         return {
                             title: topicTitle,
                             name: topicTitle,
-                            description: topic.description || `Đơn vị học tập được tạo từ chuyên đề "${topicTitle}"`,
+                            description: topic.description || `Chuyên đề được tạo từ chuyên đề "${topicTitle}"`,
                             order: index,
                             source_topic: topic
                         };
