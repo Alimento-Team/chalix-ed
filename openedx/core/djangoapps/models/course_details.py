@@ -323,6 +323,12 @@ class CourseDetails:
         if 'instructor' in jsondict and jsondict['instructor'] != getattr(block, 'instructor', ""):
             block.instructor = jsondict['instructor']
             dirty = True
+        if 'course_type' in jsondict and jsondict['course_type'] != getattr(block, 'course_type', ""):
+            block.course_type = jsondict['course_type']
+            dirty = True
+        if 'course_level' in jsondict and jsondict['course_level'] != getattr(block, 'course_level', ""):
+            block.course_level = jsondict['course_level']
+            dirty = True
 
         if dirty:
             module_store.update_item(block, user.id)

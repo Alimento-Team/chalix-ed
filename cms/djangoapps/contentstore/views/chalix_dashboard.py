@@ -830,13 +830,59 @@ def list_local_programs_api(request):
 
 @login_required
 def course_detail_api(request, course_key_string):
+    """Get or update detailed information about a specific OpenEDX course by course key.
+    
+    URL: /api/chalix/dashboard/course-detail/<course_key>/
+    Methods: GET, PATCH
+    Returns JSON with course details.
+    """
+    try:
+        course_key = CourseKey.from_string(course_key_string)
+    except Exception:
+        return JsonResponse({'error': 'Invalid course key'}, status=400)
+    
+    # Check user access to the course
+    if not has_studio_read_access(request.user, course_key):
+        return JsonResponse({'error': 'Access denied'}, status=403)
+    
+    # Handle PATCH request to update course details
+    if request.method == 'PATCH':
+        try:
+            import json
+            data = json.loads(request.body)
+            
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"PATCH request to update course {course_key_string} with data: {data}")
+            
+            # Use CourseDetails.update_from_json to handle the update properly
+            # This method handles date parsing and all field updates correctly
+            updated_details = CourseDetails.update_from_json(course_key, data, request.user)
+            
+            logger.info(f"Successfully updated course details for {course_key_string}")
+            
+            # Return the updated course data using the GET handler
+            return course_detail_api_get(request, course_key)
+            
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error updating course details for {course_key_string}: {str(e)}", exc_info=True)
+            return JsonResponse({'error': f'Failed to update course: {str(e)}'}, status=500)
+    
+    # Handle GET request
+    return course_detail_api_get(request, course_key)
+
+
+def course_detail_api_get(request, course_key):
     """Get detailed information about a specific OpenEDX course by course key.
     
     URL: /api/chalix/dashboard/course-detail/<course_key>/
     Returns JSON with course details.
     """
     try:
-        course_key = CourseKey.from_string(course_key_string)
+        # course_key is already parsed, no need to parse again
+        pass
     except Exception:
         return JsonResponse({'error': 'Invalid course key'}, status=400)
     
@@ -869,6 +915,7 @@ def course_detail_api(request, course_key_string):
             'run': course_key.run,
             'short_description': getattr(course, 'short_description', ''),
             'course_type': getattr(course, 'course_type', ''),
+            'course_level': getattr(course, 'course_level', ''),
             'created': created_date,
             'url': f'/courses/{course_key}/',
             'studio_url': f'/course/{course_key}',
@@ -899,7 +946,7 @@ def course_detail_api(request, course_key_string):
     except Exception as e:
         import logging
         logger = logging.getLogger(__name__)
-        logger.error(f"Error getting course details for {course_key_string}: {str(e)}")
+        logger.error(f"Error getting course details for {course_key}: {str(e)}")
         return JsonResponse({'error': 'Course not found or inaccessible'}, status=404)
 
 
