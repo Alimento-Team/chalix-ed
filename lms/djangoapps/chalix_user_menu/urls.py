@@ -18,6 +18,7 @@ from .views import (
     get_unread_count,
     create_notification,
     notification_preferences,
+    course_detail_api,
 )
 
 app_name = 'chalix_user_menu'
@@ -25,6 +26,10 @@ app_name = 'chalix_user_menu'
 urlpatterns = [
     # Course management
     path('courses/', get_user_courses, name='user_courses'),
+
+    # Course detail (new endpoint for learning MFE)
+    # Use the 'path' converter so slashes in the course key are captured correctly
+    path('course-detail/<path:course_key_string>/', course_detail_api, name='chalix_course_detail'),
 
     # User profile and personalization
     path('personalization/', user_personalization, name='user_personalization'),

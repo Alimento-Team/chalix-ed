@@ -21,6 +21,10 @@ from rest_framework.response import Response
 from lms.djangoapps.grades.api import CourseGradeFactory
 from lms.djangoapps.courseware.courses import get_courses, get_course_by_id
 from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
+from common.djangoapps.student.auth import has_course_author_access
+from opaque_keys.edx.keys import CourseKey
+from xmodule.modulestore.django import modulestore
+from openedx.core.djangoapps.models.course_details import CourseDetails
 
 from .models import UserLearningPlan, TeachingRequest, UserRequest, UserPersonalization, Notification, NotificationType, NotificationPreference
 
@@ -683,3 +687,87 @@ def notification_preferences(request):
             'success': False,
             'error': _('Không thể xử lý tùy chọn thông báo')
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@login_required
+def course_detail_api(request, course_key_string):
+    """Get detailed information about a specific OpenEDX course by course key.
+    
+    URL: /api/chalix/user-menu/course-detail/<course_key>/
+    Returns JSON with course details accessible to learner.
+    """
+    try:
+        course_key = CourseKey.from_string(course_key_string)
+    except Exception:
+        return JsonResponse({'error': 'Invalid course key'}, status=400)
+    
+    # Check if user has access to view this course
+    # For LMS, we'll allow users to view course details if they're enrolled or have instructor access
+    user = request.user
+    if not user.is_authenticated:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    
+    try:
+        store = modulestore()
+        course = store.get_course(course_key)
+        
+        if not course:
+            return JsonResponse({'error': 'Course not found'}, status=404)
+        
+        # Check if user is enrolled in the course or has instructor access
+        from common.djangoapps.student.models import CourseEnrollment
+        is_enrolled = CourseEnrollment.is_enrolled(user, course_key)
+        has_instructor_access = has_course_author_access(user, course_key)
+        
+        if not (is_enrolled or has_instructor_access):
+            return JsonResponse({'error': 'Access denied'}, status=403)
+        
+        # Get course overview for additional data
+        try:
+            course_overview = CourseOverview.get_from_id(course_key)
+            created_date = course_overview.created.isoformat() if course_overview.created else ''
+        except Exception:
+            created_date = ''
+        
+        course_data = {
+            'id': str(course_key),
+            'course_key': str(course_key),
+            'title': getattr(course, 'display_name', '') or 'Untitled Course',
+            # Get org, number, run from the course key, not the course object
+            'org': course_key.org,
+            'number': course_key.course,  # 'number' field is called 'course' in the key
+            'run': course_key.run,
+            'short_description': getattr(course, 'short_description', ''),
+            'course_type': getattr(course, 'course_type', ''),
+            'course_level': getattr(course, 'course_level', ''),
+            'created': created_date,
+            'url': f'/courses/{course_key}/',
+            'studio_url': f'/course/{course_key}',
+            'language': getattr(course, 'language', 'en'),
+            'start_date': getattr(course, 'start', None).isoformat() if getattr(course, 'start', None) else None,
+            'end_date': getattr(course, 'end', None).isoformat() if getattr(course, 'end', None) else None,
+        }
+        
+        # Include newly-added fields from modulestore block if present
+        try:
+            # Prefer CourseDetails.fetch which consolidates about attributes and block attributes
+            try:
+                details = CourseDetails.fetch(course_key)
+                course_data['online_course_link'] = getattr(details, 'online_course_link', '')
+                course_data['instructor'] = getattr(details, 'instructor', '')
+                course_data['estimated_hours'] = getattr(details, 'estimated_hours', 0)
+            except Exception:
+                # Fallback: read directly from course block
+                course_data['online_course_link'] = getattr(course, 'online_course_link', '')
+                course_data['instructor'] = getattr(course, 'instructor', '')
+                course_data['estimated_hours'] = getattr(course, 'estimated_hours', 0)
+        except Exception:
+            course_data['online_course_link'] = ''
+            course_data['instructor'] = ''
+            course_data['estimated_hours'] = 0
+        
+        return JsonResponse(course_data)
+        
+    except Exception as e:
+        logger.error(f"Error getting course details for {course_key}: {str(e)}")
+        return JsonResponse({'error': 'Course not found or inaccessible'}, status=404)
