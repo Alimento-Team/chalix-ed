@@ -193,9 +193,12 @@ from openedx.core.release import RELEASE_LINE
     <div class="modal-cover"></div>
   </body>
   <script>
-	var beamer_config = {
-		product_id : "${settings.BEAMER_PRODUCT_ID | n, js_escaped_string}"
-	};
+  // Ensure beamer_config exists for the Beamer embed script. If the settings
+  // value is not provided, we'll only add product_id when available.
+  window.beamer_config = window.beamer_config || {};
+% if getattr(settings, 'BEAMER_PRODUCT_ID', None):
+  window.beamer_config.product_id = ${settings.BEAMER_PRODUCT_ID | n, js_escaped_string};
+% endif
     </script>
 <script type="text/javascript" src="https://app.getbeamer.com/js/beamer-embed.js" defer="defer"></script>
 </html>

@@ -1289,3 +1289,322 @@ def delete_program_api(request):
         logger = logging.getLogger(__name__)
         logger.exception(f"Failed to delete program {program_id}: {str(e)}")
         return JsonResponse({'error': 'Không thể xóa chương trình, vui lòng thử lại'}, status=500)
+
+
+@login_required
+@require_cms_access
+@require_http_methods(['GET', 'POST'])
+def dashboard_api(request):
+    """
+    API endpoint for dashboard tabs.
+    Handles different tab requests including statistics.
+    """
+    tab = request.GET.get('tab', '')
+    
+    if tab == 'statistics':
+        return _get_statistics_data(request)
+    else:
+        return JsonResponse({'error': 'Invalid tab specified'}, status=400)
+
+
+def _get_statistics_data(request):
+    """
+    Get statistics data for the dashboard.
+    
+    This function provides learner statistics with filtering options:
+    - Filter by learner phone
+    - Filter by learner name  
+    - Filter by year
+    - Filter by completion status (calculated as total estimated hours / 40 hours)
+    """
+    from django.core.paginator import Paginator
+    from django.db.models import Q, Count, Sum, Avg
+    from common.djangoapps.student.models import UserProfile, CourseEnrollment, User
+    from lms.djangoapps.grades.models import PersistentCourseGrade
+    from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
+    import csv
+    from django.http import HttpResponse
+    from datetime import datetime
+    import re
+    
+    # Check if this is an export request
+    if request.GET.get('export') == 'csv':
+        return _export_statistics_csv(request)
+    
+    # Get filter parameters
+    phone_filter = request.GET.get('phone', '').strip()
+    name_filter = request.GET.get('name', '').strip()
+    year_filter = request.GET.get('year', '').strip()
+    completion_filter = request.GET.get('completion', '').strip()
+    page = int(request.GET.get('page', 1))
+    per_page = 20
+    
+    # Base queryset - get all users with profiles and enrollments
+    users_query = User.objects.select_related('profile').filter(
+        courseenrollment__is_active=True
+    ).distinct()
+    
+    # Apply phone filter
+    if phone_filter:
+        users_query = users_query.filter(
+            Q(profile__phone_number__icontains=phone_filter)
+        )
+    
+    # Apply name filter
+    if name_filter:
+        users_query = users_query.filter(
+            Q(profile__name__icontains=name_filter) |
+            Q(first_name__icontains=name_filter) |
+            Q(last_name__icontains=name_filter)
+        )
+    
+    # Apply year filter (based on enrollment date)
+    if year_filter:
+        users_query = users_query.filter(
+            courseenrollment__created__year=int(year_filter)
+        )
+    
+    # Get learner statistics
+    learners_data = []
+    total_learners = users_query.count()
+    completed_learners = 0
+    total_completion_sum = 0
+    total_hours_sum = 0
+    
+    for user in users_query:
+        # Get user's enrollments
+        enrollments = CourseEnrollment.objects.filter(
+            user=user, 
+            is_active=True
+        ).select_related('course')
+        
+        if not enrollments.exists():
+            continue
+            
+        # Calculate total estimated hours and completion
+        total_estimated_hours = 0
+        completion_percentage = 0
+        
+        for enrollment in enrollments:
+            try:
+                # Get course overview for estimated hours
+                course_overview = CourseOverview.objects.get(id=enrollment.course_id)
+                # Use effort field if available, otherwise estimate based on course length
+                if hasattr(course_overview, 'effort') and course_overview.effort:
+                    # Parse effort string like "2-3 hours/week" or "10 hours"
+                    effort_str = str(course_overview.effort).lower()
+                    hours_match = re.search(r'(\d+)', effort_str)
+                    if hours_match:
+                        weekly_hours = int(hours_match.group(1))
+                        # Estimate total hours (assuming 10-week course)
+                        total_estimated_hours += weekly_hours * 10
+                else:
+                    # Default estimate: 20 hours per course
+                    total_estimated_hours += 20
+                
+                # Get grade/completion data
+                try:
+                    grade = PersistentCourseGrade.objects.get(
+                        user_id=user.id,
+                        course_id=enrollment.course_id
+                    )
+                    if grade.percent_grade is not None:
+                        # Convert grade percentage to completion hours
+                        completion_percentage += (grade.percent_grade * 100)
+                except PersistentCourseGrade.DoesNotExist:
+                    completion_percentage += 0
+                    
+            except CourseOverview.DoesNotExist:
+                # If course overview doesn't exist, use default
+                total_estimated_hours += 20
+                completion_percentage += 0
+        
+        # Calculate average completion percentage across all courses
+        if enrollments.count() > 0:
+            completion_percentage = completion_percentage / enrollments.count()
+        
+        # Apply completion filter
+        if completion_filter:
+            if completion_filter == 'completed' and completion_percentage < 100:
+                continue
+            elif completion_filter == '80' and (completion_percentage < 80 or completion_percentage >= 100):
+                continue
+            elif completion_filter == '60' and (completion_percentage < 60 or completion_percentage >= 80):
+                continue
+            elif completion_filter == '50' and (completion_percentage < 50 or completion_percentage >= 60):
+                continue
+            elif completion_filter == 'under_50' and completion_percentage >= 50:
+                continue
+        
+        # Get enrollment year (most recent)
+        latest_enrollment = enrollments.order_by('-created').first()
+        enrollment_year = latest_enrollment.created.year if latest_enrollment else datetime.now().year
+        
+        learner_data = {
+            'id': user.id,
+            'name': user.profile.name if hasattr(user, 'profile') and user.profile.name else f"{user.first_name} {user.last_name}".strip(),
+            'phone': user.profile.phone_number if hasattr(user, 'profile') else None,
+            'year': enrollment_year,
+            'total_hours': round(total_estimated_hours * (completion_percentage / 100), 1),
+            'completion_percentage': round(completion_percentage, 1),
+            'enrollments_count': enrollments.count()
+        }
+        
+        learners_data.append(learner_data)
+        total_completion_sum += completion_percentage
+        total_hours_sum += learner_data['total_hours']
+        
+        if completion_percentage >= 100:
+            completed_learners += 1
+    
+    # Sort learners by completion percentage (descending)
+    learners_data.sort(key=lambda x: x['completion_percentage'], reverse=True)
+    
+    # Paginate results
+    paginator = Paginator(learners_data, per_page)
+    page_obj = paginator.get_page(page)
+    
+    # Calculate summary statistics
+    average_completion = (total_completion_sum / len(learners_data)) if learners_data else 0
+    average_hours = (total_hours_sum / len(learners_data)) if learners_data else 0
+    
+    stats_data = {
+        'summary': {
+            'total_learners': total_learners,
+            'completed_learners': completed_learners,
+            'completion_rate': round(average_completion, 1),
+            'average_hours': round(average_hours, 1)
+        },
+        'learners': list(page_obj.object_list),
+        'pagination': {
+            'current_page': page,
+            'total_pages': paginator.num_pages,
+            'total_items': paginator.count,
+            'per_page': per_page,
+            'has_previous': page_obj.has_previous(),
+            'has_next': page_obj.has_next()
+        }
+    }
+    
+    return JsonResponse(stats_data)
+
+
+def _export_statistics_csv(request):
+    """Export statistics data as CSV file."""
+    from django.db.models import Q
+    from common.djangoapps.student.models import UserProfile, CourseEnrollment, User
+    from lms.djangoapps.grades.models import PersistentCourseGrade
+    from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
+    import csv
+    from django.http import HttpResponse
+    from datetime import datetime
+    import re
+    
+    # Get filter parameters (same as main function)
+    phone_filter = request.GET.get('phone', '').strip()
+    name_filter = request.GET.get('name', '').strip()
+    year_filter = request.GET.get('year', '').strip()
+    completion_filter = request.GET.get('completion', '').strip()
+    
+    # Base queryset
+    users_query = User.objects.select_related('profile').filter(
+        courseenrollment__is_active=True
+    ).distinct()
+    
+    # Apply filters (same logic as main function)
+    if phone_filter:
+        users_query = users_query.filter(Q(profile__phone_number__icontains=phone_filter))
+    if name_filter:
+        users_query = users_query.filter(
+            Q(profile__name__icontains=name_filter) |
+            Q(first_name__icontains=name_filter) |
+            Q(last_name__icontains=name_filter)
+        )
+    if year_filter:
+        users_query = users_query.filter(courseenrollment__created__year=int(year_filter))
+    
+    # Create HTTP response with CSV content type
+    response = HttpResponse(content_type='text/csv; charset=utf-8')
+    response['Content-Disposition'] = f'attachment; filename="thong-ke-nguoi-hoc-{datetime.now().strftime("%Y%m%d")}.csv"'
+    
+    # Add BOM for proper UTF-8 encoding in Excel
+    response.write('\ufeff')
+    
+    writer = csv.writer(response)
+    
+    # Write header row
+    writer.writerow(['STT', 'Tên người học', 'Số điện thoại', 'Năm', 'Tổng giờ học', 'Tỷ lệ hoàn thành (%)', 'Trạng thái'])
+    
+    # Write data rows
+    row_num = 1
+    for user in users_query:
+        enrollments = CourseEnrollment.objects.filter(user=user, is_active=True).select_related('course')
+        if not enrollments.exists():
+            continue
+            
+        # Calculate statistics (same logic as main function)
+        total_estimated_hours = 0
+        completion_percentage = 0
+        
+        for enrollment in enrollments:
+            try:
+                course_overview = CourseOverview.objects.get(id=enrollment.course_id)
+                if hasattr(course_overview, 'effort') and course_overview.effort:
+                    effort_str = str(course_overview.effort).lower()
+                    hours_match = re.search(r'(\d+)', effort_str)
+                    if hours_match:
+                        weekly_hours = int(hours_match.group(1))
+                        total_estimated_hours += weekly_hours * 10
+                else:
+                    total_estimated_hours += 20
+                
+                try:
+                    grade = PersistentCourseGrade.objects.get(user_id=user.id, course_id=enrollment.course_id)
+                    if grade.percent_grade is not None:
+                        completion_percentage += (grade.percent_grade * 100)
+                except PersistentCourseGrade.DoesNotExist:
+                    completion_percentage += 0
+            except CourseOverview.DoesNotExist:
+                total_estimated_hours += 20
+                completion_percentage += 0
+        
+        if enrollments.count() > 0:
+            completion_percentage = completion_percentage / enrollments.count()
+        
+        # Apply completion filter
+        if completion_filter:
+            if completion_filter == 'completed' and completion_percentage < 100:
+                continue
+            elif completion_filter == '80' and (completion_percentage < 80 or completion_percentage >= 100):
+                continue
+            elif completion_filter == '60' and (completion_percentage < 60 or completion_percentage >= 80):
+                continue
+            elif completion_filter == '50' and (completion_percentage < 50 or completion_percentage >= 60):
+                continue
+            elif completion_filter == 'under_50' and completion_percentage >= 50:
+                continue
+        
+        # Get data
+        latest_enrollment = enrollments.order_by('-created').first()
+        enrollment_year = latest_enrollment.created.year if latest_enrollment else datetime.now().year
+        name = user.profile.name if hasattr(user, 'profile') and user.profile.name else f"{user.first_name} {user.last_name}".strip()
+        phone = user.profile.phone_number if hasattr(user, 'profile') else 'N/A'
+        total_hours = round(total_estimated_hours * (completion_percentage / 100), 1)
+        completion_pct = round(completion_percentage, 1)
+        
+        # Determine status
+        if completion_pct >= 100:
+            status = 'Đạt (100%)'
+        elif completion_pct >= 80:
+            status = '80%'
+        elif completion_pct >= 60:
+            status = '60%'
+        elif completion_pct >= 50:
+            status = '50%'
+        else:
+            status = 'Ít hơn 50%'
+        
+        writer.writerow([row_num, name, phone, enrollment_year, total_hours, completion_pct, status])
+        row_num += 1
+    
+    return response

@@ -5,7 +5,8 @@ Integrates with OpenEdX's existing role system while adding custom organization-
 
 from django.contrib.auth.models import User
 from django.core.exceptions import PermissionDenied
-from typing import Optional, List
+from typing import Optional, List, Callable, Any
+from functools import wraps
 
 from cms.djangoapps.contentstore.models import ChalixUserRole, ChalixOrganization
 from common.djangoapps.student.roles import (
@@ -96,10 +97,22 @@ def get_available_tabs(user: User) -> List[str]:
     return []
 
 
-def require_cms_access(user: User):
-    """Decorator/function to require CMS access, raises PermissionDenied if not allowed"""
-    if not can_access_cms(user):
-        raise PermissionDenied("User does not have permission to access CMS")
+def require_cms_access(view_func: Callable[..., Any]) -> Callable[..., Any]:
+    """View decorator to require CMS access.
+
+    When applied to a Django view, it verifies that request.user can access the
+    CMS by calling :pyfunc:`can_access_cms`. If the check fails, a
+    :class:`PermissionDenied` is raised. This function intentionally accepts and
+    returns a view callable so it can be used as ``@require_cms_access``.
+    """
+    @wraps(view_func)
+    def _wrapped_view(request, *args, **kwargs):
+        user = getattr(request, 'user', None)
+        if not user or not can_access_cms(user):
+            raise PermissionDenied("User does not have permission to access CMS")
+        return view_func(request, *args, **kwargs)
+
+    return _wrapped_view
 
 
 def require_role(user: User, required_roles: List[str]):
