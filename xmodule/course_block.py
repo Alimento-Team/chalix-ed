@@ -1082,6 +1082,13 @@ class CourseFields:  # lint-amnesty, pylint: disable=missing-class-docstring
         scope=Scope.settings,
     )
 
+    course_level = String(
+        display_name=_("Course Level"),
+        help=_("The level or difficulty of the course (e.g., Beginner, Intermediate, Advanced)"),
+        default="",
+        scope=Scope.settings,
+    )
+
     other_course_settings = Dict(
         display_name=_("Other Course Settings"),
         help=_(

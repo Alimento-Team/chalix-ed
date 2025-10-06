@@ -34,6 +34,20 @@ export function CourseOrLibraryListing(props) {
                     <span className="value">{item.run}</span>
                 </span>
             )}
+                { item.course_type
+            && (
+                <span className="course-type metadata-item">
+                    <span className="label">{gettext('Course Type:')}</span>
+                    <span className="value">{item.course_type}</span>
+                </span>
+            )}
+                { item.course_level
+            && (
+                <span className="course-level metadata-item">
+                    <span className="label">{gettext('Course Level:')}</span>
+                    <span className="value">{item.course_level}</span>
+                </span>
+            )}
                 { item.can_edit === false
             && <span className="extra-metadata">{gettext('(Read-only)')}</span>}
             </div>

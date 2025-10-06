@@ -2,9 +2,9 @@
 Dashboard views for Vietnamese CMS interface with role-based access control
 """
 from django.contrib.auth.decorators import login_required
-from django.views.decorators.csrf import ensure_csrf_cookie
+from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
 from django.http import JsonResponse
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST, require_http_methods
 from django.core.exceptions import PermissionDenied
 import json
 import uuid
@@ -511,7 +511,8 @@ def list_local_courses_api(request):
                 'number': course_key.course,  # 'number' field is called 'course' in the key
                 'run': course_key.run,
                 'short_description': getattr(course_overview, 'short_description', ''),
-                'course_type': '',  # CourseOverview doesn't have course_type
+                'course_type': '',  # Will be populated from course block
+                'course_level': '',  # Will be populated from course block
                 'created': course_overview.created.isoformat() if hasattr(course_overview, 'created') and course_overview.created else '',
                 'url': f'/courses/{course_key}/',
                 'studio_url': f'/course/{course_key}',
@@ -528,14 +529,24 @@ def list_local_courses_api(request):
                     formatted_course['online_course_link'] = getattr(details, 'online_course_link', '')
                     formatted_course['instructor'] = getattr(details, 'instructor', '')
                     formatted_course['estimated_hours'] = getattr(details, 'estimated_hours', 0)
+                    # Also get course_type and course_level from the course details
+                    store = modulestore()
+                    # Force refresh to avoid caching issues
+                    block = store.get_course(course_key, depth=0)
+                    if block:
+                        formatted_course['course_type'] = getattr(block, 'course_type', '')
+                        formatted_course['course_level'] = getattr(block, 'course_level', '')
                 except Exception:
                     # Fallback: try to read raw block attributes
                     store = modulestore()
-                    block = store.get_course(course_key)
+                    # Force refresh to avoid caching issues
+                    block = store.get_course(course_key, depth=0)
                     if block:
                         formatted_course['online_course_link'] = getattr(block, 'online_course_link', '')
                         formatted_course['instructor'] = getattr(block, 'instructor', '')
                         formatted_course['estimated_hours'] = getattr(block, 'estimated_hours', 0)
+                        formatted_course['course_type'] = getattr(block, 'course_type', '')
+                        formatted_course['course_level'] = getattr(block, 'course_level', '')
             except Exception:
                 # If enrichment fails, continue without the extra fields
                 pass
@@ -922,6 +933,7 @@ def course_detail_api_get(request, course_key):
             'language': getattr(course, 'language', 'en'),
             'start_date': getattr(course, 'start', None).isoformat() if getattr(course, 'start', None) else None,
             'end_date': getattr(course, 'end', None).isoformat() if getattr(course, 'end', None) else None,
+            'units': []  # Initialize empty units array
         }
         # Include newly-added fields from modulestore block if present
         try:
@@ -940,6 +952,25 @@ def course_detail_api_get(request, course_key):
             course_data['online_course_link'] = ''
             course_data['instructor'] = ''
             course_data['estimated_hours'] = 0
+        
+        # Add course structure (chapters/sections as units)
+        try:
+            chapters = course.get_children()
+            units = []
+            for chapter in chapters:
+                if hasattr(chapter, 'display_name'):
+                    unit_data = {
+                        'title': getattr(chapter, 'display_name', 'Chương'),
+                        'name': getattr(chapter, 'display_name', 'Chương'),
+                        'description': getattr(chapter, 'short_description', '') or 'Chưa có mô tả'
+                    }
+                    units.append(unit_data)
+            course_data['units'] = units
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.debug(f"Could not load course units for {course_key}: {str(e)}")
+            course_data['units'] = []
         
         return JsonResponse(course_data)
         
@@ -1014,8 +1045,9 @@ def program_detail_api(request, cid):
     return response
 
 
+@ensure_csrf_cookie
+@require_http_methods(["POST"])
 @login_required
-@require_POST
 def update_course_api(request):
     """Update an existing OpenEDX course settings.
     
@@ -1035,7 +1067,9 @@ def update_course_api(request):
     except Exception:
         return JsonResponse({'error': 'Invalid JSON'}, status=400)
 
-    course_key_string = payload.get('course_key', '').strip()
+    # Handle both 'course_key' and 'course_id' field names
+    course_key_string = payload.get('course_key', '') or payload.get('course_id', '')
+    course_key_string = course_key_string.strip() if course_key_string else ''
     title = payload.get('title', '').strip()
     short_description = payload.get('short_description', '').strip()
     start_date_str = payload.get('start_date')
@@ -1055,6 +1089,12 @@ def update_course_api(request):
     except Exception:
         return JsonResponse({'error': 'Invalid course key format'}, status=400)
 
+    # Check if course exists
+    store = modulestore()
+    course = store.get_course(course_key)
+    if not course:
+        return JsonResponse({'error': 'Course not found'}, status=404)
+    
     # Check user permissions
     if not has_studio_write_access(request.user, course_key):
         return JsonResponse({'error': 'Bạn không có quyền chỉnh sửa khóa học này'}, status=403)
@@ -1076,23 +1116,58 @@ def update_course_api(request):
         if estimated_hours is not None:
             course_update_data['estimated_hours'] = estimated_hours
         
+        # Add course_type and course_level fields from payload
+        # Always include these fields even if empty to ensure they get updated
+        course_type = payload.get('course_type', '').strip()
+        course_update_data['course_type'] = course_type
+        
+        # Handle both 'level' (backward compatibility) and 'course_level' fields
+        level = payload.get('course_level', payload.get('level', '')).strip()
+        # Ensure proper encoding for Vietnamese text  
+        course_update_data['course_level'] = level
+        
         # Add date fields if provided - CourseDetails.update_from_json expects these field names
         if start_date_str:
             course_update_data['start_date'] = start_date_str
         if end_date_str:
             course_update_data['end_date'] = end_date_str
-        # Ensure 'overview' and 'intro_video' keys exist to avoid KeyError in CourseDetails
-        # CourseDetails.update_from_json accesses jsondict['overview'] and jsondict['intro_video']
-        # directly, so provide defaults when the client does not supply them.
-        if 'overview' not in course_update_data:
-            course_update_data['overview'] = payload.get('overview', '')
-        course_update_data['intro_video'] = payload.get('intro_video', '')
-            
-        # Use the proper CourseDetails.update_from_json method which handles all the complexity
-        # of updating course fields and about items correctly
-        updated_course_details = CourseDetails.update_from_json(course_key, course_update_data, request.user)
+        # Ensure 'overview' and 'intro_video' keys exist and are strings to avoid KeyError
+        # and to normalize None values coming from the client.
+        course_update_data['overview'] = str(payload.get('overview', '') or '')
+        course_update_data['intro_video'] = str(payload.get('intro_video', '') or '')
 
-        # Return updated course data
+        # Debug logging
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Update course API: course_key={course_key_string}, level='{level}', course_type='{course_type}'")
+
+        # Call CourseDetails.update_from_json defensively: if a KeyError occurs because
+        # some code path expects a key to exist, set a sensible default and retry once.
+        
+        try:
+            updated_course_details = CourseDetails.update_from_json(course_key, course_update_data, request.user)
+        except KeyError as ke:
+            # ke.args[0] is the missing key (e.g. 'overview')
+            missing_key = str(ke.args[0]) if ke.args else str(ke)
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                "KeyError %s in CourseDetails.update_from_json; setting default and retrying. payload keys: %s",
+                missing_key,
+                list(course_update_data.keys()),
+            )
+            # Set a default for the missing key and retry once
+            course_update_data[missing_key] = ''
+            updated_course_details = CourseDetails.update_from_json(course_key, course_update_data, request.user)
+
+        # Return updated course data - get fresh course block to include course_type and course_level
+        store = modulestore()
+        # Force refresh from database to avoid caching issues
+        updated_block = store.get_course(course_key, depth=0)
+        
+        # Log the successful update
+        logger.info(f"Course updated successfully: course_type='{getattr(updated_block, 'course_type', '')}', course_level='{getattr(updated_block, 'course_level', '')}'")
+        
         return JsonResponse({
             'course_key': str(course_key),
             'title': updated_course_details.title,
@@ -1100,6 +1175,8 @@ def update_course_api(request):
             'number': course_key.course,
             'run': course_key.run,
             'short_description': updated_course_details.short_description,
+            'course_type': getattr(updated_block, 'course_type', ''),
+            'course_level': getattr(updated_block, 'course_level', ''),
             'online_course_link': getattr(updated_course_details, 'online_course_link', ''),
             'instructor': getattr(updated_course_details, 'instructor', ''),
             'estimated_hours': getattr(updated_course_details, 'estimated_hours', 0),

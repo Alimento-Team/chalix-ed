@@ -986,6 +986,12 @@
                 card.dataset.courseKey = course.course_key;
             }
             // Store new fields for later detail view / edit operations
+            if (course.course_type) {
+                card.dataset.courseType = course.course_type;
+            }
+            if (course.course_level) {
+                card.dataset.courseLevel = course.course_level;
+            }
             if (course.online_course_link) {
                 card.dataset.onlineCourseLink = course.online_course_link;
             }
@@ -1005,7 +1011,7 @@
                     <h4 class="lm-card-title">${escapeHtml(course.title)}</h4>
                 </div>
                 <div class="lm-card-meta">
-                    ID: ${courseIdentifier} • ${course.course_type || 'Chưa phân loại'}
+                    ID: ${courseIdentifier} • ${course.course_type || 'Chưa phân loại'} • ${course.course_level || 'Chưa xác định trình độ'}
                 </div>
                 <div class="lm-card-desc">
                     ${escapeHtml(course.short_description || 'Chưa có mô tả')}
@@ -1577,6 +1583,8 @@
                 // Update stored dataset fields so future DOM reads include them
                 try {
                     if (courseData.course_key) item.dataset.courseKey = courseData.course_key;
+                    if (courseData.course_type !== undefined) item.dataset.courseType = courseData.course_type || '';
+                    if (courseData.course_level !== undefined) item.dataset.courseLevel = courseData.course_level || '';
                     if (courseData.online_course_link !== undefined) item.dataset.onlineCourseLink = courseData.online_course_link || '';
                     if (courseData.instructor !== undefined) item.dataset.instructor = courseData.instructor || '';
                     // Always set estimatedHours to avoid leaving stale values on the card.
@@ -1765,13 +1773,24 @@
     function viewCourseDetails(courseId) {
         // First try to get the course from the list we already have
         const existingCourses = getAllCoursesFromDOM();
-            const course = existingCourses.find(c => c.id == courseId);
+        const course = existingCourses.find(c => c.id == courseId);
+        
+        // console.log('viewCourseDetails: courseId=', courseId);
+        // console.log('viewCourseDetails: found course from DOM=', course);
 
-            // If we have cached course data but it lacks detail fields, fetch from API
-            if (course && (course.online_course_link || course.instructor || course.estimated_hours)) {
+        // If we have cached course data and it already contains any of the "detail" fields,
+        // AND it has units/topics, just show the modal without an API fetch.
+        // If no units, we should fetch from API to get complete course structure.
+        if (course && (course.online_course_link || course.instructor || course.estimated_hours || course.course_type || course.course_level)) {
+            if (course.units && course.units.length > 0) {
+                console.log('viewCourseDetails: using cached course data with units');
                 showCourseDetailsModal(course);
                 return;
+            } else {
+                console.log('viewCourseDetails: cached course has no units, fetching from API');
+                // Fall through to API fetch to get units
             }
+        }
 
             // Otherwise fetch fresh data from API
             if (course) {
@@ -1785,19 +1804,27 @@
                 if (!resp.ok) throw resp;
                 return resp.json();
             })
-            .then(course => {
-                showCourseDetailsModal(course);
+            .then(apiCourse => {
+                // Merge cached course data (which has correct course_type from DOM) with API data (which has units)
+                const mergedCourse = course ? { ...course, ...apiCourse } : apiCourse;
+                console.log('viewCourseDetails: merged course data:', mergedCourse);
+                showCourseDetailsModal(mergedCourse);
             })
             .catch(err => {
                 console.error('Failed to load course details:', err);
-                // Fallback: show basic modal with available info
-                showCourseDetailsModal({
-                    id: courseId,
-                    title: 'Khóa học',
-                    short_description: 'Đang tải thông tin...',
-                    units: [],
-                    course_type: 'Chưa phân loại'
-                });
+                // Fallback: use cached course if available, or show basic modal
+                if (course) {
+                    console.log('API failed, using cached course data');
+                    showCourseDetailsModal(course);
+                } else {
+                    showCourseDetailsModal({
+                        id: courseId,
+                        title: 'Khóa học',
+                        short_description: 'Đang tải thông tin...',
+                        units: [],
+                        course_type: 'Chưa phân loại'
+                    });
+                }
             });
         }
     
@@ -1820,12 +1847,31 @@
                 // Extract ID from meta text — allow non-numeric course identifiers (course_key strings)
                 // Match ID: <identifier> optionally followed by ' •'
                 const idMatch = meta.match(/ID:\s*([^•\n]+)/);
-                const typeMatch = meta.match(/•\s*(.+)$/);
                 const idValue = idMatch ? idMatch[1].trim() : null;
-
-                // Read any stored dataset fields (new fields added to cards)
+                
+                // Read any stored dataset fields (new fields added to cards) - declare these first
                 const onlineLink = card.dataset.onlineCourseLink || '';
                 const instructor = card.dataset.instructor || '';
+                // Prefer course_type stored on the DOM dataset (set when rendering/updating cards)
+                const courseTypeFromDataset = card.dataset.courseType || '';
+                const courseLevel = card.dataset.courseLevel || '';
+                
+                // meta format: "ID: <id> • <course_type> • <course_level>" (course_type/level optional)
+                const metaParts = meta.split('•').map(p => p.trim()).filter(Boolean);
+                // metaParts[0] will usually be like 'ID: <id>' so course_type, course_level are subsequent parts
+                const courseTypeFromMeta = metaParts.length >= 2 ? metaParts[1] : null;
+                const courseLevelFromMeta = metaParts.length >= 3 ? metaParts[2] : null;
+                
+                // Debug: log meta parsing (commented out for cleaner output)
+                // console.log('getAllCoursesFromDOM meta parsing:', {
+                //     title,
+                //     meta,
+                //     metaParts,
+                //     courseTypeFromDataset,
+                //     courseTypeFromMeta,
+                //     courseLevelFromMeta,
+                //     idValue
+                // });
                 const estimatedHours = (card.dataset.estimatedHours !== undefined && card.dataset.estimatedHours !== '')
                     ? card.dataset.estimatedHours
                     : null;
@@ -1836,8 +1882,9 @@
                         course_key: card.dataset.courseKey || idValue,
                         title: title,
                         short_description: desc === 'Chưa có mô tả' ? '' : desc,
-                        course_type: typeMatch ? typeMatch[1].trim() : 'Chưa phân loại',
-                        units: [],
+                        course_type: courseTypeFromDataset || courseTypeFromMeta || '',
+                        course_level: courseLevel || courseLevelFromMeta || '',
+                        units: [], // Initialize empty units array
                         online_course_link: onlineLink,
                         instructor: instructor,
                         estimated_hours: estimatedHours
@@ -1851,6 +1898,22 @@
 
     function showCourseDetailsModal(course) {
         ensureDetailModalStyles();
+        
+        // Debug: Log course object when needed (commented for cleaner output)
+        // console.log('showCourseDetailsModal called with course:', course);
+        
+        // Defensive normalization: prefer explicit course_type, then dataset-style courseType,
+        // then attempt to pull from a meta-like string if present. Trim to remove stray whitespace.
+        const rawCourseType = (course && (course.course_type || course.courseType || course.type)) || '';
+        const normalizedCourseType = (typeof rawCourseType === 'string') ? rawCourseType.trim() : '';
+        
+        // Debug: log the course type processing (commented for cleaner output)
+        // console.log('Course type processing:', {
+        //     rawCourseType,
+        //     normalizedCourseType,
+        //     course_type: course && course.course_type,
+        //     courseType: course && course.courseType
+        // });
         
         const overlay = document.createElement('div');
         overlay.className = 'lm-modal-overlay';
@@ -1877,7 +1940,7 @@
                                     </div>
                                     <div class="lm-detail-row">
                                         <span class="lm-detail-label">Loại khóa học:</span>
-                                        <span class="lm-detail-value">${escapeHtml(course.course_type || 'Chưa phân loại')}</span>
+                                        <span class="lm-detail-value">${escapeHtml(course.course_type || course.courseType || course.type || normalizedCourseType || 'Chưa phân loại')}</span>
                                     </div>
                                     <div class="lm-detail-row">
                                         <span class="lm-detail-label">Mô tả:</span>
@@ -1885,7 +1948,7 @@
                                     </div>
                                     <div class="lm-detail-row">
                                         <span class="lm-detail-label">Trình độ:</span>
-                                        <span class="lm-detail-value">${escapeHtml(course.level || 'Chưa xác định')}</span>
+                                        <span class="lm-detail-value">${escapeHtml(course.course_level || 'Chưa xác định')}</span>
                                     </div>
                                     <div class="lm-detail-row">
                                         <span class="lm-detail-label">Thời lượng ước tính:</span>
@@ -2069,12 +2132,12 @@
                             </div>
                             <div class="lm-form-group">
                                 <label class="lm-form-label" for="course-level">Trình độ</label>
-                                <select id="course-level" name="level" class="lm-form-input">
+                                <select id="course-level" name="course_level" class="lm-form-input">
                                     <option value="">Chọn trình độ</option>
-                                    <option value="Cơ bản" ${course.level === 'Cơ bản' ? 'selected' : ''}>Cơ bản</option>
-                                    <option value="Nâng cao" ${course.level === 'Nâng cao' ? 'selected' : ''}>Nâng cao</option>
-                                    <option value="Chuyên ngành" ${course.level === 'Chuyên ngành' ? 'selected' : ''}>Chuyên ngành</option>
-                                    <option value="Chuyên sâu" ${course.level === 'Chuyên sâu' ? 'selected' : ''}>Chuyên sâu</option>
+                                    <option value="Cơ bản" ${course.course_level === 'Cơ bản' ? 'selected' : ''}>Cơ bản</option>
+                                    <option value="Nâng cao" ${course.course_level === 'Nâng cao' ? 'selected' : ''}>Nâng cao</option>
+                                    <option value="Chuyên ngành" ${course.course_level === 'Chuyên ngành' ? 'selected' : ''}>Chuyên ngành</option>
+                                    <option value="Chuyên sâu" ${course.course_level === 'Chuyên sâu' ? 'selected' : ''}>Chuyên sâu</option>
                                 </select>
                             </div>
                         </div>
@@ -2212,7 +2275,7 @@
             title: formData.get('title'),
             short_description: formData.get('short_description'),
             course_type: formData.get('course_type'),
-            level: formData.get('level'),
+            course_level: formData.get('course_level'),
             duration: formData.get('duration'),
             estimated_hours: formData.get('estimated_hours') ? Number(formData.get('estimated_hours')) : null,
             online_course_link: formData.get('online_course_link') || '',
@@ -2563,7 +2626,7 @@
                             </div>
                             <div class="lm-form-group">
                                 <label class="lm-form-label" for="new-course-level">Trình độ</label>
-                                <select id="new-course-level" name="level" class="lm-form-input">
+                                <select id="new-course-level" name="course_level" class="lm-form-input">
                                     <option value="">Chọn trình độ</option>
                                     <option value="Cơ bản">Cơ bản</option>
                                     <option value="Nâng cao">Nâng cao</option> 
@@ -3000,7 +3063,7 @@
             title: formData.get('title'),
             short_description: formData.get('short_description'),
             course_type: formData.get('course_type'),
-            level: formData.get('level'),
+            course_level: formData.get('course_level'),
             duration: formData.get('duration'),
             estimated_hours: formData.get('estimated_hours') ? Number(formData.get('estimated_hours')) : null,
             online_course_link: formData.get('online_course_link') || '',
