@@ -21,6 +21,13 @@ urlpatterns = [
         chalix_dashboard.dashboard_api,
         name='chalix_dashboard_api'
     ),
+    
+    # Create single account endpoint
+    path(
+        'dashboard/create-single-account/',
+        chalix_dashboard.create_single_account_api,
+        name='chalix_create_single_account'
+    ),
 
     # Create a local course via dashboard
     path(

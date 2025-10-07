@@ -6,6 +6,7 @@ from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST, require_http_methods
 from django.core.exceptions import PermissionDenied
+from django.db import transaction
 import json
 import uuid
 import logging
@@ -204,6 +205,155 @@ def _get_create_account_data(request):
         'pending_requests': 0,  # Will be implemented later
         'total_accounts': 0,    # Will be implemented later
     }
+
+
+@login_required
+@require_POST
+def create_single_account_api(request):
+    """Create a single user account with extended profile information.
+    
+    Only users with co_quan role can create accounts.
+    
+    Expects JSON: {
+        "username": "user123",
+        "email": "user@example.com", 
+        "password": "password123",
+        "name": "Full Name",
+        "ten_co_quan": "Organization Name",
+        "ten_phong_ban": "Department Name",
+        "phone_number": "+84123456789",
+        "city": "Ho Chi Minh City",
+        "level_of_education": "b",
+        "gender": "m"
+    }
+    Returns JSON with created user info on success.
+    """
+    from cms.djangoapps.contentstore.chalix_roles import require_role
+    from common.djangoapps.student.helpers import create_account_with_params
+    from common.djangoapps.student.models import User, UserProfile
+    from django.contrib.auth.hashers import make_password
+    from openedx.core.djangoapps.user_authn.exceptions import AccountValidationError
+    import json
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    
+    # Check role-based permission - only co_quan can create accounts
+    try:
+        require_role(request.user, ['co_quan'])
+    except PermissionDenied:
+        return JsonResponse({'error': 'Bạn không có quyền tạo tài khoản.'}, status=403)
+    
+    try:
+        payload = json.loads(request.body.decode('utf-8'))
+    except Exception:
+        return JsonResponse({'error': 'Dữ liệu gửi lên không hợp lệ.'}, status=400)
+    
+    # Extract required fields
+    username = payload.get('username', '').strip()
+    email = payload.get('email', '').strip()
+    password = payload.get('password', '').strip()
+    name = payload.get('name', '').strip()
+    
+    # Extract extended profile fields
+    ten_co_quan = payload.get('ten_co_quan', '').strip()
+    ten_phong_ban = payload.get('ten_phong_ban', '').strip()
+    phone_number = payload.get('phone_number', '').strip()
+    city = payload.get('city', '').strip()
+    level_of_education = payload.get('level_of_education', '').strip()
+    gender = payload.get('gender', '').strip()
+    
+    # Validate required fields
+    if not username:
+        return JsonResponse({'error': 'Tên đăng nhập là bắt buộc.'}, status=400)
+    if not email:
+        return JsonResponse({'error': 'Email là bắt buộc.'}, status=400)
+    if not password:
+        return JsonResponse({'error': 'Mật khẩu là bắt buộc.'}, status=400)
+    if not name:
+        return JsonResponse({'error': 'Họ và tên là bắt buộc.'}, status=400)
+    
+    # Check if username or email already exists
+    if User.objects.filter(username=username).exists():
+        return JsonResponse({'error': f'Tên đăng nhập "{username}" đã được sử dụng.'}, status=400)
+    
+    if User.objects.filter(email=email).exists():
+        return JsonResponse({'error': f'Email "{email}" đã được sử dụng.'}, status=400)
+    
+    # Validate email format
+    from django.core.validators import validate_email
+    from django.core.exceptions import ValidationError
+    try:
+        validate_email(email)
+    except ValidationError:
+        return JsonResponse({'error': 'Định dạng email không hợp lệ.'}, status=400)
+    
+    # Validate password strength (basic)
+    if len(password) < 6:
+        return JsonResponse({'error': 'Mật khẩu phải có ít nhất 6 ký tự.'}, status=400)
+    
+    try:
+        # Create user account
+        with transaction.atomic():
+            # Create User object
+            user = User.objects.create_user(
+                username=username,
+                email=email,
+                password=password
+            )
+            
+            # Create or get UserProfile
+            try:
+                profile = UserProfile.objects.get(user=user)
+            except UserProfile.DoesNotExist:
+                profile = UserProfile.objects.create(user=user)
+            
+            # Update profile with provided information
+            profile.name = name
+            if phone_number:
+                profile.phone_number = phone_number
+            if city:
+                profile.city = city
+            if level_of_education and level_of_education in [choice[0] for choice in UserProfile.LEVEL_OF_EDUCATION_CHOICES]:
+                profile.level_of_education = level_of_education
+            if gender and gender in [choice[0] for choice in UserProfile.GENDER_CHOICES]:
+                profile.gender = gender
+            
+            # Store custom organization and department info in meta field
+            meta_data = profile.get_meta()
+            if ten_co_quan:
+                meta_data['ten_co_quan'] = ten_co_quan
+            if ten_phong_ban:
+                meta_data['ten_phong_ban'] = ten_phong_ban
+            
+            profile.set_meta(meta_data)
+            profile.save()
+            
+            logger.info(f"[CHALIX] Created user account: {username} ({email}) by {request.user.username}")
+            
+            return JsonResponse({
+                'success': True,
+                'message': f'Đã tạo tài khoản thành công cho {name}',
+                'user': {
+                    'id': user.id,
+                    'username': username,
+                    'email': email,
+                    'name': name,
+                    'ten_co_quan': ten_co_quan,
+                    'ten_phong_ban': ten_phong_ban,
+                    'phone_number': phone_number,
+                    'city': city,
+                    'level_of_education': profile.level_of_education_display if level_of_education else '',
+                    'gender': profile.gender_display if gender else '',
+                    'created_by': request.user.username
+                }
+            })
+            
+    except Exception as e:
+        logger.error(f"[CHALIX] Error creating user account {username}: {str(e)}")
+        return JsonResponse({
+            'error': 'Có lỗi xảy ra khi tạo tài khoản. Vui lòng thử lại.'
+        }, status=500)
 
 
 def _get_management_data(request):
