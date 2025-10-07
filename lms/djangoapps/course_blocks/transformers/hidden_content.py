@@ -106,7 +106,7 @@ class HiddenContentTransformer(BlockStructureTransformer):
         # to fetching via get_xblock_field, defaulting to instructor-paced.
         try:
             self_paced = block_structure[block_structure.root_block_usage_key].self_paced
-        except AttributeError:
+        except (AttributeError, KeyError):
             self_paced = block_structure.get_xblock_field(
                 block_structure.root_block_usage_key,
                 'self_paced',
