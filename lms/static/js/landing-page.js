@@ -1,5 +1,5 @@
-// Landing Page Interactive Features
-(function($) {
+// Landing Page Interactive Features using RequireJS
+require(['jquery'], function($) {
     'use strict';
     
     $(document).ready(function() {
@@ -46,5 +46,4 @@
             }
         );
     });
-    
-})(jQuery);
+});

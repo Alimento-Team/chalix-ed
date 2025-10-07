@@ -369,289 +369,111 @@ $course-search-input-height: (
 
     // Process Section Title
     .process-title {
-      position: absolute;
-      left: 452px;
-      top: 625px;
+      position: relative;
+      left: auto;
+      top: auto;
+      width: 100%;
       font-family: 'Inter', sans-serif;
       font-size: 20px;
       font-weight: 600;
       line-height: 24.2px;
       text-align: center;
       color: #0054a6;
-      margin: 0;
-      white-space: nowrap;
+      margin: 60px auto 40px auto;
+      white-space: normal;
     }
 
-    // Process Container
+    // Process Container - Always horizontal single line
     .process-container {
-      position: relative;
-      width: 100%;
-      height: 400px;
+      display: flex !important;
+      flex-wrap: nowrap !important;
+      align-items: center !important;
+      justify-content: space-between !important;
+      width: 100% !important;
+      max-width: 1200px !important;
+      height: auto !important;
+      margin: 80px auto 60px auto !important;
+      padding: 0 10px !important;
+      gap: 10px !important;
+      overflow-x: auto !important;
+      overflow-y: hidden !important;
 
-      // Process Step 1: Bộ Xây dựng
-      .step-1 {
-        position: absolute;
-        left: 83px;
-        top: 756px;
-        width: 272px;
-        height: 139px;
-
-        .step-circle {
-          position: absolute;
-          width: 60px;
-          height: 60px;
-          left: 50px;
-          top: -93px;
-          background: #3494c8;
-          border-radius: 30px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-family: 'Inter', sans-serif;
-          font-size: 24px;
-          font-weight: bold;
-          color: white;
-        }
-
-        .step-content {
-          position: relative;
-          width: 272px;
-          height: 139px;
-
-          .step-title {
-            position: absolute;
-            left: 59px;
-            top: 0px;
-            font-family: 'Inter', sans-serif;
-            font-size: 20px;
-            font-weight: bold;
-            line-height: 24.2px;
-            color: #0054a6;
-            margin: 0;
-          }
-
-          .step-description {
-            position: absolute;
-            left: 10px;
-            top: 45px;
-            width: 247px;
-            font-family: 'Inter', sans-serif;
-            font-size: 18px;
-            font-weight: 400;
-            line-height: 21.78px;
-            color: #0674b0;
-            margin: 0;
-          }
-        }
-      }
-
-      // Arrow 1
-      .arrow-1 {
-        position: absolute;
-        left: 267px;
-        top: 693px;
-        width: 180px;
-        height: 15px;
-      }
-
-      // Process Step 2: Cơ quan
-      .step-2 {
-        position: absolute;
-        left: 427px;
-        top: 746px;
-        width: 272px;
-        height: 199px;
-
-        .step-circle {
-          position: absolute;
-          width: 60px;
-          height: 60px;
-          left: 86px;
-          top: -83px;
-          background: #3494c8;
-          border-radius: 30px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-family: 'Inter', sans-serif;
-          font-size: 24px;
-          font-weight: bold;
-          color: white;
-        }
-
-        .step-content {
-          position: relative;
-          width: 272px;
-          height: 199px;
-
-          .step-title {
-            position: absolute;
-            left: 98px;
-            top: 8px;
-            font-family: 'Inter', sans-serif;
-            font-size: 20px;
-            font-weight: 600;
-            line-height: 24.2px;
-            color: #0054a6;
-            margin: 0;
-
-            span {
-              font-weight: bold;
-            }
-          }
-
-          .step-description {
-            position: absolute;
-            left: -17px;
-            top: 56px;
-            width: 258px;
-            font-family: 'Inter', sans-serif;
-            font-size: 18px;
-            font-weight: 400;
-            line-height: 21.78px;
-            color: #0674b0;
-            margin: 0;
-          }
-        }
-      }
-
-      // Arrow 2
-      .arrow-2 {
-        position: absolute;
-        left: 611px;
-        top: 693px;
-        width: 202px;
-        height: 15px;
-      }
-
-      // Process Step 3: CC, VC
-      .step-3 {
-        position: absolute;
-        left: 748px;
-        top: 756px;
-        width: 272px;
-        height: 199px;
-
-        .step-circle {
-          position: absolute;
-          width: 60px;
-          height: 60px;
-          left: 104px;
-          top: -93px;
-          background: #3494c8;
-          border-radius: 30px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-family: 'Inter', sans-serif;
-          font-size: 24px;
-          font-weight: bold;
-          color: white;
-        }
-
-        .step-content {
-          position: relative;
-          width: 272px;
-          height: 199px;
-
-          .step-title {
-            position: absolute;
-            left: 98px;
-            top: 0px;
-            font-family: 'Inter', sans-serif;
-            font-size: 20px;
-            font-weight: 600;
-            line-height: 24.2px;
-            color: #0054a6;
-            margin: 0;
-          }
-
-          .step-description {
-            position: absolute;
-            left: 15px;
-            top: 43px;
-            width: 242px;
-            font-family: 'Inter', sans-serif;
-            font-size: 18px;
-            font-weight: 400;
-            line-height: 21.78px;
-            color: #0674b0;
-            margin: 0;
-          }
-        }
-      }
-
-      // Arrow 3
-      .arrow-3 {
-        position: absolute;
-        left: 958px;
-        top: 693px;
-        width: 180px;
-        height: 15px;
-      }
-
-      // Process Step 4: Cá nhân hóa học tập
+      // Common process step styling
+      .process-step,
+      .step-1,
+      .step-2,
+      .step-3,
       .step-4 {
-        position: absolute;
-        left: 1069px;
-        top: 756px;
-        width: 272px;
-        height: 258px;
+        text-align: center !important;
+        position: relative !important;
+        flex: 1 1 0 !important;
+        min-width: 140px !important;
+        max-width: 280px !important;
+        flex-shrink: 0 !important;
 
         .step-circle {
-          position: absolute;
-          width: 60px;
-          height: 60px;
-          left: 106px;
-          top: -93px;
-          background: #3494c8;
-          border-radius: 30px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-family: 'Inter', sans-serif;
-          font-size: 24px;
-          font-weight: bold;
-          color: white;
+          width: 60px !important;
+          height: 60px !important;
+          background: #3494c8 !important;
+          border-radius: 50% !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          margin: 0 auto 16px !important;
+          font-family: 'Inter', sans-serif !important;
+          font-size: 24px !important;
+          font-weight: bold !important;
+          color: white !important;
         }
 
         .step-content {
-          position: relative;
-          width: 272px;
-          height: 258px;
+          max-width: 100% !important;
+          margin: 0 auto !important;
+          padding: 0 8px !important;
 
           .step-title {
-            position: absolute;
-            left: 51px;
-            top: 5px;
-            width: 170px;
-            font-family: 'Inter', sans-serif;
-            font-size: 20px;
-            font-weight: 600;
-            line-height: 24.2px;
-            color: #0054a6;
-            margin: 0;
+            font-family: 'Inter', sans-serif !important;
+            font-size: 16px !important;
+            font-weight: 600 !important;
+            line-height: 20px !important;
+            color: #0054a6 !important;
+            margin-bottom: 8px !important;
           }
 
           .step-description {
-            position: absolute;
-            left: 10px;
-            top: 46px;
-            width: 252px;
-            font-family: 'Inter', sans-serif;
-            font-size: 18px;
-            font-weight: 400;
-            line-height: 21.78px;
-            color: #0674b0;
-            margin: 0;
+            font-family: 'Inter', sans-serif !important;
+            font-size: 14px !important;
+            font-weight: 400 !important;
+            line-height: 18px !important;
+            color: #0674b0 !important;
+            margin: 0 !important;
           }
         }
       }
 
-      // Arrows styling
-      .arrow {
-        display: block;
-        max-width: none;
+      // Process arrows - always visible
+      .process-arrow {
+        flex: 0 0 40px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+
+        svg {
+          width: 32px !important;
+          height: 12px !important;
+        }
+      }
+
+      // Arrow aliases for backwards compatibility
+      .arrow,
+      .arrow-1,
+      .arrow-2,
+      .arrow-3 {
+        display: flex !important;
+        max-width: none !important;
+        flex: 0 0 40px !important;
+        align-items: center !important;
+        justify-content: center !important;
       }
     }
 
@@ -680,67 +502,39 @@ $course-search-input-height: (
         margin-bottom: 40px;
       }
 
+      // Process container stays horizontal even on smaller screens
       .process-container {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        height: auto;
+        gap: 8px !important;
+        padding: 0 5px !important;
 
         .process-step,
         .step-1,
         .step-2,
         .step-3,
         .step-4 {
-          position: relative !important;
-          left: auto !important;
-          top: auto !important;
-          width: 100% !important;
-          max-width: 300px;
-          height: auto !important;
-          margin-bottom: 40px;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-
-          .step-circle {
-            position: relative !important;
-            left: auto !important;
-            top: auto !important;
-            margin-bottom: 20px;
-          }
+          min-width: 120px !important;
+          max-width: 200px !important;
 
           .step-content {
-            position: relative !important;
-            left: auto !important;
-            top: auto !important;
-            width: 100% !important;
-            height: auto !important;
-            text-align: center;
-
             .step-title {
-              position: relative !important;
-              left: auto !important;
-              top: auto !important;
-              width: 100% !important;
-              height: auto !important;
-              margin-bottom: 15px;
+              font-size: 14px !important;
+              line-height: 18px !important;
             }
 
             .step-description {
-              position: relative !important;
-              left: auto !important;
-              top: auto !important;
-              width: 100% !important;
-              height: auto !important;
+              font-size: 12px !important;
+              line-height: 16px !important;
             }
           }
         }
 
-        .arrow,
-        .arrow-1,
-        .arrow-2,
-        .arrow-3 {
-          display: none;
+        .process-arrow {
+          flex: 0 0 30px !important;
+
+          svg {
+            width: 24px !important;
+            height: 10px !important;
+          }
         }
       }
     }
@@ -761,6 +555,52 @@ $course-search-input-height: (
             width: 100% !important;
             max-width: 280px !important;
             height: 160px !important;
+          }
+        }
+      }
+
+      // Process container remains horizontal even on mobile
+      .process-container {
+        gap: 5px !important;
+        padding: 0 2px !important;
+
+        .process-step,
+        .step-1,
+        .step-2,
+        .step-3,
+        .step-4 {
+          min-width: 100px !important;
+          max-width: 150px !important;
+
+          .step-circle {
+            width: 50px !important;
+            height: 50px !important;
+            margin: 0 auto 12px !important;
+            font-size: 20px !important;
+          }
+
+          .step-content {
+            padding: 0 4px !important;
+
+            .step-title {
+              font-size: 12px !important;
+              line-height: 16px !important;
+              margin-bottom: 6px !important;
+            }
+
+            .step-description {
+              font-size: 10px !important;
+              line-height: 14px !important;
+            }
+          }
+        }
+
+        .process-arrow {
+          flex: 0 0 20px !important;
+
+          svg {
+            width: 18px !important;
+            height: 8px !important;
           }
         }
       }
