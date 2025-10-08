@@ -12,6 +12,8 @@ from edx_django_utils.admin.mixins import ReadOnlyAdminMixin
 
 from cms.djangoapps.contentstore.models import (
     BackfillCourseTabsConfig,
+    ChalixOrganization,
+    ChalixUserRole,
     CleanStaleCertificateAvailabilityDatesConfig,
     ComponentLink,
     ContainerLink,
@@ -223,6 +225,177 @@ class CourseTypeAdmin(admin.ModelAdmin):
         This can be extended later to check for actual course usage.
         """
         return True  # For now, allow deletion
+
+
+@admin.register(ChalixOrganization)
+class ChalixOrganizationAdmin(admin.ModelAdmin):
+    """
+    Admin interface for ChalixOrganization model
+    """
+    list_display = ('display_name', 'name', 'code', 'parent', 'is_active', 'created_at')
+    list_filter = ('is_active', 'parent', 'created_at')
+    search_fields = ('name', 'display_name', 'code', 'description')
+    list_editable = ('is_active',)
+    ordering = ('display_name',)
+
+    fieldsets = (
+        (_('Basic Information'), {
+            'fields': ('name', 'display_name', 'code', 'description')
+        }),
+        (_('Hierarchy'), {
+            'fields': ('parent',)
+        }),
+        (_('Status'), {
+            'fields': ('is_active',)
+        }),
+    )
+
+    def get_queryset(self, request):
+        """Optimize queryset with select_related"""
+        return super().get_queryset(request).select_related('parent')
+
+
+from django import forms
+from cms.djangoapps.contentstore.chalix_roles import enforce_single_bo_account, get_role_constraints
+
+
+class ChalixUserRoleForm(forms.ModelForm):
+    """Custom form for ChalixUserRole with validation"""
+    
+    class Meta:
+        model = ChalixUserRole
+        fields = '__all__'
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Add help text for role constraints
+        role_constraints = get_role_constraints()
+        role_choices = []
+        for role, label in ChalixUserRole.ROLE_CHOICES:
+            constraint = role_constraints.get(role, {})
+            max_accounts = constraint.get('max_accounts', 'Unlimited')
+            description = constraint.get('description', '')
+            help_text = f"{label} - {description} (Max accounts: {max_accounts if max_accounts else 'Unlimited'})"
+            role_choices.append((role, help_text))
+        
+        self.fields['role'].help_text = "Select the role type. Note: Only one 'bo' (Department) account is allowed."
+    
+    def clean(self):
+        cleaned_data = super().clean()
+        user = cleaned_data.get('user')
+        role = cleaned_data.get('role')
+        organization = cleaned_data.get('organization')
+        
+        # Check bo constraint only for new instances or role changes
+        if role == 'bo':
+            if not self.instance.pk or (self.instance.pk and self.instance.role != 'bo'):
+                try:
+                    enforce_single_bo_account(user, role, organization)
+                except PermissionDenied as e:
+                    raise forms.ValidationError(str(e))
+        
+        return cleaned_data
+
+
+@admin.register(ChalixUserRole)
+class ChalixUserRoleAdmin(admin.ModelAdmin):
+    """
+    Admin interface for ChalixUserRole model with role constraints
+    """
+    form = ChalixUserRoleForm
+    list_display = ('user', 'get_role_display', 'organization', 'is_active', 'created_at', 'created_by')
+    list_filter = ('role', 'is_active', 'organization', 'created_at')
+    search_fields = ('user__username', 'user__email', 'user__first_name', 'user__last_name', 'organization__display_name')
+    list_editable = ('is_active',)
+    ordering = ('-created_at',)
+    raw_id_fields = ('user', 'created_by')
+    autocomplete_fields = ('organization',)
+
+    fieldsets = (
+        (_('User Information'), {
+            'fields': ('user', 'role'),
+            'description': 'Assign roles with the following constraints:<br>'
+                          '• <strong>bo (Department)</strong>: Only ONE account allowed<br>'
+                          '• <strong>co_quan (Organization)</strong>: Multiple accounts allowed<br>'
+                          '• <strong>giang_vien (Instructor)</strong>: Multiple accounts allowed<br>'
+                          '• <strong>cong_chuc (Learner)</strong>: Multiple accounts allowed'
+        }),
+        (_('Organization'), {
+            'fields': ('organization',)
+        }),
+        (_('Status & Audit'), {
+            'fields': ('is_active', 'created_by')
+        }),
+    )
+
+    def get_queryset(self, request):
+        """Optimize queryset with select_related and prefetch_related"""
+        return super().get_queryset(request).select_related(
+            'user', 'organization', 'created_by'
+        ).prefetch_related('user__profile')
+
+    def save_model(self, request, obj, form, change):
+        """Set created_by to current user if not set and apply constraints"""
+        if not change and not obj.created_by:
+            obj.created_by = request.user
+        super().save_model(request, obj, form, change)
+
+    def has_delete_permission(self, request, obj=None):
+        """Allow deletion but preserve audit trail by deactivating"""
+        return True
+
+    def get_readonly_fields(self, request, obj=None):
+        """Make created_by readonly after creation"""
+        if obj:  # Editing existing object
+            return ('created_by', 'created_at', 'updated_at')
+        return ('created_at', 'updated_at')
+        
+    def changelist_view(self, request, extra_context=None):
+        """Add role statistics to changelist"""
+        extra_context = extra_context or {}
+        
+        # Get role statistics
+        role_stats = {}
+        constraints = get_role_constraints()
+        for role, label in ChalixUserRole.ROLE_CHOICES:
+            active_count = ChalixUserRole.objects.filter(role=role, is_active=True).count()
+            max_allowed = constraints.get(role, {}).get('max_accounts', 'Unlimited')
+            role_stats[role] = {
+                'label': label,
+                'active_count': active_count,
+                'max_allowed': max_allowed,
+                'at_limit': max_allowed == 1 and active_count >= 1 if max_allowed else False
+            }
+        
+        extra_context['role_statistics'] = role_stats
+        return super().changelist_view(request, extra_context)
+
+
+# Custom User admin integration (optional - extends Django's user admin)
+from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+from django.contrib.auth.models import User
+
+
+class ChalixUserRoleInline(admin.TabularInline):
+    """Inline admin for user roles"""
+    model = ChalixUserRole
+    extra = 0
+    fields = ('role', 'organization', 'is_active')
+    autocomplete_fields = ('organization',)
+
+
+class ChalixUserAdmin(BaseUserAdmin):
+    """Extended User admin with Chalix roles"""
+    inlines = list(BaseUserAdmin.inlines) + [ChalixUserRoleInline]
+
+    def get_queryset(self, request):
+        """Optimize queryset"""
+        return super().get_queryset(request).prefetch_related('chalix_roles__organization')
+
+
+# Replace the default User admin
+admin.site.unregister(User)
+admin.site.register(User, ChalixUserAdmin)
 
 
 admin.site.register(BackfillCourseTabsConfig, ConfigurationModelAdmin)

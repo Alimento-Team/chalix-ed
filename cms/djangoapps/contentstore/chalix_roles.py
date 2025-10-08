@@ -37,10 +37,10 @@ def get_user_primary_role(user: User) -> Optional[ChalixUserRole]:
     
     # Role hierarchy (higher index = higher priority)
     role_priority = {
-        'cong_chuc': 0,
-        'giang_vien': 1, 
-        'bo': 2,
-        'co_quan': 3,
+        'cong_chuc': 0,    # Learner/Student level (multiple accounts)
+        'giang_vien': 1,   # Teacher/Instructor level (multiple accounts)
+        'co_quan': 2,      # Organization level (multiple accounts)
+        'bo': 3,           # Department level (single account)
     }
     
     return max(roles, key=lambda r: role_priority.get(r.role, 0))
@@ -131,7 +131,7 @@ def require_role(user: User, required_roles: List[str]):
 
 
 def can_create_accounts(user: User) -> bool:
-    """Check if user can create other accounts (co_quan role)"""
+    """Check if user can create other accounts (bo and co_quan roles)"""
     if not user.is_authenticated:
         return False
         
@@ -139,11 +139,11 @@ def can_create_accounts(user: User) -> bool:
         return True
     
     primary_role = get_user_primary_role(user)
-    return primary_role and primary_role.role in ['co_quan', 'bo']
+    return primary_role is not None and primary_role.role in ['bo', 'co_quan']
 
 
 def can_manage_courses(user: User) -> bool:
-    """Check if user can manage courses (giang_vien, co_quan roles)"""
+    """Check if user can manage courses (giang_vien, co_quan, bo roles)"""
     if not user.is_authenticated:
         return False
         
@@ -151,7 +151,49 @@ def can_manage_courses(user: User) -> bool:
         return True
     
     primary_role = get_user_primary_role(user)
-    return primary_role and primary_role.role in ['giang_vien', 'co_quan']
+    return primary_role is not None and primary_role.role in ['giang_vien', 'co_quan', 'bo']
+
+
+def enforce_single_bo_account(user: User, role: str, organization: ChalixOrganization = None):
+    """Enforce that only one 'bo' (department) account can exist"""
+    if role == 'bo':
+        existing_bo = ChalixUserRole.objects.filter(role='bo', is_active=True).first()
+        if existing_bo and existing_bo.user != user:
+            raise PermissionDenied("Only one department account (bo) is allowed in the system")
+
+
+def get_role_constraints():
+    """Get constraints for each role type"""
+    return {
+        'bo': {
+            'max_accounts': 1,
+            'description': 'Department level - single account only',
+            'can_create_accounts': True,
+            'can_manage_courses': True,
+            'cms_access': True
+        },
+        'co_quan': {
+            'max_accounts': None,  # Unlimited
+            'description': 'Organization level - multiple accounts allowed',
+            'can_create_accounts': True,
+            'can_manage_courses': True,
+            'cms_access': True
+        },
+        'giang_vien': {
+            'max_accounts': None,  # Unlimited
+            'description': 'Teacher/Instructor level - multiple accounts allowed',
+            'can_create_accounts': False,
+            'can_manage_courses': True,
+            'cms_access': True
+        },
+        'cong_chuc': {
+            'max_accounts': None,  # Unlimited
+            'description': 'Learner/Student level - multiple accounts allowed',
+            'can_create_accounts': False,
+            'can_manage_courses': False,
+            'cms_access': False
+        }
+    }
 
 
 def get_user_organization_display_name(user: User) -> str:
@@ -165,7 +207,10 @@ def get_user_organization_display_name(user: User) -> str:
 
 
 def assign_role_to_user(user: User, role: str, organization: ChalixOrganization = None, created_by: User = None) -> ChalixUserRole:
-    """Assign a Chalix role to a user"""
+    """Assign a Chalix role to a user with proper constraints"""
+    # Enforce single bo account constraint
+    enforce_single_bo_account(user, role, organization)
+    
     chalix_role, created = ChalixUserRole.objects.get_or_create(
         user=user,
         role=role,

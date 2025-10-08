@@ -694,18 +694,18 @@ class ChalixUserRole(models.Model):
     @property
     def can_see_all_tabs(self):
         """Check if user can see all dashboard tabs"""
-        return self.role == 'co_quan'
+        return self.role == 'bo'  # Only department level can see all tabs
 
     @property
     def available_tabs(self):
         """Get list of available tabs for this role"""
-        if self.role == 'bo':
-            return ['statistics', 'management']
-        elif self.role == 'co_quan':
+        if self.role == 'bo':  # Department level - single account with full access
             return ['statistics', 'create-account', 'management', 'learning-management', 'approve-requests']
-        elif self.role == 'giang_vien':
+        elif self.role == 'co_quan':  # Organization level - multiple accounts with management access
+            return ['statistics', 'management', 'learning-management']
+        elif self.role == 'giang_vien':  # Teacher/Instructor level - multiple accounts with teaching access
             return ['statistics', 'learning-management']
-        else:  # cong_chuc
+        else:  # cong_chuc - Learner/Student level - no CMS access
             return []
 
 
