@@ -684,6 +684,36 @@
         updateStatCard('active-learners', statsData.activeLearners);
         updateStatCard('completed-courses', statsData.completedCourses);
         updateStatCard('new-registrations', statsData.newRegistrations);
+        
+        // Initialize process flows after loading statistics
+        initializeProcessFlows();
+    }
+    
+    /**
+     * Initialize process flows layout
+     */
+    function initializeProcessFlows() {
+        console.log('Chalix CMS Interface: Initializing process flows...');
+        
+        const processContainer = document.querySelector('.process-container');
+        if (!processContainer) {
+            console.log('Chalix CMS Interface: No process container found');
+            return;
+        }
+        
+        // Force re-layout
+        processContainer.style.display = 'none';
+        processContainer.offsetHeight; // Force reflow
+        processContainer.style.display = 'flex';
+        
+        // Log debug info
+        console.log('Process container:', processContainer);
+        console.log('Process container computed style:', window.getComputedStyle(processContainer));
+        console.log('Process steps:', processContainer.querySelectorAll('.process-step'));
+        console.log('Process arrows:', processContainer.querySelectorAll('.process-arrow, .arrow'));
+        
+        // Add debug class for testing
+        processContainer.classList.add('debug-initialized');
     }
 
     /**
