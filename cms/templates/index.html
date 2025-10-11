@@ -1,6 +1,16 @@
 <%page expression_filter="h" />
 <%! from django.utils.translation import gettext as _ from django.urls import reverse from openedx.core.djangolib.markup
-  import HTML, Text from openedx.core.djangolib.js_utils import ( dump_js_escaped_json ) %>
+  import HTML, Te                <div class="bulk-upload-section">
+                  <button type="button" class="excel-upload-btn" id="excel-upload-btn">
+                    <i class="fa fa-upload"></i>
+                    Tải lên Excel
+                  </button>
+                  <button type="button" class="download-template-btn" id="download-template-btn">
+                    <i class="fa fa-download"></i>
+                    Tải file mẫu
+                  </button>
+                  <input type="file" id="excel-file-input" accept=".xlsx,.xls,.csv" style="display: none;">
+                </div>nedx.core.djangolib.js_utils import ( dump_js_escaped_json ) %>
 
   <%inherit file="base.html" />
   <%namespace name='static' file='static_content.html' />
@@ -163,8 +173,98 @@
           </div>
           <div class="tab-panel" id="user-creation-panel" role="tabpanel">
             <div class="panel-content">
-              <!-- User creation form content -->
-              <p>Form tạo tài khoản cán bộ sẽ được hiển thị ở đây...</p>
+              <!-- User Creation Form based on Figma Design -->
+              <div class="chalix-user-creation">
+                <!-- Excel Upload Button - Top Right -->
+                <div class="excel-upload-section">
+                  <button type="button" class="excel-upload-btn" id="excel-upload-btn">
+                    <i class="fa fa-upload"></i>
+                    Nhập danh sách người dùng bằng file excel
+                  </button>
+                  <button type="button" class="download-template-btn" id="download-template-btn">
+                    <i class="fa fa-download"></i>
+                    Tải file mẫu
+                  </button>
+                  <input type="file" id="excel-file-input" accept=".xlsx,.xls,.csv" style="display: none;">
+                </div>
+                
+                <h2 class="form-title">NHẬP THÔNG TIN THÊM MỚI NGƯỜI DÙNG</h2>
+                
+                <!-- User Creation Form -->
+                <form id="user-creation-form" class="chalix-form">
+                  <div class="form-row">
+                    <div class="form-field">
+                      <label for="user-full-name">Họ và tên</label>
+                      <input 
+                        type="text" 
+                        id="user-full-name" 
+                        name="full_name" 
+                        placeholder="Tên người dùng sẽ được hiển thị trên tất cả các trang"
+                        required
+                      />
+                    </div>
+                    <div class="form-field">
+                      <label for="user-email">Email hoặc Số điện thoại</label>
+                      <input 
+                        type="email" 
+                        id="user-email" 
+                        name="email" 
+                        placeholder="Nhập email hoặc số điện thoại"
+                        required
+                      />
+                    </div>
+                  </div>
+                  
+                  <div class="form-row">
+                    <div class="form-field">
+                      <label for="user-password">Nhập mật khẩu</label>
+                      <input 
+                        type="password" 
+                        id="user-password" 
+                        name="password" 
+                        placeholder="Nhập mật khẩu"
+                        required
+                      />
+                    </div>
+                    <div class="form-field">
+                      <label for="user-role">Vai trò người dùng</label>
+                      <select id="user-role" name="role" required>
+                        <option value="">Chọn vai trò người dùng</option>
+                        <!-- Options will be populated by JavaScript -->
+                      </select>
+                    </div>
+                  </div>
+                  
+                  <div class="form-row">
+                    <div class="form-field">
+                      <label for="user-permissions">Lựa chọn quyền</label>
+                      <select id="user-permissions" name="permissions" required>
+                        <option value="system_admin" selected>Quản trị hệ thống</option>
+                        <option value="content_manager">Quản lý nội dung</option>
+                        <option value="instructor">Giảng viên</option>
+                        <option value="learner">Học viên</option>
+                      </select>
+                    </div>
+                    <div class="form-field">
+                      <label for="user-status">Trạng thái</label>
+                      <select id="user-status" name="status" required>
+                        <option value="active" selected>Hoạt động</option>
+                        <option value="inactive">Không hoạt động</option>
+                      </select>
+                    </div>
+                  </div>
+                  
+                  <div class="form-actions">
+                    <button type="submit" class="btn-create">Tạo mới</button>
+                  </div>
+                </form>
+                
+                <!-- Success/Error Messages -->
+                <div id="user-creation-messages" class="messages-container" style="display: none;">
+                  <div class="message success" id="success-message"></div>
+                  <div class="message error" id="error-message"></div>
+                </div>
+              </div>
             </div>
           </div>
           <div class="tab-panel" id="management-panel" role="tabpanel">
@@ -828,4 +928,8 @@
   <!-- Load Chalix CMS interface with cache-busting version to ensure latest JS is fetched -->
           <script src="${static.url('js/chalix-cms-interface.js')}?v=2.3.0"></script>
   <script type="text/javascript" src="${static.url('js/tabs/learning-management.js')}"></script>
+  
+  <!-- Chalix User Creation Interface -->
+  <link rel="stylesheet" href="${static.url('css/chalix-user-creation.css')}" />
+  <script src="${static.url('js/chalix-user-creation.js')}"></script>
   </%block>

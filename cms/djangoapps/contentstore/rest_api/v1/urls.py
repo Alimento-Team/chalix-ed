@@ -35,6 +35,20 @@ from .views import (
     UnitMediaFinalizeUploadView,
 )
 
+# Import user management views
+from ...views.user_management import (
+    create_user_account,
+    bulk_create_users,
+    get_user_organizations,
+    get_available_roles,
+)
+
+# Import user template views
+from ...views.user_template import (
+    download_user_template,
+    get_upload_instructions,
+)
+
 
 app_name = 'v1'
 
@@ -177,6 +191,16 @@ urlpatterns = [
         CourseWaffleFlagsView.as_view(),
         name="course_waffle_flags"
     ),
+
+    # User management endpoints
+    path('users/create', create_user_account, name='create_user_account'),
+    path('users/bulk-create', bulk_create_users, name='bulk_create_users'), 
+    path('users/organizations', get_user_organizations, name='get_user_organizations'),
+    path('users/roles', get_available_roles, name='get_available_roles'),
+    
+    # Template and instructions
+    path('users/template/download', download_user_template, name='download_user_template'),
+    path('users/template/instructions', get_upload_instructions, name='get_upload_instructions'),
 
     # Authoring API
     # Do not use under v1 yet (Nov. 23). The Authoring API is still experimental and the v0 versions should be used
