@@ -1,0 +1,961 @@
+{% load i18n %}
+{% load static %}
+
+<div id="final-evaluation-container" class="final-evaluation-container">
+    <div class="evaluation-header">
+        <h2>Kiểm tra cuối khóa</h2>
+        <div class="evaluation-status" id="evaluation-status">
+            <span class="status-indicator" id="status-indicator">Chưa hoàn thành</span>
+        </div>
+    </div>
+    
+    <div id="evaluation-content" class="evaluation-content">
+        <div class="loading-spinner">
+            <div class="spinner"></div>
+            <p>Đang tải...</p>
+        </div>
+    </div>
+</div>
+
+<style>
+.final-evaluation-container {
+    max-width: 800px;
+    margin: 20px auto;
+    padding: 20px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.evaluation-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.evaluation-header h2 {
+    margin: 0;
+    color: #333;
+    font-size: 24px;
+}
+
+.evaluation-status {
+    background: #f5f5f5;
+    padding: 8px 16px;
+    border-radius: 20px;
+}
+
+.status-indicator {
+    font-weight: 500;
+    font-size: 14px;
+}
+
+.status-indicator.completed {
+    color: #2e7d32;
+    background: #e8f5e8;
+    padding: 8px 16px;
+    border-radius: 20px;
+}
+
+.status-indicator.in-progress {
+    color: #f57c00;
+    background: #fff3e0;
+    padding: 8px 16px;
+    border-radius: 20px;
+}
+
+.loading-spinner {
+    text-align: center;
+    padding: 40px 20px;
+}
+
+.spinner {
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #007cba;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 15px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.evaluation-type-info {
+    background: #e3f2fd;
+    padding: 16px;
+    border-radius: 6px;
+    margin-bottom: 20px;
+    border-left: 4px solid #1976d2;
+}
+
+.evaluation-type-info h3 {
+    margin: 0 0 8px 0;
+    color: #1565c0;
+}
+
+.evaluation-type-info p {
+    margin: 0;
+    color: #424242;
+}
+
+/* Practical Assignment Styles */
+.practical-assignment {
+    margin-top: 20px;
+}
+
+.practical-question {
+    background: #f9f9f9;
+    padding: 20px;
+    border-radius: 6px;
+    border: 1px solid #e0e0e0;
+    margin-bottom: 20px;
+}
+
+.practical-question h4 {
+    margin: 0 0 12px 0;
+    color: #333;
+}
+
+.practical-question .question-text {
+    font-size: 16px;
+    line-height: 1.6;
+    color: #444;
+    white-space: pre-wrap;
+}
+
+.file-upload-area {
+    border: 2px dashed #ddd;
+    border-radius: 6px;
+    padding: 30px 20px;
+    text-align: center;
+    background: #fafafa;
+    transition: all 0.3s ease;
+}
+
+.file-upload-area.dragover {
+    border-color: #007cba;
+    background: #f0f8ff;
+}
+
+.upload-btn {
+    background: #007cba;
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 500;
+}
+
+.upload-btn:hover {
+    background: #005a8b;
+}
+
+.upload-btn:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+}
+
+.file-info {
+    margin-top: 15px;
+    padding: 12px;
+    background: #e8f4f8;
+    border-radius: 6px;
+    text-align: left;
+}
+
+.allowed-formats {
+    font-size: 14px;
+    color: #666;
+    margin-top: 10px;
+}
+
+/* Quiz Styles */
+.quiz-container {
+    margin-top: 20px;
+}
+
+.quiz-intro {
+    background: #f0f8ff;
+    padding: 20px;
+    border-radius: 6px;
+    border: 1px solid #cce7ff;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.start-quiz-btn {
+    background: #4caf50;
+    color: white;
+    border: none;
+    padding: 15px 30px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 18px;
+    font-weight: 500;
+}
+
+.start-quiz-btn:hover {
+    background: #45a049;
+}
+
+.quiz-question {
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 24px;
+    margin-bottom: 16px;
+}
+
+.question-header {
+    display: flex;
+    justify-content: between;
+    align-items: flex-start;
+    margin-bottom: 16px;
+}
+
+.question-number {
+    background: #007cba;
+    color: white;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 14px;
+    margin-right: 16px;
+    flex-shrink: 0;
+}
+
+.question-text {
+    font-size: 16px;
+    font-weight: 500;
+    line-height: 1.5;
+    color: #333;
+    flex: 1;
+}
+
+.choices-container {
+    margin-left: 48px;
+}
+
+.choice-item {
+    display: flex;
+    align-items: flex-start;
+    margin-bottom: 12px;
+    cursor: pointer;
+    padding: 12px;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    transition: all 0.2s ease;
+}
+
+.choice-item:hover {
+    background: #f5f5f5;
+    border-color: #ddd;
+}
+
+.choice-item.selected {
+    background: #e3f2fd;
+    border-color: #1976d2;
+}
+
+.choice-radio {
+    margin-right: 12px;
+    margin-top: 2px;
+}
+
+.choice-text {
+    font-size: 15px;
+    line-height: 1.4;
+    color: #444;
+    flex: 1;
+}
+
+.quiz-navigation {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 30px;
+    padding: 20px 0;
+    border-top: 1px solid #e0e0e0;
+}
+
+.question-counter {
+    font-size: 14px;
+    color: #666;
+}
+
+.nav-buttons {
+    display: flex;
+    gap: 12px;
+}
+
+.nav-btn {
+    padding: 10px 20px;
+    border: 1px solid #ddd;
+    background: white;
+    color: #333;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.nav-btn:hover {
+    background: #f5f5f5;
+}
+
+.nav-btn.primary {
+    background: #007cba;
+    color: white;
+    border-color: #007cba;
+}
+
+.nav-btn.primary:hover {
+    background: #005a8b;
+}
+
+.nav-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.quiz-progress {
+    background: #f5f5f5;
+    border-radius: 10px;
+    height: 8px;
+    margin: 20px 0;
+    overflow: hidden;
+}
+
+.quiz-progress-bar {
+    background: #4caf50;
+    height: 100%;
+    transition: width 0.3s ease;
+}
+
+.quiz-complete {
+    text-align: center;
+    padding: 40px 20px;
+    background: #f0f8ff;
+    border-radius: 8px;
+    border: 1px solid #cce7ff;
+}
+
+.score-display {
+    font-size: 48px;
+    font-weight: bold;
+    color: #4caf50;
+    margin: 20px 0;
+}
+
+.score-details {
+    font-size: 16px;
+    color: #666;
+    margin-bottom: 20px;
+}
+
+.completion-message {
+    font-size: 18px;
+    color: #333;
+    margin-bottom: 30px;
+}
+
+.submitted-assignment {
+    background: #e8f5e9;
+    border: 1px solid #c8e6c9;
+    border-radius: 6px;
+    padding: 20px;
+    margin-top: 20px;
+}
+
+.submitted-assignment h4 {
+    margin: 0 0 12px 0;
+    color: #2e7d32;
+}
+
+.submission-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.file-link {
+    color: #1976d2;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.file-link:hover {
+    text-decoration: underline;
+}
+
+.resubmit-btn {
+    background: #ff9800;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.resubmit-btn:hover {
+    background: #f57c00;
+}
+
+.grade-info {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid #c8e6c9;
+}
+
+.grade-score {
+    font-size: 18px;
+    font-weight: bold;
+    color: #2e7d32;
+}
+
+.teacher-feedback {
+    margin-top: 12px;
+    font-style: italic;
+    color: #424242;
+    background: white;
+    padding: 12px;
+    border-radius: 4px;
+}
+
+.error-message {
+    background: #ffebee;
+    color: #c62828;
+    padding: 16px;
+    border-radius: 6px;
+    border: 1px solid #ffcdd2;
+    margin: 20px 0;
+}
+
+.success-message {
+    background: #e8f5e9;
+    color: #2e7d32;
+    padding: 16px;
+    border-radius: 6px;
+    border: 1px solid #c8e6c9;
+    margin: 20px 0;
+}
+</style>
+
+<script>
+class FinalEvaluationManager {
+    constructor(courseId) {
+        this.courseId = courseId;
+        this.currentQuestionIndex = 0;
+        this.questions = [];
+        this.answers = {};
+        this.attemptId = null;
+        
+        this.init();
+    }
+    
+    init() {
+        this.loadEvaluationData();
+    }
+    
+    async loadEvaluationData() {
+        try {
+            const response = await fetch(`/courseware/evaluation/${this.courseId}/`);
+            const data = await response.json();
+            
+            if (data.success) {
+                this.renderEvaluation(data.evaluation);
+            } else {
+                this.showError(data.error);
+            }
+        } catch (error) {
+            console.error('Error loading evaluation:', error);
+            this.showError('Lỗi khi tải dữ liệu kiểm tra');
+        }
+    }
+    
+    renderEvaluation(evaluation) {
+        const container = document.getElementById('evaluation-content');
+        const statusIndicator = document.getElementById('status-indicator');
+        
+        if (evaluation.evaluation_type === 'practical') {
+            this.renderPracticalAssignment(evaluation, container);
+            if (evaluation.has_submission) {
+                statusIndicator.textContent = 'Đã nộp bài';
+                statusIndicator.className = 'status-indicator completed';
+            }
+        } else {
+            this.renderQuizEvaluation(evaluation, container);
+            if (evaluation.quiz_completed) {
+                statusIndicator.textContent = `Đã hoàn thành - ${evaluation.quiz_score}%`;
+                statusIndicator.className = 'status-indicator completed';
+            }
+        }
+    }
+    
+    renderPracticalAssignment(evaluation, container) {
+        const html = `
+            <div class="evaluation-type-info">
+                <h3>Bài tập thực hành</h3>
+                <p>Nộp bài thu hoạch dưới dạng file DOCX, PPTX hoặc PDF</p>
+            </div>
+            
+            <div class="practical-assignment">
+                <div class="practical-question">
+                    <h4>Yêu cầu bài tập:</h4>
+                    <div class="question-text">${evaluation.practical_question || 'Không có yêu cầu cụ thể'}</div>
+                </div>
+                
+                ${evaluation.has_submission ? this.renderSubmittedAssignment(evaluation) : this.renderFileUpload()}
+            </div>
+        `;
+        
+        container.innerHTML = html;
+        this.setupFileUpload();
+    }
+    
+    renderSubmittedAssignment(evaluation) {
+        return `
+            <div class="submitted-assignment">
+                <h4>✓ Đã nộp bài thành công</h4>
+                <div class="submission-info">
+                    <a href="${evaluation.submission_file}" class="file-link" target="_blank">
+                        📄 Xem file đã nộp
+                    </a>
+                    <button class="resubmit-btn" onclick="finalEval.showResubmitForm()">
+                        Nộp lại
+                    </button>
+                </div>
+                
+                ${evaluation.submission_grade ? `
+                    <div class="grade-info">
+                        <div class="grade-score">Điểm: ${evaluation.submission_grade}/100</div>
+                        ${evaluation.teacher_feedback ? `
+                            <div class="teacher-feedback">
+                                <strong>Phản hồi từ giảng viên:</strong><br>
+                                ${evaluation.teacher_feedback}
+                            </div>
+                        ` : ''}
+                    </div>
+                ` : '<p style="color: #666; margin-top: 12px;">Đang chờ giảng viên chấm điểm</p>'}
+            </div>
+            
+            <div id="resubmit-form" style="display: none;">
+                ${this.renderFileUpload()}
+            </div>
+        `;
+    }
+    
+    renderFileUpload() {
+        return `
+            <div class="file-upload-area" id="upload-area">
+                <input type="file" id="file-input" accept=".docx,.pptx,.pdf" style="display: none;">
+                <button class="upload-btn" id="upload-btn">
+                    📎 Chọn file để nộp bài
+                </button>
+                <div class="allowed-formats">
+                    Định dạng cho phép: DOCX, PPTX, PDF (tối đa 10MB)
+                </div>
+                <div id="file-info" class="file-info" style="display: none;">
+                    <span id="file-name"></span>
+                    <button class="upload-btn" id="submit-btn" style="margin-left: 12px;">
+                        Nộp bài
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+    
+    renderQuizEvaluation(evaluation, container) {
+        if (evaluation.quiz_completed) {
+            const html = `
+                <div class="evaluation-type-info">
+                    <h3>Bài trắc nghiệm</h3>
+                    <p>Bài kiểm tra đã hoàn thành</p>
+                </div>
+                
+                <div class="quiz-complete">
+                    <div class="completion-message">🎉 Bạn đã hoàn thành bài kiểm tra!</div>
+                    <div class="score-display">${evaluation.quiz_score}%</div>
+                    <div class="score-details">
+                        Kết quả cuối cùng của bạn
+                    </div>
+                </div>
+            `;
+            container.innerHTML = html;
+        } else {
+            const html = `
+                <div class="evaluation-type-info">
+                    <h3>Bài trắc nghiệm</h3>
+                    <p>Hoàn thành bài trắc nghiệm để kết thúc khóa học</p>
+                </div>
+                
+                <div class="quiz-intro">
+                    <h3>Sẵn sàng bắt đầu bài kiểm tra cuối khóa?</h3>
+                    <p>Bài kiểm tra gồm nhiều câu hỏi trắc nghiệm. Bạn chỉ có một lần làm bài.</p>
+                    <button class="start-quiz-btn" onclick="finalEval.startQuiz()">
+                        Bắt đầu bài cuối khóa
+                    </button>
+                </div>
+            `;
+            container.innerHTML = html;
+        }
+    }
+    
+    async startQuiz() {
+        try {
+            const response = await fetch(`/courseware/evaluation/${this.courseId}/quiz/`);
+            const data = await response.json();
+            
+            if (data.success) {
+                this.questions = data.questions;
+                this.attemptId = data.attempt_id;
+                this.currentQuestionIndex = 0;
+                this.answers = {};
+                this.renderQuizInterface();
+            } else {
+                if (data.completed) {
+                    this.showMessage(`Bài kiểm tra đã hoàn thành. Điểm: ${data.score}%`, 'success');
+                } else {
+                    this.showError(data.error);
+                }
+            }
+        } catch (error) {
+            console.error('Error starting quiz:', error);
+            this.showError('Lỗi khi bắt đầu bài kiểm tra');
+        }
+    }
+    
+    renderQuizInterface() {
+        const container = document.getElementById('evaluation-content');
+        const html = `
+            <div class="quiz-container">
+                <div class="quiz-progress">
+                    <div class="quiz-progress-bar" id="progress-bar" style="width: 0%"></div>
+                </div>
+                
+                <div id="quiz-question-container"></div>
+                
+                <div class="quiz-navigation">
+                    <div class="question-counter" id="question-counter">
+                        Câu 1 / ${this.questions.length}
+                    </div>
+                    <div class="nav-buttons">
+                        <button class="nav-btn" id="prev-btn" onclick="finalEval.previousQuestion()" disabled>
+                            ← Câu trước
+                        </button>
+                        <button class="nav-btn primary" id="next-btn" onclick="finalEval.nextQuestion()">
+                            Câu tiếp →
+                        </button>
+                        <button class="nav-btn primary" id="finish-btn" onclick="finalEval.finishQuiz()" style="display: none;">
+                            Hoàn thành
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        container.innerHTML = html;
+        this.renderCurrentQuestion();
+    }
+    
+    renderCurrentQuestion() {
+        const question = this.questions[this.currentQuestionIndex];
+        const container = document.getElementById('quiz-question-container');
+        
+        const html = `
+            <div class="quiz-question">
+                <div class="question-header">
+                    <div class="question-number">${this.currentQuestionIndex + 1}</div>
+                    <div class="question-text">${question.question}</div>
+                </div>
+                
+                <div class="choices-container">
+                    ${question.choices.map((choice, index) => `
+                        <div class="choice-item ${this.answers[question.id] === choice.id ? 'selected' : ''}" 
+                             onclick="finalEval.selectChoice(${question.id}, ${choice.id})">
+                            <input type="radio" class="choice-radio" 
+                                   name="question_${question.id}" 
+                                   value="${choice.id}"
+                                   ${this.answers[question.id] === choice.id ? 'checked' : ''}>
+                            <div class="choice-text">${choice.text}</div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+        
+        container.innerHTML = html;
+        this.updateNavigation();
+        this.updateProgress();
+    }
+    
+    selectChoice(questionId, choiceId) {
+        this.answers[questionId] = choiceId;
+        this.saveAnswer(questionId, choiceId);
+        
+        // Update UI
+        const choices = document.querySelectorAll('.choice-item');
+        choices.forEach(choice => choice.classList.remove('selected'));
+        
+        const selectedChoice = event.target.closest('.choice-item');
+        selectedChoice.classList.add('selected');
+        
+        const radio = selectedChoice.querySelector('input[type="radio"]');
+        radio.checked = true;
+    }
+    
+    async saveAnswer(questionId, choiceId) {
+        try {
+            await fetch(`/courseware/evaluation/${this.courseId}/submit-answer/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': this.getCSRFToken()
+                },
+                body: JSON.stringify({
+                    attempt_id: this.attemptId,
+                    question_id: questionId,
+                    choice_id: choiceId
+                })
+            });
+        } catch (error) {
+            console.error('Error saving answer:', error);
+        }
+    }
+    
+    previousQuestion() {
+        if (this.currentQuestionIndex > 0) {
+            this.currentQuestionIndex--;
+            this.renderCurrentQuestion();
+        }
+    }
+    
+    nextQuestion() {
+        if (this.currentQuestionIndex < this.questions.length - 1) {
+            this.currentQuestionIndex++;
+            this.renderCurrentQuestion();
+        }
+    }
+    
+    updateNavigation() {
+        const prevBtn = document.getElementById('prev-btn');
+        const nextBtn = document.getElementById('next-btn');
+        const finishBtn = document.getElementById('finish-btn');
+        const counter = document.getElementById('question-counter');
+        
+        prevBtn.disabled = this.currentQuestionIndex === 0;
+        
+        if (this.currentQuestionIndex === this.questions.length - 1) {
+            nextBtn.style.display = 'none';
+            finishBtn.style.display = 'inline-block';
+        } else {
+            nextBtn.style.display = 'inline-block';
+            finishBtn.style.display = 'none';
+        }
+        
+        counter.textContent = `Câu ${this.currentQuestionIndex + 1} / ${this.questions.length}`;
+    }
+    
+    updateProgress() {
+        const progress = ((this.currentQuestionIndex + 1) / this.questions.length) * 100;
+        document.getElementById('progress-bar').style.width = `${progress}%`;
+    }
+    
+    async finishQuiz() {
+        if (confirm('Bạn có chắc chắn muốn hoàn thành bài kiểm tra? Bạn sẽ không thể thay đổi câu trả lời sau khi hoàn thành.')) {
+            try {
+                const response = await fetch(`/courseware/evaluation/${this.courseId}/complete-quiz/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': this.getCSRFToken()
+                    },
+                    body: JSON.stringify({
+                        attempt_id: this.attemptId
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    this.renderQuizComplete(data);
+                    document.getElementById('status-indicator').textContent = `Đã hoàn thành - ${data.score.toFixed(1)}%`;
+                    document.getElementById('status-indicator').className = 'status-indicator completed';
+                } else {
+                    this.showError(data.error);
+                }
+            } catch (error) {
+                console.error('Error finishing quiz:', error);
+                this.showError('Lỗi khi hoàn thành bài kiểm tra');
+            }
+        }
+    }
+    
+    renderQuizComplete(result) {
+        const container = document.getElementById('evaluation-content');
+        const html = `
+            <div class="quiz-complete">
+                <div class="completion-message">🎉 Bạn đã hoàn thành bài kiểm tra cuối khóa!</div>
+                <div class="score-display">${result.score.toFixed(1)}%</div>
+                <div class="score-details">
+                    Trả lời đúng ${result.correct_answers}/${result.total_questions} câu
+                </div>
+            </div>
+        `;
+        container.innerHTML = html;
+    }
+    
+    setupFileUpload() {
+        const uploadBtn = document.getElementById('upload-btn');
+        const fileInput = document.getElementById('file-input');
+        const fileInfo = document.getElementById('file-info');
+        const fileName = document.getElementById('file-name');
+        const submitBtn = document.getElementById('submit-btn');
+        const uploadArea = document.getElementById('upload-area');
+        
+        if (!uploadBtn) return;
+        
+        uploadBtn.addEventListener('click', () => fileInput.click());
+        
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                fileName.textContent = `📄 ${file.name}`;
+                fileInfo.style.display = 'block';
+                uploadBtn.style.display = 'none';
+            }
+        });
+        
+        if (submitBtn) {
+            submitBtn.addEventListener('click', () => this.submitAssignment());
+        }
+        
+        // Drag and drop
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+        
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+        
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                fileInput.files = files;
+                const file = files[0];
+                fileName.textContent = `📄 ${file.name}`;
+                fileInfo.style.display = 'block';
+                uploadBtn.style.display = 'none';
+            }
+        });
+    }
+    
+    async submitAssignment() {
+        const fileInput = document.getElementById('file-input');
+        const file = fileInput.files[0];
+        
+        if (!file) {
+            alert('Vui lòng chọn file để nộp bài');
+            return;
+        }
+        
+        const formData = new FormData();
+        formData.append('submission_file', file);
+        
+        const submitBtn = document.getElementById('submit-btn');
+        const originalText = submitBtn.textContent;
+        submitBtn.textContent = 'Đang nộp bài...';
+        submitBtn.disabled = true;
+        
+        try {
+            const response = await fetch(`/courseware/evaluation/${this.courseId}/submit/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': this.getCSRFToken()
+                },
+                body: formData
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                this.showMessage(data.message, 'success');
+                // Reload evaluation data to show submitted state
+                setTimeout(() => {
+                    this.loadEvaluationData();
+                }, 1500);
+            } else {
+                this.showError(data.error);
+            }
+        } catch (error) {
+            console.error('Error submitting assignment:', error);
+            this.showError('Lỗi khi nộp bài');
+        } finally {
+            submitBtn.textContent = originalText;
+            submitBtn.disabled = false;
+        }
+    }
+    
+    showResubmitForm() {
+        document.getElementById('resubmit-form').style.display = 'block';
+        this.setupFileUpload();
+    }
+    
+    showError(message) {
+        const container = document.getElementById('evaluation-content');
+        container.innerHTML = `
+            <div class="error-message">
+                ⚠️ ${message}
+            </div>
+        `;
+    }
+    
+    showMessage(message, type = 'success') {
+        const container = document.getElementById('evaluation-content');
+        const messageClass = type === 'success' ? 'success-message' : 'error-message';
+        const icon = type === 'success' ? '✓' : '⚠️';
+        
+        const messageDiv = document.createElement('div');
+        messageDiv.className = messageClass;
+        messageDiv.innerHTML = `${icon} ${message}`;
+        
+        container.insertBefore(messageDiv, container.firstChild);
+        
+        setTimeout(() => {
+            messageDiv.remove();
+        }, 3000);
+    }
+    
+    getCSRFToken() {
+        return document.querySelector('[name=csrfmiddlewaretoken]').value;
+    }
+}
+
+// Initialize when course ID is available
+document.addEventListener('DOMContentLoaded', function() {
+    // Get course ID from URL or data attribute
+    const courseId = window.location.pathname.split('/')[2]; // Assuming URL pattern /courses/course-id/...
+    if (courseId) {
+        window.finalEval = new FinalEvaluationManager(courseId);
+    }
+});
+</script>

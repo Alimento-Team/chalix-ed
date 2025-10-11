@@ -150,4 +150,26 @@ urlpatterns = [
         chalix_quiz.delete_quiz_api,
         name='chalix_delete_quiz'
     ),
+
+    # Final Evaluation endpoints
+    re_path(
+        r'^evaluation/get/(?P<course_key_string>.+)/$',
+        chalix_dashboard.get_final_evaluation_api,
+        name='chalix_get_final_evaluation'
+    ),
+    re_path(
+        r'^evaluation/update/(?P<course_key_string>.+)/$',
+        chalix_dashboard.update_final_evaluation_api,
+        name='chalix_update_final_evaluation'
+    ),
+    re_path(
+        r'^evaluation/upload-quiz/(?P<course_key_string>.+)/$',
+        chalix_dashboard.upload_evaluation_quiz_api,
+        name='chalix_upload_evaluation_quiz'
+    ),
+    re_path(
+        r'^evaluation/preview-quiz/(?P<course_key_string>.+)/$',
+        chalix_dashboard.preview_evaluation_quiz_api,
+        name='chalix_preview_evaluation_quiz'
+    ),
 ]

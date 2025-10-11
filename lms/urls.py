@@ -517,6 +517,12 @@ urlpatterns += [
 
     # dates page (no longer functional, just redirects to MFE)
     re_path(r'^courses/{}/dates'.format(settings.COURSE_ID_PATTERN), courseware_views.dates, name='dates'),
+    
+    # Final evaluation (practical assignments and quizzes)
+    re_path(
+        r'^courseware/',
+        include('lms.djangoapps.courseware.urls.evaluation_urls'),
+    ),
 
     # Takes optional student_id for instructor use--shows profile as that student sees it.
     re_path(

@@ -98,8 +98,46 @@ def _create_course_structure_from_program(store, course_key, user_id, template_p
         store.publish(vertical.location, user_id)
         units_created += 1
 
+    # Add final evaluation topic
+    final_evaluation_sequential = store.create_child(
+        user_id,
+        main_chapter.location,
+        'sequential',
+        fields={
+            'display_name': 'Kiểm tra cuối khoá',
+        }
+    )
+    
+    # Create an empty unit for the final evaluation
+    final_evaluation_vertical = store.create_child(
+        user_id,
+        final_evaluation_sequential.location,
+        'vertical',
+        fields={
+            'display_name': 'Kiểm tra cuối khoá - Bài kiểm tra',
+        }
+    )
+    
+    # Publish the final evaluation components
+    store.publish(final_evaluation_sequential.location, user_id)
+    store.publish(final_evaluation_vertical.location, user_id)
+    units_created += 1
+
     # Publish the main chapter
     store.publish(main_chapter.location, user_id)
+    
+    # Create FinalEvaluation record based on program settings
+    try:
+        from cms.djangoapps.contentstore.models import FinalEvaluation
+        evaluation_type = FinalEvaluation.EVALUATION_TYPE_PRACTICAL if template_program.allow_practical_submission else FinalEvaluation.EVALUATION_TYPE_QUIZ
+        
+        FinalEvaluation.objects.create(
+            course_key=course_key,
+            program=template_program,
+            evaluation_type=evaluation_type
+        )
+    except Exception as e:
+        logger.warning(f"Failed to create FinalEvaluation record for course {course_key}: {e}")
     
     return units_created
 
@@ -743,6 +781,10 @@ def create_program_api(request):
     icon = payload.get('icon', 'seed-of-life')
     update_topics = payload.get('update_topics', False)
     topics = payload.get('topics', [])
+    
+    # Get evaluation format options
+    allow_practical_submission = payload.get('allow_practical_submission', True)
+    allow_multiple_choice = payload.get('allow_multiple_choice', False)
 
     if not title:
         return JsonResponse({'error': 'Title is required'}, status=400)
@@ -758,6 +800,8 @@ def create_program_api(request):
                 short_description=short_description,
                 icon=icon,
                 update_topics=update_topics,
+                allow_practical_submission=allow_practical_submission,
+                allow_multiple_choice=allow_multiple_choice,
                 created_by=request.user if request.user.is_authenticated else None,
             )
 
@@ -798,6 +842,8 @@ def create_program_api(request):
             'short_description': program.short_description, 
             'icon': program.icon,
             'update_topics': program.update_topics,
+            'allow_practical_submission': program.allow_practical_submission,
+            'allow_multiple_choice': program.allow_multiple_choice,
             'topics': topics_data,
             'created_at': program.created_at.isoformat()
         })
@@ -961,6 +1007,8 @@ def list_local_programs_api(request):
             'short_description': p.short_description,
             'icon': p.icon,
             'update_topics': p.update_topics,
+            'allow_practical_submission': getattr(p, 'allow_practical_submission', True),
+            'allow_multiple_choice': getattr(p, 'allow_multiple_choice', False),
             'topics': topics_data,
             'topics_count': len(topics_data),
             'created_at': p.created_at.isoformat(),
@@ -1758,3 +1806,244 @@ def _export_statistics_csv(request):
         row_num += 1
     
     return response
+
+
+# Final Evaluation API endpoints
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def get_final_evaluation_api(request, course_key_string):
+    """
+    Get final evaluation for a course.
+    """
+    try:
+        from opaque_keys.edx.keys import CourseKey
+        from cms.djangoapps.contentstore.models import FinalEvaluation
+        
+        course_key = CourseKey.from_string(course_key_string)
+        
+        try:
+            evaluation = FinalEvaluation.objects.get(course_key=course_key, is_active=True)
+            return JsonResponse({
+                'success': True,
+                'evaluation': {
+                    'id': evaluation.id,
+                    'evaluation_type': evaluation.evaluation_type,
+                    'practical_question': evaluation.practical_question,
+                    'has_quiz_file': bool(evaluation.quiz_file),
+                    'quiz_file_name': evaluation.quiz_file.name.split('/')[-1] if evaluation.quiz_file else None,
+                    'program_title': evaluation.program.title if evaluation.program else None
+                }
+            })
+        except FinalEvaluation.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Evaluation not found for this course'
+            })
+            
+    except Exception as e:
+        logger.error(f"Error getting final evaluation for course {course_key_string}: {e}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        })
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def update_final_evaluation_api(request, course_key_string):
+    """
+    Update final evaluation content (practical question).
+    """
+    try:
+        from opaque_keys.edx.keys import CourseKey
+        from cms.djangoapps.contentstore.models import FinalEvaluation
+        
+        course_key = CourseKey.from_string(course_key_string)
+        data = json.loads(request.body.decode('utf-8'))
+        practical_question = data.get('practical_question', '')
+        
+        evaluation = FinalEvaluation.objects.get(course_key=course_key, is_active=True)
+        evaluation.practical_question = practical_question
+        evaluation.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Practical question updated successfully'
+        })
+        
+    except FinalEvaluation.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Evaluation not found for this course'
+        })
+    except Exception as e:
+        logger.error(f"Error updating final evaluation for course {course_key_string}: {e}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        })
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def upload_evaluation_quiz_api(request, course_key_string):
+    """
+    Upload excel file for quiz evaluation.
+    """
+    try:
+        import pandas as pd
+        from opaque_keys.edx.keys import CourseKey
+        from cms.djangoapps.contentstore.models import FinalEvaluation, ChalixQuizQuestion, ChalixQuizChoice
+        
+        course_key = CourseKey.from_string(course_key_string)
+        
+        if 'quiz_file' not in request.FILES:
+            return JsonResponse({
+                'success': False,
+                'error': 'No file uploaded'
+            })
+        
+        quiz_file = request.FILES['quiz_file']
+        
+        # Validate file extension
+        if not quiz_file.name.endswith(('.xlsx', '.xls')):
+            return JsonResponse({
+                'success': False,
+                'error': 'Please upload an Excel file (.xlsx or .xls)'
+            })
+        
+        # Parse Excel file
+        try:
+            df = pd.read_excel(quiz_file)
+            
+            # Expected columns: Question, Choice_A, Choice_B, Choice_C, Choice_D, Correct_Answer
+            required_columns = ['Question', 'Choice_A', 'Choice_B', 'Choice_C', 'Choice_D', 'Correct_Answer']
+            missing_columns = [col for col in required_columns if col not in df.columns]
+            
+            if missing_columns:
+                return JsonResponse({
+                    'success': False,
+                    'error': f'Missing required columns: {", ".join(missing_columns)}'
+                })
+            
+            # Get evaluation
+            evaluation = FinalEvaluation.objects.get(course_key=course_key, is_active=True)
+            
+            # Clear existing questions for this evaluation
+            ChalixQuizQuestion.objects.filter(course_key=course_key).delete()
+            
+            # Process each row and create questions
+            questions_created = 0
+            with transaction.atomic():
+                for index, row in df.iterrows():
+                    if pd.isna(row['Question']) or not str(row['Question']).strip():
+                        continue
+                        
+                    question = ChalixQuizQuestion.objects.create(
+                        course_key=course_key,
+                        question_text=str(row['Question']).strip(),
+                        question_type='multiple_choice',
+                        order_index=index + 1,
+                        created_by=request.user
+                    )
+                    
+                    # Create choices
+                    choices = [
+                        ('A', row['Choice_A']),
+                        ('B', row['Choice_B']), 
+                        ('C', row['Choice_C']),
+                        ('D', row['Choice_D'])
+                    ]
+                    
+                    correct_answer = str(row['Correct_Answer']).strip().upper()
+                    
+                    for choice_key, choice_text in choices:
+                        if pd.isna(choice_text) or not str(choice_text).strip():
+                            continue
+                            
+                        ChalixQuizChoice.objects.create(
+                            question=question,
+                            choice_text=str(choice_text).strip(),
+                            is_correct=(choice_key == correct_answer),
+                            order_index=ord(choice_key) - ord('A')
+                        )
+                    
+                    questions_created += 1
+                
+                # Save the file to evaluation
+                evaluation.quiz_file = quiz_file
+                evaluation.save()
+            
+            return JsonResponse({
+                'success': True,
+                'message': f'Successfully uploaded quiz with {questions_created} questions',
+                'questions_count': questions_created
+            })
+            
+        except Exception as parse_error:
+            logger.error(f"Error parsing Excel file: {parse_error}")
+            return JsonResponse({
+                'success': False,
+                'error': f'Error parsing Excel file: {str(parse_error)}'
+            })
+            
+    except FinalEvaluation.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Evaluation not found for this course'
+        })
+    except Exception as e:
+        logger.error(f"Error uploading quiz for course {course_key_string}: {e}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        })
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def preview_evaluation_quiz_api(request, course_key_string):
+    """
+    Preview quiz questions for a course evaluation.
+    """
+    try:
+        from opaque_keys.edx.keys import CourseKey
+        from cms.djangoapps.contentstore.models import ChalixQuizQuestion
+        
+        course_key = CourseKey.from_string(course_key_string)
+        
+        questions = ChalixQuizQuestion.objects.filter(
+            course_key=course_key,
+            is_active=True
+        ).order_by('order_index').prefetch_related('choices')
+        
+        quiz_data = []
+        for question in questions:
+            choices_data = []
+            for choice in question.choices.filter(is_active=True).order_by('order_index'):
+                choices_data.append({
+                    'id': choice.id,
+                    'text': choice.choice_text,
+                    'is_correct': choice.is_correct
+                })
+            
+            quiz_data.append({
+                'id': question.id,
+                'question': question.question_text,
+                'choices': choices_data,
+                'order': question.order_index
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'questions': quiz_data,
+            'total_questions': len(quiz_data)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error previewing quiz for course {course_key_string}: {e}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        })

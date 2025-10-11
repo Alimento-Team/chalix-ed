@@ -1,5 +1,7 @@
 (function () {
     'use strict';
+    
+    console.log('Learning Management JS loaded - with highlighted evaluation modes v1.3');
 
     window.CMS_TABS = window.CMS_TABS || {};
 
@@ -2519,6 +2521,7 @@
     // ...existing code...
 
     function openCreateProgramModal(onSuccess) {
+        console.log('Opening create program modal with evaluation section');
         ensureEditModalStyles();
 
         const overlay = document.createElement('div');
@@ -2553,6 +2556,20 @@
                             <div class="lm-topics-editor" id="create-topics-editor">
                                 <div id="create-topics-list"></div>
                                 <button type="button" class="lm-add-topic-btn" id="add-create-topic-btn">+ Thêm chuyên đề</button>
+                            </div>
+                        </div>
+
+                        <div class="lm-form-group" style="margin-top: 24px;">
+                            <label class="lm-form-label" style="color: #1e1e1e; font-weight: 500; font-size: 16px; margin-bottom: 16px; display: block;">Hình thức kiểm tra cuối khoá</label>
+                            <div style="display: flex; align-items: center; gap: 16px;">
+                                <span id="practical-option" style="color: #1e1e1e; font-size: 16px; font-family: 'Inter', sans-serif; padding: 8px 12px; border-radius: 6px; background-color: #e3f2fd; transition: background-color 0.3s;">Nộp bài thu hoạch</span>
+                                <div class="evaluation-switch" style="position: relative; width: 40px; height: 24px;">
+                                    <input type="checkbox" id="evaluation-mode-switch" name="evaluation_mode" checked style="opacity: 0; width: 0; height: 0;">
+                                    <span class="switch-slider" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #3494c8; transition: .4s; border-radius: 24px;">
+                                        <span class="switch-knob" style="position: absolute; content: ''; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; transform: translateX(16px);"></span>
+                                    </span>
+                                </div>
+                                <span id="quiz-option" style="color: #666; font-size: 16px; font-family: 'Inter', sans-serif; padding: 8px 12px; border-radius: 6px; background-color: transparent; transition: background-color 0.3s;">Làm bài trắc nghiệm</span>
                             </div>
                         </div>
                     </form>
@@ -2806,6 +2823,66 @@
             selectedIconInput.value = opt.dataset.icon;
         });
 
+        // Setup evaluation mode switch
+        const evaluationSwitch = overlay.querySelector('#evaluation-mode-switch');
+        const practicalOption = overlay.querySelector('#practical-option');
+        const quizOption = overlay.querySelector('#quiz-option');
+        const slider = overlay.querySelector('.switch-slider');
+        const knob = overlay.querySelector('.switch-knob');
+        
+        // Function to update UI based on switch state
+        const updateEvaluationMode = (isPractical) => {
+            if (isPractical) {
+                // ON = Nộp bài thu hoạch selected
+                practicalOption.style.backgroundColor = '#e3f2fd';
+                practicalOption.style.color = '#1e1e1e';
+                practicalOption.style.fontWeight = '500';
+                
+                quizOption.style.backgroundColor = 'transparent';
+                quizOption.style.color = '#666';
+                quizOption.style.fontWeight = '400';
+                
+                slider.style.backgroundColor = '#3494c8';
+                knob.style.transform = 'translateX(16px)';
+            } else {
+                // OFF = Làm bài trắc nghiệm selected
+                practicalOption.style.backgroundColor = 'transparent';
+                practicalOption.style.color = '#666';
+                practicalOption.style.fontWeight = '400';
+                
+                quizOption.style.backgroundColor = '#e3f2fd';
+                quizOption.style.color = '#1e1e1e';
+                quizOption.style.fontWeight = '500';
+                
+                slider.style.backgroundColor = '#ccc';
+                knob.style.transform = 'translateX(0px)';
+            }
+        };
+        
+        // Set initial state (ON by default = practical mode)
+        updateEvaluationMode(evaluationSwitch.checked);
+        
+        // Handle switch toggle
+        slider.addEventListener('click', () => {
+            evaluationSwitch.checked = !evaluationSwitch.checked;
+            updateEvaluationMode(evaluationSwitch.checked);
+        });
+        
+        // Also allow clicking on the text options to toggle
+        practicalOption.addEventListener('click', () => {
+            if (!evaluationSwitch.checked) {
+                evaluationSwitch.checked = true;
+                updateEvaluationMode(true);
+            }
+        });
+        
+        quizOption.addEventListener('click', () => {
+            if (evaluationSwitch.checked) {
+                evaluationSwitch.checked = false;
+                updateEvaluationMode(false);
+            }
+        });
+
         // Add topic handler
         addTopicBtn.addEventListener('click', () => {
             const div = document.createElement('div');
@@ -2852,11 +2929,16 @@
             messageDiv.style.display = 'block';
             messageDiv.innerHTML = '<div class="lm-message lm-loading">Đang tạo chương trình...</div>';
 
+            // Get evaluation mode (single switch)
+            const isPracticalMode = overlay.querySelector('#evaluation-mode-switch').checked;
+            
             const payload = {
                 title: title.trim(),
                 short_description: short_description.trim(),
                 icon: icon,
-                topics: topics
+                topics: topics,
+                allow_practical_submission: isPracticalMode,  // ON = practical, OFF = multiple choice
+                allow_multiple_choice: !isPracticalMode      // Opposite of practical
             };
 
             // Try to call API

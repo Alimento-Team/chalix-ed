@@ -571,6 +571,17 @@ class LocalProgram(models.Model):
     short_description = models.TextField(blank=True, help_text="Short description of the program")
     icon = models.CharField(max_length=100, blank=True, default='seed-of-life')  # Icon identifier
     update_topics = models.BooleanField(default=False, help_text="Whether to automatically update topics")
+    
+    # End-of-course evaluation format options
+    allow_practical_submission = models.BooleanField(
+        default=True, 
+        help_text="Allow learners to submit practical assignments as end-of-course evaluation"
+    )
+    allow_multiple_choice = models.BooleanField(
+        default=False, 
+        help_text="Allow learners to take multiple choice tests as end-of-course evaluation"
+    )
+    
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -1098,3 +1109,208 @@ class ChalixQuizChoice(models.Model):
     def __str__(self):
         correct_mark = "✓" if self.is_correct else "✗"
         return f"{correct_mark} {self.choice_text[:30]}..."
+
+
+class FinalEvaluation(models.Model):
+    """
+    Model to store final evaluation content for courses based on programs.
+    """
+    EVALUATION_TYPE_PRACTICAL = 'practical'
+    EVALUATION_TYPE_QUIZ = 'quiz'
+    
+    EVALUATION_TYPE_CHOICES = [
+        (EVALUATION_TYPE_PRACTICAL, 'Nộp bài thu hoạch'),
+        (EVALUATION_TYPE_QUIZ, 'Làm bài trắc nghiệm'),
+    ]
+    
+    course_key = CourseKeyField(
+        max_length=255,
+        db_index=True,
+        verbose_name=_("Course Key"),
+        help_text=_("The course this evaluation belongs to")
+    )
+    
+    program = models.ForeignKey(
+        LocalProgram,
+        on_delete=models.CASCADE,
+        related_name='evaluations',
+        verbose_name=_("Program")
+    )
+    
+    evaluation_type = models.CharField(
+        max_length=20,
+        choices=EVALUATION_TYPE_CHOICES,
+        verbose_name=_("Evaluation Type")
+    )
+    
+    # For practical assignments
+    practical_question = models.TextField(
+        blank=True,
+        verbose_name=_("Practical Question"),
+        help_text=_("The question/instructions for practical assignment submission")
+    )
+    
+    # For quiz evaluations
+    quiz_file = models.FileField(
+        upload_to='course_evaluations/quizzes/',
+        blank=True,
+        validators=[FileExtensionValidator(['xlsx', 'xls'])],
+        verbose_name=_("Quiz Excel File"),
+        help_text=_("Excel file containing quiz questions and answers")
+    )
+    
+    is_active = models.BooleanField(
+        default=True,
+        verbose_name=_("Is Active")
+    )
+    
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='created_evaluations'
+    )
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = _("Final Evaluation")
+        verbose_name_plural = _("Final Evaluations")
+        unique_together = ['course_key', 'program']
+        
+    def __str__(self):
+        return f"{self.course_key} - {self.get_evaluation_type_display()}"
+
+
+class LearnerSubmission(models.Model):
+    """
+    Model to store learner submissions for practical assignments.
+    """
+    evaluation = models.ForeignKey(
+        FinalEvaluation,
+        on_delete=models.CASCADE,
+        related_name='submissions'
+    )
+    
+    learner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='evaluation_submissions'
+    )
+    
+    submission_file = models.FileField(
+        upload_to='course_evaluations/submissions/',
+        validators=[FileExtensionValidator(['docx', 'pptx', 'pdf'])],
+        verbose_name=_("Submission File")
+    )
+    
+    submitted_at = models.DateTimeField(auto_now_add=True)
+    
+    # Grading fields
+    grade = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name=_("Grade")
+    )
+    
+    feedback = models.TextField(
+        blank=True,
+        verbose_name=_("Teacher Feedback")
+    )
+    
+    graded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='graded_submissions'
+    )
+    
+    graded_at = models.DateTimeField(null=True, blank=True)
+    
+    class Meta:
+        verbose_name = _("Learner Submission")
+        verbose_name_plural = _("Learner Submissions")
+        unique_together = ['evaluation', 'learner']
+        
+    def __str__(self):
+        return f"{self.learner.username} - {self.evaluation.course_key}"
+
+
+class QuizAttempt(models.Model):
+    """
+    Model to store learner quiz attempts.
+    """
+    evaluation = models.ForeignKey(
+        FinalEvaluation,
+        on_delete=models.CASCADE,
+        related_name='quiz_attempts'
+    )
+    
+    learner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='quiz_attempts'
+    )
+    
+    started_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    
+    score = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name=_("Score")
+    )
+    
+    total_questions = models.PositiveIntegerField(default=0)
+    correct_answers = models.PositiveIntegerField(default=0)
+    
+    is_completed = models.BooleanField(default=False)
+    
+    class Meta:
+        verbose_name = _("Quiz Attempt")
+        verbose_name_plural = _("Quiz Attempts")
+        unique_together = ['evaluation', 'learner']
+        
+    def __str__(self):
+        return f"{self.learner.username} - {self.evaluation.course_key} - {self.score or 'In Progress'}"
+
+
+class QuizAnswer(models.Model):
+    """
+    Model to store individual answers in a quiz attempt.
+    """
+    attempt = models.ForeignKey(
+        QuizAttempt,
+        on_delete=models.CASCADE,
+        related_name='answers'
+    )
+    
+    question = models.ForeignKey(
+        ChalixQuizQuestion,
+        on_delete=models.CASCADE
+    )
+    
+    selected_choice = models.ForeignKey(
+        ChalixQuizChoice,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True
+    )
+    
+    is_correct = models.BooleanField(default=False)
+    answered_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        verbose_name = _("Quiz Answer")
+        verbose_name_plural = _("Quiz Answers")
+        unique_together = ['attempt', 'question']
+        
+    def __str__(self):
+        return f"{self.attempt.learner.username} - Q{self.question.id} - {'✓' if self.is_correct else '✗'}"

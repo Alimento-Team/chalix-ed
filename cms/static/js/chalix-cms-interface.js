@@ -6,7 +6,7 @@
 (function() {
     'use strict';
     // Lightweight version marker and early boot log to help browser verification
-    const CHALIX_CMS_INTERFACE_VERSION = 'v2.3.0'; // Fixed layout with exact Figma positioning
+    const CHALIX_CMS_INTERFACE_VERSION = 'v2.3.1'; // Added evaluation section debugging
     try {
         console.log('Chalix CMS Interface: boot ->', CHALIX_CMS_INTERFACE_VERSION, 'timestamp:', new Date().toISOString());
         // Try to inject styles early (ensureProgramModalStyles is a hoisted function)
@@ -89,6 +89,37 @@
             body .chalix-topics-list { display:flex !important; flex-direction:column !important; gap:10px !important; }
             body .chalix-topic-item { background:#f3f4f6 !important; border-radius:6px !important; padding:12px 14px !important; display:flex !important; align-items:center !important; justify-content:space-between !important; }
             body .chalix-topic-text { font-size:14px !important; color:#111827 !important; }
+
+            /* Evaluation format section */
+            body .chalix-evaluation-section { 
+                margin-top:24px !important; 
+                padding: 0 !important; 
+                display: block !important;
+                visibility: visible !important;
+                opacity: 1 !important;
+            }
+            body .chalix-evaluation-title { 
+                font-size:16px !important; 
+                font-weight:500 !important; 
+                color:#111827 !important; 
+                margin:0 0 16px 0 !important;
+                display: block !important;
+            }
+            body .chalix-evaluation-options { 
+                display:flex !important; 
+                flex-direction:column !important; 
+                gap:16px !important;
+                visibility: visible !important;
+            }
+            body .chalix-evaluation-options .evaluation-option { 
+                margin-bottom:0 !important;
+                display: flex !important;
+            }
+            body .chalix-evaluation-options .chalix-switch-label { 
+                width:auto !important; 
+                min-width:200px !important;
+                display: block !important;
+            }
 
             body .chalix-add-topic-btn, body .add-topic-button { display:block !important; margin:18px 0 !important; background:#10b981 !important; color:#fff !important; border:none !important; padding:12px 22px !important; border-radius:6px !important; font-weight:600 !important; font-size:14px !important; cursor:pointer !important; }
 
@@ -298,84 +329,109 @@
      * Open program creation modal directly
      */
     function openCreateProgramModalDirectly() {
+        // Ensure styles are loaded
+        ensureProgramModalStyles();
+        
         const overlay = document.createElement('div');
         overlay.className = 'chalix-modal-overlay';
         
         // Create modal with restored chalix-modal structure
-        overlay.innerHTML = `
-            <div class="chalix-modal">
-                <div class="chalix-modal-header">
-                    <h2 class="chalix-modal-title">TẠO CHƯƠNG TRÌNH HỌC</h2>
-                    <button class="chalix-modal-close" aria-label="Close">×</button>
-                </div>
-                <div class="chalix-modal-content">
-                    <div class="chalix-form-item title-field">
-                        <label>Tiêu đề</label>
-                        <input type="text" name="title" class="chalix-input-title" placeholder="Tiêu đề chương trình" />
-                    </div>
-                    
-                    <div class="chalix-form-item icon-field">
-                        <label>Biểu tượng</label>
-                        <div class="chalix-icon-selector">
-                            <div class="chalix-icon-grid">
-                                <div class="chalix-icon-option selected" data-icon="🌱">
-                                    <div class="chalix-icon-preview">🌱</div>
-                                </div>
-                                <div class="chalix-icon-option" data-icon="📚">
-                                    <div class="chalix-icon-preview">📚</div>
-                                </div>
-                                <div class="chalix-icon-option" data-icon="🎓">
-                                    <div class="chalix-icon-preview">🎓</div>
-                                </div>
-                                <div class="chalix-icon-option" data-icon="📜">
-                                    <div class="chalix-icon-preview">📜</div>
-                                </div>
-                                <div class="chalix-icon-option" data-icon="💡">
-                                    <div class="chalix-icon-preview">💡</div>
-                                </div>
-                                <div class="chalix-icon-option" data-icon="🎯">
-                                    <div class="chalix-icon-preview">🎯</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="chalix-switch-field">
-                        <label class="chalix-switch-label" for="update-topics">Cập nhật các chuyên đề</label>
-                        <div class="chalix-switch-container">
-                            <input type="checkbox" id="update-topics" name="update_topics" class="chalix-switch-input" />
-                            <label for="update-topics" class="chalix-switch-slider"></label>
-                        </div>
-                    </div>
-                    
-                    <div class="chalix-topics-section">
-                        <h4 class="chalix-topics-title">Thêm chuyên đề</h4>
-                        <div class="chalix-topics-list">
-                            <div class="chalix-topic-item">
-                                <span class="chalix-topic-text">Tổng quan về đơn vị sự nghiệp công lập và chức năng, nhiệm vụ, quyền hạn</span>
-                                <button type="button" class="chalix-topic-remove">
-                                    <img src="http://localhost:3000/api/figma/images/7b1d96bb0b8a4c5bb29c69bb9c7ab5c993be64fe" alt="Remove" />
-                                </button>
-                            </div>
-                            <div class="chalix-topic-item">
-                                <span class="chalix-topic-text">Pháp luật về quản lý dự án đầu tư xây dựng và quản lý dự án đường bộ</span>
-                                <button type="button" class="chalix-topic-remove">
-                                    <img src="http://localhost:3000/api/figma/images/7b1d96bb0b8a4c5bb29c69bb9c7ab5c993be64fe" alt="Remove" />
-                                </button>
-                            </div>
-                        </div>
-                        <button type="button" class="chalix-add-topic-btn">+ Thêm mới</button>
-                    </div>
-                </div>
-                <div class="chalix-modal-buttons">
-                    <button class="chalix-btn-cancel">Hủy</button>
-                    <button class="chalix-btn-submit">Tạo chương trình học</button>
-                </div>
-            </div>
-        `;
+        console.log('Creating program modal with evaluation section');
+        
+        // Create the modal in parts to avoid any truncation issues
+        const modalHTML = [
+            '<div class="chalix-modal">',
+            '<div class="chalix-modal-header">',
+            '<h2 class="chalix-modal-title">TẠO CHƯƠNG TRÌNH HỌC</h2>',
+            '<button class="chalix-modal-close" aria-label="Close">×</button>',
+            '</div>',
+            '<div class="chalix-modal-content">',
+            '<div class="chalix-form-item title-field">',
+            '<label>Tiêu đề</label>',
+            '<input type="text" name="title" class="chalix-input-title" placeholder="Tiêu đề chương trình" />',
+            '</div>',
+            '<div class="chalix-form-item icon-field">',
+            '<label>Biểu tượng</label>',
+            '<div class="chalix-icon-selector">',
+            '<div class="chalix-icon-grid">',
+            '<div class="chalix-icon-option selected" data-icon="🌱"><div class="chalix-icon-preview">🌱</div></div>',
+            '<div class="chalix-icon-option" data-icon="📚"><div class="chalix-icon-preview">📚</div></div>',
+            '<div class="chalix-icon-option" data-icon="🎓"><div class="chalix-icon-preview">🎓</div></div>',
+            '<div class="chalix-icon-option" data-icon="📜"><div class="chalix-icon-preview">📜</div></div>',
+            '<div class="chalix-icon-option" data-icon="💡"><div class="chalix-icon-preview">💡</div></div>',
+            '<div class="chalix-icon-option" data-icon="🎯"><div class="chalix-icon-preview">🎯</div></div>',
+            '</div></div></div>',
+            '<div class="chalix-switch-field">',
+            '<label class="chalix-switch-label" for="update-topics">Cập nhật các chuyên đề</label>',
+            '<div class="chalix-switch-container">',
+            '<input type="checkbox" id="update-topics" name="update_topics" class="chalix-switch-input" />',
+            '<label for="update-topics" class="chalix-switch-slider"></label>',
+            '</div></div>',
+            '<div class="chalix-topics-section">',
+            '<h4 class="chalix-topics-title">Thêm chuyên đề</h4>',
+            '<div class="chalix-topics-list">',
+            '<div class="chalix-topic-item">',
+            '<span class="chalix-topic-text">Tổng quan về đơn vị sự nghiệp công lập</span>',
+            '<button type="button" class="chalix-topic-remove">×</button>',
+            '</div></div>',
+            '<button type="button" class="chalix-add-topic-btn">+ Thêm mới</button>',
+            '</div>'
+        ].join('');
+        
+        // Add the evaluation section separately to ensure it's included
+        const evaluationHTML = [
+            '<div class="chalix-evaluation-section" style="display: block !important; margin: 20px 0 !important; padding: 16px !important; border: 2px solid #10b981 !important; border-radius: 8px !important; background: #f0fdf4 !important;">',
+            '<h4 class="chalix-evaluation-title" style="display: block !important; margin: 0 0 16px 0 !important; font-size: 16px !important; font-weight: 500 !important; color: #111827 !important;">Hình thức kiểm tra cuối khoá</h4>',
+            '<div class="chalix-evaluation-options" style="display: flex !important; flex-direction: column !important; gap: 12px !important;">',
+            '<div class="chalix-switch-field evaluation-option" style="display: flex !important; align-items: center !important; gap: 12px !important;">',
+            '<label class="chalix-switch-label" for="practical-submission" style="min-width: 200px !important; font-size: 14px !important; color: #374151 !important;">Nộp bài thu hoạch</label>',
+            '<div class="chalix-switch-container">',
+            '<input type="checkbox" id="practical-submission" name="allow_practical_submission" class="chalix-switch-input" checked />',
+            '<label for="practical-submission" class="chalix-switch-slider"></label>',
+            '</div></div>',
+            '<div class="chalix-switch-field evaluation-option" style="display: flex !important; align-items: center !important; gap: 12px !important;">',
+            '<label class="chalix-switch-label" for="multiple-choice" style="min-width: 200px !important; font-size: 14px !important; color: #374151 !important;">Làm bài trắc nghiệm</label>',
+            '<div class="chalix-switch-container">',
+            '<input type="checkbox" id="multiple-choice" name="allow_multiple_choice" class="chalix-switch-input" />',
+            '<label for="multiple-choice" class="chalix-switch-slider"></label>',
+            '</div></div></div></div>'
+        ].join('');
+        
+        const footerHTML = [
+            '</div>',
+            '<div class="chalix-modal-buttons">',
+            '<button class="chalix-btn-cancel">Hủy</button>',
+            '<button class="chalix-btn-submit">Tạo chương trình học</button>',
+            '</div></div>'
+        ].join('');
+        
+        overlay.innerHTML = modalHTML + evaluationHTML + footerHTML;
+        console.log('Modal HTML set, length:', overlay.innerHTML.length);
 
-        ensureProgramModalStyles();
         document.body.appendChild(overlay);
+
+        // Debug: Check if evaluation section exists
+        const evaluationSection = overlay.querySelector('.chalix-evaluation-section');
+        const evaluationTitle = overlay.querySelector('.chalix-evaluation-title');
+        const evaluationOptions = overlay.querySelector('.chalix-evaluation-options');
+        const allSections = overlay.querySelectorAll('.chalix-modal-content > *');
+        
+        console.log('=== MODAL CONTENT DEBUG ===');
+        console.log('Evaluation section found:', !!evaluationSection);
+        console.log('Evaluation title found:', !!evaluationTitle);
+        console.log('Evaluation options found:', !!evaluationOptions);
+        console.log('Evaluation title text:', evaluationTitle ? evaluationTitle.textContent : 'N/A');
+        console.log('All sections in modal:', allSections.length);
+        console.log('Section classes:', Array.from(allSections).map(s => s.className));
+        
+        if (evaluationSection) {
+            console.log('Evaluation section styles:', {
+                display: getComputedStyle(evaluationSection).display,
+                visibility: getComputedStyle(evaluationSection).visibility,
+                opacity: getComputedStyle(evaluationSection).opacity,
+                height: getComputedStyle(evaluationSection).height
+            });
+        }
 
         // Show modal with animation
         requestAnimationFrame(() => overlay.classList.add('show'));
@@ -400,12 +456,15 @@
             });
         });
 
-        // Switch functionality
-        const switchSlider = overlay.querySelector('.chalix-switch-slider');
-        const switchInput = overlay.querySelector('.chalix-switch-input');
-        
-        switchSlider.addEventListener('click', () => {
-            switchInput.checked = !switchInput.checked;
+        // Switch functionality for all switches (including evaluation options)
+        const switchSliders = overlay.querySelectorAll('.chalix-switch-slider');
+        switchSliders.forEach(slider => {
+            slider.addEventListener('click', () => {
+                const input = slider.previousElementSibling;
+                if (input && input.type === 'checkbox') {
+                    input.checked = !input.checked;
+                }
+            });
         });
 
         // Topic removal
@@ -491,13 +550,17 @@
         // Form submission
         overlay.querySelector('.chalix-btn-submit').addEventListener('click', (e) => {
             const title = overlay.querySelector('.chalix-input-title').value.trim();
-            const updateTopics = overlay.querySelector('.chalix-switch-input').checked;
+            const updateTopics = overlay.querySelector('#update-topics').checked;
             const selectedIcon = overlay.querySelector('.chalix-icon-option.selected')?.dataset.icon || '🌱';
             
             // Collect topics
             const topics = Array.from(topicsSection.querySelectorAll('.chalix-topic-text'))
                 .map(el => el.textContent.trim())
                 .filter(text => text.length > 0);
+
+            // Collect evaluation format options
+            const allowPracticalSubmission = overlay.querySelector('#practical-submission').checked;
+            const allowMultipleChoice = overlay.querySelector('#multiple-choice').checked;
 
             if (!title) {
                 alert('Vui lòng nhập tiêu đề chương trình học.');
@@ -524,7 +587,9 @@
                     title: title, 
                     icon: selectedIcon,
                     update_topics: updateTopics,
-                    topics: topics
+                    topics: topics,
+                    allow_practical_submission: allowPracticalSubmission,
+                    allow_multiple_choice: allowMultipleChoice
                 })
             }).then(resp => {
                 if (!resp.ok) throw resp;
@@ -886,11 +951,384 @@
         }
     });
 
+    // Final Evaluation Management Functions
+    function openFinalEvaluationModal(courseKey) {
+        ensureFinalEvaluationModalStyles();
+        
+        // Get evaluation data
+        fetch(`/api/chalix/evaluation/get/${courseKey}/`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showFinalEvaluationModal(data.evaluation, courseKey);
+                } else {
+                    console.error('Error loading evaluation:', data.error);
+                    alert('Không thể tải thông tin kiểm tra cuối khóa');
+                }
+            })
+            .catch(error => {
+                console.error('Error loading evaluation:', error);
+                alert('Lỗi khi tải thông tin kiểm tra cuối khóa');
+            });
+    }
+
+    function showFinalEvaluationModal(evaluation, courseKey) {
+        const modalHTML = `
+            <div id="finalEvaluationModal" class="final-evaluation-modal">
+                <div class="final-evaluation-modal-content">
+                    <div class="final-evaluation-modal-header">
+                        <h2>Quản lý Kiểm tra cuối khóa</h2>
+                        <button class="final-evaluation-close-btn">&times;</button>
+                    </div>
+                    <div class="final-evaluation-modal-body">
+                        <div class="evaluation-info">
+                            <p><strong>Chương trình:</strong> ${evaluation.program_title || 'Không xác định'}</p>
+                            <p><strong>Loại kiểm tra:</strong> ${evaluation.evaluation_type === 'practical' ? 'Nộp bài thu hoạch' : 'Làm bài trắc nghiệm'}</p>
+                        </div>
+                        
+                        ${evaluation.evaluation_type === 'practical' ? `
+                            <div class="practical-section">
+                                <h3>Câu hỏi thực hành</h3>
+                                <textarea id="practicalQuestion" class="practical-question-input" 
+                                         placeholder="Nhập câu hỏi hoặc hướng dẫn cho bài thực hành...">${evaluation.practical_question || ''}</textarea>
+                                <button id="savePracticalQuestion" class="save-practical-btn">Lưu câu hỏi</button>
+                            </div>
+                        ` : `
+                            <div class="quiz-section">
+                                <h3>Quản lý bài trắc nghiệm</h3>
+                                <div class="quiz-upload-area">
+                                    <input type="file" id="quizFileInput" accept=".xlsx,.xls" style="display: none;">
+                                    <button id="uploadQuizBtn" class="upload-quiz-btn">Tải lên file Excel</button>
+                                    <p class="upload-hint">Định dạng yêu cầu: Question, Choice_A, Choice_B, Choice_C, Choice_D, Correct_Answer</p>
+                                </div>
+                                
+                                ${evaluation.has_quiz_file ? `
+                                    <div class="current-quiz-info">
+                                        <p><strong>File hiện tại:</strong> ${evaluation.quiz_file_name}</p>
+                                        <button id="previewQuizBtn" class="preview-quiz-btn">Xem trước câu hỏi</button>
+                                    </div>
+                                ` : ''}
+                                
+                                <div id="quizPreview" class="quiz-preview" style="display: none;"></div>
+                            </div>
+                        `}
+                    </div>
+                </div>
+                <div class="final-evaluation-modal-overlay"></div>
+            </div>
+        `;
+
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+        
+        // Add event listeners
+        setupFinalEvaluationModalEvents(evaluation, courseKey);
+    }
+
+    function setupFinalEvaluationModalEvents(evaluation, courseKey) {
+        const modal = document.getElementById('finalEvaluationModal');
+        
+        // Close modal
+        modal.querySelector('.final-evaluation-close-btn').addEventListener('click', closeFinalEvaluationModal);
+        modal.querySelector('.final-evaluation-modal-overlay').addEventListener('click', closeFinalEvaluationModal);
+        
+        if (evaluation.evaluation_type === 'practical') {
+            // Save practical question
+            modal.querySelector('#savePracticalQuestion').addEventListener('click', function() {
+                savePracticalQuestion(courseKey);
+            });
+        } else {
+            // Quiz upload
+            const uploadBtn = modal.querySelector('#uploadQuizBtn');
+            const fileInput = modal.querySelector('#quizFileInput');
+            
+            uploadBtn.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', function(e) {
+                if (e.target.files.length > 0) {
+                    uploadQuizFile(courseKey, e.target.files[0]);
+                }
+            });
+            
+            // Preview quiz
+            const previewBtn = modal.querySelector('#previewQuizBtn');
+            if (previewBtn) {
+                previewBtn.addEventListener('click', function() {
+                    previewQuiz(courseKey);
+                });
+            }
+        }
+    }
+
+    function closeFinalEvaluationModal() {
+        const modal = document.getElementById('finalEvaluationModal');
+        if (modal) {
+            modal.remove();
+        }
+    }
+
+    function savePracticalQuestion(courseKey) {
+        const question = document.getElementById('practicalQuestion').value;
+        
+        fetch(`/api/chalix/evaluation/update/${courseKey}/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCSRFToken()
+            },
+            body: JSON.stringify({
+                practical_question: question
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Đã lưu câu hỏi thành công!');
+            } else {
+                alert('Lỗi: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error saving question:', error);
+            alert('Lỗi khi lưu câu hỏi');
+        });
+    }
+
+    function uploadQuizFile(courseKey, file) {
+        const formData = new FormData();
+        formData.append('quiz_file', file);
+        
+        const uploadBtn = document.getElementById('uploadQuizBtn');
+        const originalText = uploadBtn.textContent;
+        uploadBtn.textContent = 'Đang tải lên...';
+        uploadBtn.disabled = true;
+        
+        fetch(`/api/chalix/evaluation/upload-quiz/${courseKey}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCSRFToken()
+            },
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(`Tải lên thành công! ${data.questions_count} câu hỏi đã được tạo.`);
+                // Refresh modal to show new file info
+                closeFinalEvaluationModal();
+                openFinalEvaluationModal(courseKey);
+            } else {
+                alert('Lỗi: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error uploading quiz:', error);
+            alert('Lỗi khi tải lên file');
+        })
+        .finally(() => {
+            uploadBtn.textContent = originalText;
+            uploadBtn.disabled = false;
+        });
+    }
+
+    function previewQuiz(courseKey) {
+        fetch(`/api/chalix/evaluation/preview-quiz/${courseKey}/`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showQuizPreview(data.questions);
+                } else {
+                    alert('Lỗi: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error previewing quiz:', error);
+                alert('Lỗi khi xem trước câu hỏi');
+            });
+    }
+
+    function showQuizPreview(questions) {
+        const previewContainer = document.getElementById('quizPreview');
+        
+        let previewHTML = `<h4>Xem trước câu hỏi (${questions.length} câu)</h4>`;
+        
+        questions.forEach((question, index) => {
+            previewHTML += `
+                <div class="question-preview">
+                    <h5>Câu ${index + 1}: ${question.question}</h5>
+                    <ul class="choices-preview">
+                        ${question.choices.map(choice => `
+                            <li class="${choice.is_correct ? 'correct-choice' : ''}">${choice.text}</li>
+                        `).join('')}
+                    </ul>
+                </div>
+            `;
+        });
+        
+        previewContainer.innerHTML = previewHTML;
+        previewContainer.style.display = 'block';
+    }
+
+    function ensureFinalEvaluationModalStyles() {
+        if (document.getElementById('finalEvaluationModalStyles')) return;
+        
+        const style = document.createElement('style');
+        style.id = 'finalEvaluationModalStyles';
+        style.textContent = `
+            .final-evaluation-modal {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                z-index: 10000;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+            }
+            
+            .final-evaluation-modal-overlay {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background-color: rgba(0, 0, 0, 0.5);
+            }
+            
+            .final-evaluation-modal-content {
+                position: relative;
+                background: white;
+                border-radius: 8px;
+                width: 90%;
+                max-width: 800px;
+                max-height: 90vh;
+                overflow-y: auto;
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            }
+            
+            .final-evaluation-modal-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 20px 24px;
+                border-bottom: 1px solid #e0e0e0;
+            }
+            
+            .final-evaluation-modal-header h2 {
+                margin: 0;
+                font-size: 20px;
+                color: #333;
+            }
+            
+            .final-evaluation-close-btn {
+                background: none;
+                border: none;
+                font-size: 24px;
+                cursor: pointer;
+                color: #666;
+                padding: 0;
+                width: 30px;
+                height: 30px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            
+            .final-evaluation-modal-body {
+                padding: 24px;
+            }
+            
+            .evaluation-info {
+                background: #f5f5f5;
+                padding: 16px;
+                border-radius: 4px;
+                margin-bottom: 20px;
+            }
+            
+            .practical-question-input {
+                width: 100%;
+                min-height: 120px;
+                padding: 12px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                font-size: 14px;
+                resize: vertical;
+            }
+            
+            .save-practical-btn, .upload-quiz-btn, .preview-quiz-btn {
+                background: #007cba;
+                color: white;
+                border: none;
+                padding: 10px 16px;
+                border-radius: 4px;
+                cursor: pointer;
+                margin-top: 12px;
+            }
+            
+            .save-practical-btn:hover, .upload-quiz-btn:hover, .preview-quiz-btn:hover {
+                background: #005a8b;
+            }
+            
+            .upload-hint {
+                font-size: 12px;
+                color: #666;
+                margin-top: 8px;
+                margin-bottom: 0;
+            }
+            
+            .current-quiz-info {
+                background: #e8f4fd;
+                padding: 12px;
+                border-radius: 4px;
+                margin: 16px 0;
+            }
+            
+            .quiz-preview {
+                margin-top: 20px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                padding: 16px;
+                max-height: 300px;
+                overflow-y: auto;
+            }
+            
+            .question-preview {
+                margin-bottom: 16px;
+                padding-bottom: 16px;
+                border-bottom: 1px solid #eee;
+            }
+            
+            .question-preview:last-child {
+                border-bottom: none;
+                margin-bottom: 0;
+                padding-bottom: 0;
+            }
+            
+            .choices-preview {
+                list-style: none;
+                padding: 0;
+                margin: 8px 0 0 0;
+            }
+            
+            .choices-preview li {
+                padding: 4px 0;
+                margin-left: 20px;
+            }
+            
+            .correct-choice {
+                font-weight: bold;
+                color: #2e7d32;
+            }
+        `;
+        
+        document.head.appendChild(style);
+    }
+
     // Expose some functions globally for external use
     window.ChalixCMS = {
         activateTab: activateTab,
         loadTabData: loadTabData,
-        openCreateProgramModalDirectly: openCreateProgramModalDirectly
+        openCreateProgramModalDirectly: openCreateProgramModalDirectly,
+        openFinalEvaluationModal: openFinalEvaluationModal
     };
     // Notify other scripts that ChalixCMS is ready
     try {
@@ -898,6 +1336,9 @@
     } catch (e) {
         console.warn('Could not dispatch ChalixCMS:ready event', e);
     }
+
+    console.log('=== CHALIX CMS INTERFACE LOADED ===', new Date().toISOString());
+    console.log('openCreateProgramModalDirectly function exists:', typeof openCreateProgramModalDirectly);
 
     }); // Close DOMContentLoaded listener
 
