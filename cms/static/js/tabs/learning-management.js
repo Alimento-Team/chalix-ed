@@ -2085,7 +2085,12 @@
                                     </div>
                                     <div class="lm-detail-row">
                                         <span class="lm-detail-label">Trình độ:</span>
-                                        <span class="lm-detail-value">${escapeHtml(course.course_level || 'Chưa xác định')}</span>
+                                        <span class="lm-detail-value">${escapeHtml(
+                                            course.course_level === 'basic' ? 'Cơ bản' :
+                                            course.course_level === 'intermediate' ? 'Trung cấp' :
+                                            course.course_level === 'advanced' ? 'Nâng cao' :
+                                            course.course_level || 'Chưa xác định'
+                                        )}</span>
                                     </div>
                                     <div class="lm-detail-row">
                                         <span class="lm-detail-label">Thời lượng ước tính:</span>
@@ -3485,6 +3490,22 @@
                     });
                 }
                 
+                // Determine final_evaluation_type from program settings
+                let finalEvaluationType = '';
+                if (sourceProgram.allow_practical_submission && sourceProgram.allow_multiple_choice) {
+                    // If both are allowed, default to quiz (can be changed later by instructor)
+                    finalEvaluationType = 'quiz';
+                } else if (sourceProgram.allow_practical_submission) {
+                    finalEvaluationType = 'project';
+                } else if (sourceProgram.allow_multiple_choice) {
+                    finalEvaluationType = 'quiz';
+                } else {
+                    // Default to project if neither is explicitly set
+                    finalEvaluationType = 'project';
+                }
+                courseData.final_evaluation_type = finalEvaluationType;
+                console.log('[LM] Set final_evaluation_type from program:', finalEvaluationType);
+                
                 // Now proceed with course creation
                 proceedWithCourseCreation(courseData, messageEl, createBtn, overlay, onSuccess);
             })
@@ -3506,6 +3527,20 @@
                             source_topic: topic
                         };
                     });
+                    
+                    // Set final_evaluation_type from fallback program data (if available)
+                    let finalEvaluationType = '';
+                    if (sourceProgram.allow_practical_submission && sourceProgram.allow_multiple_choice) {
+                        finalEvaluationType = 'quiz';
+                    } else if (sourceProgram.allow_practical_submission) {
+                        finalEvaluationType = 'project';
+                    } else if (sourceProgram.allow_multiple_choice) {
+                        finalEvaluationType = 'quiz';
+                    } else {
+                        finalEvaluationType = 'project';
+                    }
+                    courseData.final_evaluation_type = finalEvaluationType;
+                    console.log('[LM] Set final_evaluation_type from DOM fallback:', finalEvaluationType);
                 }
                 
                 proceedWithCourseCreation(courseData, messageEl, createBtn, overlay, onSuccess);

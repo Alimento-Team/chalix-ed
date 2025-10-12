@@ -1178,7 +1178,7 @@ class FinalEvaluation(models.Model):
     class Meta:
         verbose_name = _("Final Evaluation")
         verbose_name_plural = _("Final Evaluations")
-        unique_together = ['course_key', 'program']
+        unique_together = ['course_key', 'program', 'evaluation_type']
         
     def __str__(self):
         return f"{self.course_key} - {self.get_evaluation_type_display()}"

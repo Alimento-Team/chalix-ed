@@ -83,6 +83,9 @@ class CourseDetails:
         self.estimated_hours = 0.0
         self.online_course_link = ""
         self.instructor = ""
+        self.final_evaluation_type = ""
+        self.course_type = ""
+        self.course_level = ""
 
     @classmethod
     def fetch_about_attribute(cls, course_key, attribute):
@@ -140,6 +143,9 @@ class CourseDetails:
         course_details.estimated_hours = getattr(block, 'estimated_hours', 0.0)
         course_details.online_course_link = getattr(block, 'online_course_link', "")
         course_details.instructor = getattr(block, 'instructor', "")
+        course_details.final_evaluation_type = getattr(block, 'final_evaluation_type', "")
+        course_details.course_type = getattr(block, 'course_type', "")
+        course_details.course_level = getattr(block, 'course_level', "")
 
         # Default course license is "All Rights Reserved"
         course_details.license = getattr(block, "license", "all-rights-reserved")

@@ -26,47 +26,58 @@ def get_course_evaluation(request, course_id):
         
         course_key = CourseKey.from_string(course_id)
         
-        try:
-            evaluation = FinalEvaluation.objects.get(course_key=course_key, is_active=True)
+        evaluations = FinalEvaluation.objects.filter(course_key=course_key, is_active=True)
+        
+        if not evaluations.exists():
+            return JsonResponse({
+                'success': False,
+                'error': 'No evaluation found for this course'
+            })
             
-            # Check if user has already submitted/attempted
-            submission = None
-            attempt = None
-            
+        # Process both practical and quiz evaluations
+        practical_data = None
+        quiz_data = None
+        
+        for evaluation in evaluations:
             if evaluation.evaluation_type == FinalEvaluation.EVALUATION_TYPE_PRACTICAL:
+                submission = None
                 try:
                     submission = LearnerSubmission.objects.get(evaluation=evaluation, learner=request.user)
                 except LearnerSubmission.DoesNotExist:
                     pass
-            else:
-                try:
-                    attempt = QuizAttempt.objects.get(evaluation=evaluation, learner=request.user)
-                except QuizAttempt.DoesNotExist:
-                    pass
-            
-            return JsonResponse({
-                'success': True,
-                'evaluation': {
+                
+                practical_data = {
                     'id': evaluation.id,
-                    'evaluation_type': evaluation.evaluation_type,
-                    'evaluation_type_display': evaluation.get_evaluation_type_display(),
                     'practical_question': evaluation.practical_question,
                     'has_submission': submission is not None,
                     'submission_file': submission.submission_file.url if submission and submission.submission_file else None,
                     'submission_grade': float(submission.grade) if submission and submission.grade else None,
                     'teacher_feedback': submission.feedback if submission else None,
+                    'can_submit': submission is None
+                }
+                
+            elif evaluation.evaluation_type == FinalEvaluation.EVALUATION_TYPE_QUIZ:
+                attempt = None
+                try:
+                    attempt = QuizAttempt.objects.get(evaluation=evaluation, learner=request.user)
+                except QuizAttempt.DoesNotExist:
+                    pass
+                
+                quiz_data = {
+                    'id': evaluation.id,
                     'has_quiz_attempt': attempt is not None,
                     'quiz_completed': attempt.is_completed if attempt else False,
                     'quiz_score': float(attempt.score) if attempt and attempt.score else None,
-                    'can_retake': not (submission or (attempt and attempt.is_completed))
+                    'can_start': attempt is None or not attempt.is_completed
                 }
-            })
-            
-        except FinalEvaluation.DoesNotExist:
-            return JsonResponse({
-                'success': False,
-                'error': 'No evaluation found for this course'
-            })
+        
+        return JsonResponse({
+            'success': True,
+            'practical_evaluation': practical_data,
+            'quiz_evaluation': quiz_data,
+            'has_practical': practical_data is not None,
+            'has_quiz': quiz_data is not None
+        })
             
     except Exception as e:
         logger.error(f"Error getting course evaluation for {course_id}: {e}")

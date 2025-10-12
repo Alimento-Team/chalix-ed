@@ -152,9 +152,259 @@ from openedx.core.release import RELEASE_LINE
                             <article class="content-primary ${'content-primary-fullwidth' if is_fullwidth_content else ''}">
                                 <%
                                     assets_url = reverse('assets_handler', kwargs={'course_key_string': str(xblock_locator.course_key)})
+                                    
+                                    # Check if this is the final evaluation unit
+                                    # Debug information
+                                    xblock_display_name = getattr(xblock, 'display_name', None)
+                                    xblock_category = getattr(xblock, 'category', None)
+                                    parent_name = None
+                                    grandparent_name = None
+                                    
+                                    # Get parent information for debugging
+                                    if hasattr(xblock, 'get_parent'):
+                                        try:
+                                            parent = xblock.get_parent()
+                                            if parent and hasattr(parent, 'display_name'):
+                                                parent_name = getattr(parent, 'display_name', '')
+                                                # Get grandparent info too
+                                                if hasattr(parent, 'get_parent'):
+                                                    try:
+                                                        grandparent = parent.get_parent()
+                                                        if grandparent and hasattr(grandparent, 'display_name'):
+                                                            grandparent_name = getattr(grandparent, 'display_name', '')
+                                                    except:
+                                                        pass
+                                        except:
+                                            pass
+                                    
+                                    # Always show debug info for now - REMOVE IN PRODUCTION
+                                    debug_always_show = True
+                                    
+                                    # Enhanced detection logic - check multiple conditions
+                                    final_evaluation_keywords = [
+                                        "Kiểm tra cuối khoá",
+                                        "kiểm tra cuối khóa", 
+                                        "Kiểm tra cuối khóa",
+                                        "kiểm tra cuối khoá",
+                                        "Bài kiểm tra",
+                                        "bài kiểm tra"
+                                    ]
+                                    
+                                    is_final_evaluation_unit = False
+                                    match_reason = []
+                                    
+                                    if xblock_display_name and xblock_category == 'vertical':
+                                        # Check current unit name
+                                        for keyword in final_evaluation_keywords:
+                                            if keyword in xblock_display_name:
+                                                is_final_evaluation_unit = True
+                                                match_reason.append(f"Unit name contains '{keyword}'")
+                                        
+                                        # Check parent (subsection) name
+                                        if parent_name:
+                                            for keyword in final_evaluation_keywords:
+                                                if keyword in parent_name:
+                                                    is_final_evaluation_unit = True
+                                                    match_reason.append(f"Parent name contains '{keyword}'")
+                                        
+                                        # Check grandparent (section) name
+                                        if grandparent_name:
+                                            for keyword in final_evaluation_keywords:
+                                                if keyword in grandparent_name:
+                                                    is_final_evaluation_unit = True
+                                                    match_reason.append(f"Grandparent name contains '{keyword}'")
                                 %>
-                                <section class="wrapper-xblock level-page is-hidden studio-xblock-wrapper" data-locator="${xblock_locator}" data-course-key="${xblock_locator.course_key}" data-course-assets="${assets_url}">
-                                </section>
+                                
+                                % if is_final_evaluation_unit or debug_always_show:
+                                    <!-- Final Evaluation Management Interface for MFE -->
+                                    <input type="hidden" name="csrfmiddlewaretoken" value="${csrf_token}">
+                                    <!-- Enhanced Debug info for MFE (remove in production) -->
+                                    <div style="background: ${is_final_evaluation_unit and '#e8f5e8' or '#fff3cd'}; padding: 15px; margin-bottom: 10px; border: 1px solid ${is_final_evaluation_unit and '#c3e6c3' or '#ffeaa7'}; font-size: 12px; border-radius: 4px; font-family: monospace;">
+                                        <strong>${is_final_evaluation_unit and '✅ Final Evaluation Detected!' or '🔍 Debug Mode - Checking Detection'}</strong><br>
+                                        <strong>Unit Info:</strong><br>
+                                        &nbsp;&nbsp;Display Name: "${xblock_display_name or 'None'}"<br>
+                                        &nbsp;&nbsp;Category: ${xblock_category or 'None'}<br>
+                                        &nbsp;&nbsp;XBlock Location: ${xblock_locator}<br>
+                                        <strong>Parent Info:</strong><br>
+                                        &nbsp;&nbsp;Parent Name: "${parent_name or 'None'}"<br>
+                                        &nbsp;&nbsp;Grandparent Name: "${grandparent_name or 'None'}"<br>
+                                        <strong>Detection Results:</strong><br>
+                                        &nbsp;&nbsp;Is Final Evaluation Unit: ${is_final_evaluation_unit}<br>
+                                        &nbsp;&nbsp;Match Reasons: ${', '.join(match_reason) if match_reason else 'None'}<br>
+                                        <strong>Template:</strong> container_chromeless.html (MFE Embed)<br>
+                                        <strong>URL:</strong> ${request.path}<br>
+                                        % if is_final_evaluation_unit:
+                                            <div style="margin-top: 10px; padding: 8px; background: #d4edda; border: 1px solid #c3e6cb; border-radius: 3px;">
+                                                <strong style="color: #155724;">🎯 Final evaluation interface will load below!</strong>
+                                            </div>
+                                        % else:
+                                            <div style="margin-top: 10px; padding: 8px; background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 3px;">
+                                                <strong style="color: #721c24;">❌ No final evaluation keywords found in unit, parent, or grandparent names.</strong><br>
+                                                Expected keywords: Kiểm tra cuối khoá, kiểm tra cuối khóa, Bài kiểm tra
+                                            </div>
+                                        % endif
+                                    </div>
+                                    
+                                % if is_final_evaluation_unit:
+                                    <div class="final-evaluation-mfe-management" id="final-evaluation-mfe-management">
+                                        <div class="evaluation-management-header">
+                                            <h2><i class="fa fa-graduation-cap"></i> Quản lý kiểm tra cuối khóa</h2>
+                                            <p class="header-description">Thiết lập nội dung bài kiểm tra cuối khóa cho học viên của bạn</p>
+                                        </div>
+                                        
+                                        <div class="evaluation-types-container">
+                                            <!-- Practical Evaluation Card -->
+                                            <div class="evaluation-type-card" id="practical-evaluation-card">
+                                                <div class="card-header practical-header">
+                                                    <div class="header-content">
+                                                        <h3><i class="fa fa-file-text-o"></i> Nộp bài thu hoạch</h3>
+                                                        <p class="card-subtitle">Học viên thực hiện bài tập và nộp file kết quả</p>
+                                                    </div>
+                                                    <button class="toggle-btn" data-type="practical" aria-expanded="false">
+                                                        <span class="btn-text">Thiết lập</span>
+                                                        <i class="fa fa-chevron-down toggle-icon"></i>
+                                                    </button>
+                                                </div>
+                                                <div class="card-content" id="practical-content" style="display: none;">
+                                                    <div class="form-section">
+                                                        <label for="practical-question" class="form-label">
+                                                            <i class="fa fa-pencil-square-o"></i> Yêu cầu bài tập:
+                                                        </label>
+                                                        <div class="editor-container">
+                                                            <div id="practical-question-editor" class="rich-text-editor" contenteditable="true"></div>
+                                                            <textarea id="practical-question-textarea" style="display: none;"></textarea>
+                                                        </div>
+                                                        <div class="editor-help">
+                                                            <i class="fa fa-info-circle"></i>
+                                                            <span>Sử dụng thanh công cụ phía trên để định dạng văn bản</span>
+                                                        </div>
+                                                    </div>
+                                                    <div class="form-actions">
+                                                        <button class="save-btn primary-btn" data-type="practical">
+                                                            <i class="fa fa-save"></i> Lưu cài đặt
+                                                        </button>
+                                                        <button class="preview-btn secondary-btn" data-type="practical">
+                                                            <i class="fa fa-eye"></i> Xem trước
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
+                                            <!-- Quiz Evaluation Card -->
+                                            <div class="evaluation-type-card" id="quiz-evaluation-card">
+                                                <div class="card-header quiz-header">
+                                                    <div class="header-content">
+                                                        <h3><i class="fa fa-question-circle"></i> Làm bài trắc nghiệm</h3>
+                                                        <p class="card-subtitle">Học viên làm bài kiểm tra trắc nghiệm trực tuyến</p>
+                                                    </div>
+                                                    <button class="toggle-btn" data-type="quiz" aria-expanded="false">
+                                                        <span class="btn-text">Thiết lập</span>
+                                                        <i class="fa fa-chevron-down toggle-icon"></i>
+                                                    </button>
+                                                </div>
+                                                <div class="card-content" id="quiz-content" style="display: none;">
+                                                    <div class="upload-section">
+                                                        <h4><i class="fa fa-upload"></i> Tải lên file câu hỏi</h4>
+                                                        <div class="file-upload-area" id="quiz-upload-area">
+                                                            <div class="upload-info">
+                                                                <i class="fa fa-cloud-upload upload-icon"></i>
+                                                                <p class="upload-text">Chọn file Excel (.xlsx) hoặc kéo thả vào đây</p>
+                                                                <button type="button" class="upload-file-btn">
+                                                                    <i class="fa fa-folder-open"></i> Chọn file
+                                                                </button>
+                                                                <input type="file" id="quiz-file-input" accept=".xlsx,.xls" style="display: none;">
+                                                                <p class="file-requirements">
+                                                                    <i class="fa fa-info-circle"></i>
+                                                                    File Excel phải có các cột: Câu hỏi, Đáp án A, B, C, D, Đáp án đúng
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                        
+                                                        <div class="file-info success-state" id="quiz-file-info" style="display: none;">
+                                                            <div class="file-status">
+                                                                <i class="fa fa-check-circle success-icon"></i>
+                                                                <h4>File đã tải lên thành công!</h4>
+                                                            </div>
+                                                            <div class="file-details">
+                                                                <div class="detail-item">
+                                                                    <strong>Tên file:</strong> <span id="uploaded-file-name">-</span>
+                                                                </div>
+                                                                <div class="detail-item">
+                                                                    <strong>Số câu hỏi:</strong> <span id="question-count">0</span>
+                                                                </div>
+                                                                <div class="detail-item">
+                                                                    <strong>Thời gian tải lên:</strong> <span id="upload-time">-</span>
+                                                                </div>
+                                                            </div>
+                                                            <div class="file-actions">
+                                                                <button class="replace-file-btn">
+                                                                    <i class="fa fa-refresh"></i> Thay thế file
+                                                                </button>
+                                                                <button class="download-template-btn">
+                                                                    <i class="fa fa-download"></i> Tải template
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    <div class="quiz-settings">
+                                                        <h4><i class="fa fa-cog"></i> Cài đặt bài kiểm tra</h4>
+                                                        <div class="settings-grid">
+                                                            <div class="setting-item">
+                                                                <label for="time-limit">
+                                                                    <i class="fa fa-clock-o"></i> Thời gian làm bài (phút):
+                                                                </label>
+                                                                <input type="number" id="time-limit" min="0" placeholder="Không giới hạn">
+                                                                <span class="input-help">Để trống nếu không giới hạn thời gian</span>
+                                                            </div>
+                                                            <div class="setting-item">
+                                                                <label for="attempt-limit">
+                                                                    <i class="fa fa-repeat"></i> Số lần làm bài:
+                                                                </label>
+                                                                <input type="number" id="attempt-limit" min="1" placeholder="Không giới hạn">
+                                                                <span class="input-help">Để trống nếu cho phép làm nhiều lần</span>
+                                                            </div>
+                                                            <div class="setting-item">
+                                                                <label for="passing-score">
+                                                                    <i class="fa fa-star"></i> Điểm đạt (%):
+                                                                </label>
+                                                                <input type="number" id="passing-score" min="0" max="100" value="60">
+                                                                <span class="input-help">Điểm tối thiểu để đạt yêu cầu</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    <div class="form-actions">
+                                                        <button class="save-btn primary-btn" data-type="quiz">
+                                                            <i class="fa fa-save"></i> Lưu cài đặt
+                                                        </button>
+                                                        <button class="preview-btn secondary-btn" data-type="quiz">
+                                                            <i class="fa fa-eye"></i> Xem trước
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="management-actions">
+                                            <div class="action-buttons">
+                                                <button class="publish-btn success-btn">
+                                                    <i class="fa fa-check-circle"></i> Xuất bản thay đổi
+                                                </button>
+                                                <button class="help-btn info-btn" onclick="window.open('/help/final-evaluation', '_blank')">
+                                                    <i class="fa fa-question-circle"></i> Hướng dẫn
+                                                </button>
+                                            </div>
+                                            <div class="status-info" id="publish-status" style="display: none;">
+                                                <i class="fa fa-info-circle"></i>
+                                                <span class="status-text">Đã lưu thay đổi</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                % else:
+                                    <section class="wrapper-xblock level-page is-hidden studio-xblock-wrapper" data-locator="${xblock_locator}" data-course-key="${xblock_locator.course_key}" data-course-assets="${assets_url}">
+                                    </section>
+                                % endif
                                 <div class="ui-loading">
                                     <p><span class="spin"><span class="icon fa fa-refresh" aria-hidden="true"></span></span> <span class="copy">${_("Loading")}</span></p>
                                 </div>
@@ -275,5 +525,1059 @@ from openedx.core.release import RELEASE_LINE
             resizeObserver.observe(document.body);
         }
     }());
+    </script>
+    
+    <!-- Final Evaluation Interface Styles and Scripts -->
+    <style>
+        .final-evaluation-mfe-management {
+            max-width: 100%;
+            margin: 0;
+            padding: 20px;
+            background: #f8f9fa;
+            min-height: 100vh;
+            font-family: 'Open Sans', sans-serif;
+        }
+        
+        .evaluation-management-header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 30px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        
+        .evaluation-management-header h2 {
+            margin: 0 0 10px 0;
+            font-size: 28px;
+            font-weight: 600;
+        }
+        
+        .header-description {
+            margin: 0;
+            font-size: 16px;
+            opacity: 0.9;
+        }
+        
+        .evaluation-types-container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .evaluation-type-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+            transition: all 0.3s ease;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .evaluation-type-card:hover {
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            transform: translateY(-2px);
+        }
+        
+        .card-header {
+            padding: 20px 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+        
+        .practical-header {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+        }
+        
+        .quiz-header {
+            background: linear-gradient(135deg, #007bff 0%, #6f42c1 100%);
+            color: white;
+        }
+        
+        .header-content h3 {
+            margin: 0 0 5px 0;
+            font-size: 20px;
+            font-weight: 600;
+        }
+        
+        .card-subtitle {
+            margin: 0;
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        
+        .toggle-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        
+        .toggle-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        
+        .toggle-icon {
+            transition: transform 0.3s ease;
+        }
+        
+        .toggle-btn[aria-expanded="true"] .toggle-icon {
+            transform: rotate(180deg);
+        }
+        
+        .card-content {
+            padding: 25px;
+            border-top: 1px solid #e9ecef;
+        }
+        
+        .form-section, .upload-section, .quiz-settings {
+            margin-bottom: 25px;
+        }
+        
+        .form-label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: 600;
+            color: #333;
+            font-size: 16px;
+        }
+        
+        .form-label i {
+            margin-right: 8px;
+            color: #667eea;
+        }
+        
+        .editor-container {
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            background: white;
+            overflow: hidden;
+            transition: border-color 0.3s ease;
+        }
+        
+        .editor-container:focus-within {
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .rich-text-editor {
+            min-height: 200px;
+            padding: 15px;
+            outline: none;
+            line-height: 1.6;
+            font-size: 15px;
+        }
+        
+        .rich-text-editor:empty:before {
+            content: "Nhập yêu cầu bài tập của bạn ở đây...";
+            color: #999;
+        }
+        
+        .editor-help {
+            margin-top: 10px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 13px;
+            color: #666;
+        }
+        
+        .file-upload-area {
+            border: 3px dashed #dee2e6;
+            border-radius: 12px;
+            padding: 40px 20px;
+            text-align: center;
+            background: #f8f9fa;
+            transition: all 0.3s ease;
+            margin-bottom: 20px;
+        }
+        
+        .file-upload-area:hover {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+        
+        .file-upload-area.dragover {
+            border-color: #667eea;
+            background: #e6f0ff;
+            transform: scale(1.02);
+        }
+        
+        .upload-icon {
+            font-size: 48px;
+            color: #ccc;
+            margin-bottom: 15px;
+        }
+        
+        .upload-text {
+            margin: 10px 0;
+            color: #666;
+            font-size: 16px;
+        }
+        
+        .upload-file-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+        
+        .upload-file-btn:hover {
+            background: #5a6fd8;
+        }
+        
+        .file-requirements {
+            margin-top: 15px;
+            font-size: 13px;
+            color: #888;
+        }
+        
+        .file-info {
+            background: #e8f5e8;
+            border: 2px solid #28a745;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 15px;
+        }
+        
+        .file-status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .success-icon {
+            color: #28a745;
+            font-size: 24px;
+        }
+        
+        .file-status h4 {
+            margin: 0;
+            color: #155724;
+            font-size: 18px;
+        }
+        
+        .file-details {
+            margin-bottom: 15px;
+        }
+        
+        .detail-item {
+            margin: 8px 0;
+            color: #155724;
+            font-size: 14px;
+        }
+        
+        .file-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .replace-file-btn, .download-template-btn {
+            background: #28a745;
+            border: none;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.3s;
+            font-size: 13px;
+        }
+        
+        .download-template-btn {
+            background: #007bff;
+        }
+        
+        .replace-file-btn:hover {
+            background: #218838;
+        }
+        
+        .download-template-btn:hover {
+            background: #0056b3;
+        }
+        
+        .quiz-settings h4 {
+            margin-bottom: 20px;
+            color: #333;
+            font-size: 18px;
+            font-weight: 600;
+        }
+        
+        .quiz-settings h4 i {
+            margin-right: 8px;
+            color: #667eea;
+        }
+        
+        .settings-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+        }
+        
+        .setting-item label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+            font-size: 14px;
+        }
+        
+        .setting-item label i {
+            margin-right: 6px;
+            color: #667eea;
+        }
+        
+        .setting-item input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e9ecef;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+        }
+        
+        .setting-item input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .input-help {
+            display: block;
+            margin-top: 5px;
+            font-size: 12px;
+            color: #666;
+        }
+        
+        .form-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+            margin-top: 25px;
+            padding-top: 20px;
+            border-top: 1px solid #e9ecef;
+        }
+        
+        .primary-btn, .secondary-btn, .success-btn, .info-btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .primary-btn {
+            background: #667eea;
+            color: white;
+        }
+        
+        .primary-btn:hover {
+            background: #5a6fd8;
+            transform: translateY(-2px);
+        }
+        
+        .secondary-btn {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .secondary-btn:hover {
+            background: #5a6268;
+        }
+        
+        .success-btn {
+            background: #28a745;
+            color: white;
+            font-size: 16px;
+            padding: 15px 30px;
+        }
+        
+        .success-btn:hover {
+            background: #218838;
+            transform: translateY(-2px);
+        }
+        
+        .info-btn {
+            background: #17a2b8;
+            color: white;
+        }
+        
+        .info-btn:hover {
+            background: #138496;
+        }
+        
+        .management-actions {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        .status-info {
+            margin-top: 15px;
+            padding: 10px 15px;
+            background: #d1ecf1;
+            color: #0c5460;
+            border-radius: 6px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .final-evaluation-mfe-management {
+                padding: 15px;
+            }
+            
+            .evaluation-management-header {
+                padding: 20px 15px;
+            }
+            
+            .evaluation-management-header h2 {
+                font-size: 24px;
+            }
+            
+            .card-header {
+                flex-direction: column;
+                gap: 15px;
+                text-align: center;
+            }
+            
+            .settings-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .form-actions {
+                flex-direction: column;
+            }
+            
+            .action-buttons {
+                flex-direction: column;
+            }
+        }
+        
+        /* Animation for smooth transitions */
+        .card-content {
+            transition: max-height 0.3s ease, opacity 0.3s ease;
+            overflow: hidden;
+        }
+        
+        .card-content[style*="display: none"] {
+            max-height: 0;
+            opacity: 0;
+        }
+        
+        .card-content[style*="display: block"] {
+            max-height: 2000px;
+            opacity: 1;
+        }
+    </style>
+    
+    <script>
+        // Final Evaluation Management JavaScript for MFE
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeFinalEvaluationMFE();
+            
+            // Additional client-side fallback detection
+            if (!document.getElementById('final-evaluation-mfe-management')) {
+                console.log('MFE: Server-side detection failed, trying client-side detection...');
+                if (shouldShowFinalEvaluationInterfaceMFE()) {
+                    createFinalEvaluationInterfaceMFE();
+                }
+            }
+        });
+        
+        function initializeFinalEvaluationMFE() {
+            console.log('Initializing Final Evaluation MFE Interface...');
+            
+            // Initialize rich text editor
+            initializeRichTextEditor();
+            
+            // Toggle card content
+            document.querySelectorAll('.toggle-btn').forEach(btn => {
+                btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const type = this.dataset.type;
+                    const content = document.getElementById(type + '-content');
+                    const isExpanded = this.getAttribute('aria-expanded') === 'true';
+                    
+                    if (isExpanded) {
+                        content.style.display = 'none';
+                        this.setAttribute('aria-expanded', 'false');
+                        this.querySelector('.btn-text').textContent = 'Thiết lập';
+                    } else {
+                        content.style.display = 'block';
+                        this.setAttribute('aria-expanded', 'true');
+                        this.querySelector('.btn-text').textContent = 'Ẩn';
+                        
+                        // Initialize editor when practical content is shown
+                        if (type === 'practical') {
+                            setTimeout(initializeRichTextEditor, 100);
+                        }
+                        
+                        // Trigger resize for iframe
+                        setTimeout(() => {
+                            window.parent.postMessage({
+                                type: 'plugin.resize',
+                                payload: {
+                                    width: document.body.offsetWidth,
+                                    height: document.body.offsetHeight,
+                                }
+                            }, '*');
+                        }, 300);
+                    }
+                });
+            });
+            
+            // File upload handling
+            const fileInput = document.getElementById('quiz-file-input');
+            const uploadBtn = document.querySelector('.upload-file-btn');
+            const uploadArea = document.getElementById('quiz-upload-area');
+            
+            if (uploadBtn && fileInput) {
+                uploadBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    fileInput.click();
+                });
+            }
+            
+            if (fileInput) {
+                fileInput.addEventListener('change', handleFileSelect);
+            }
+            
+            if (uploadArea) {
+                uploadArea.addEventListener('dragover', handleDragOver);
+                uploadArea.addEventListener('dragleave', handleDragLeave);
+                uploadArea.addEventListener('drop', handleFileDrop);
+            }
+            
+            // Save button handlers
+            document.querySelectorAll('.save-btn').forEach(btn => {
+                btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const type = this.dataset.type;
+                    saveFinalEvaluation(type);
+                });
+            });
+            
+            // Preview button handlers
+            document.querySelectorAll('.preview-btn').forEach(btn => {
+                btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const type = this.dataset.type;
+                    previewEvaluation(type);
+                });
+            });
+            
+            // Other button handlers
+            document.querySelector('.replace-file-btn')?.addEventListener('click', (e) => {
+                e.preventDefault();
+                fileInput?.click();
+            });
+            
+            document.querySelector('.download-template-btn')?.addEventListener('click', (e) => {
+                e.preventDefault();
+                downloadExcelTemplate();
+            });
+            
+            document.querySelector('.publish-btn')?.addEventListener('click', (e) => {
+                e.preventDefault();
+                publishChanges();
+            });
+            
+            // Load existing evaluation data
+            loadExistingEvaluationData();
+        }
+        
+        function initializeRichTextEditor() {
+            const editor = document.getElementById('practical-question-editor');
+            const textarea = document.getElementById('practical-question-textarea');
+            
+            if (!editor || !textarea) return;
+            
+            // Sync content with textarea
+            editor.addEventListener('input', function() {
+                textarea.value = this.innerHTML;
+            });
+            
+            // Handle focus and blur
+            editor.addEventListener('focus', function() {
+                this.style.borderColor = '#667eea';
+            });
+            
+            editor.addEventListener('blur', function() {
+                this.style.borderColor = '#e9ecef';
+                textarea.value = this.innerHTML;
+            });
+            
+            // Initialize content
+            if (textarea.value) {
+                editor.innerHTML = textarea.value;
+            }
+        }
+        
+        function handleDragOver(e) {
+            e.preventDefault();
+            e.currentTarget.classList.add('dragover');
+        }
+        
+        function handleDragLeave(e) {
+            e.preventDefault();
+            e.currentTarget.classList.remove('dragover');
+        }
+        
+        function handleFileDrop(e) {
+            e.preventDefault();
+            e.currentTarget.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFileSelect({ target: { files: files } });
+            }
+        }
+        
+        function handleFileSelect(e) {
+            const file = e.target.files[0];
+            if (file) {
+                // Validate file type
+                const allowedTypes = ['.xlsx', '.xls'];
+                const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
+                
+                if (!allowedTypes.includes(fileExtension)) {
+                    alert('Vui lòng chọn file Excel (.xlsx hoặc .xls)');
+                    return;
+                }
+                
+                // Show file info
+                document.getElementById('uploaded-file-name').textContent = file.name;
+                document.getElementById('upload-time').textContent = new Date().toLocaleString('vi-VN');
+                document.getElementById('quiz-file-info').style.display = 'block';
+                
+                // Upload file
+                uploadQuizFile(file);
+            }
+        }
+        
+        function uploadQuizFile(file) {
+            const formData = new FormData();
+            formData.append('quiz_file', file);
+            formData.append('course_id', getCourseId());
+            
+            // Show loading state
+            const uploadArea = document.getElementById('quiz-upload-area');
+            uploadArea.style.opacity = '0.6';
+            uploadArea.style.pointerEvents = 'none';
+            
+            fetch('/api/final-evaluation/upload-quiz/', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': getCSRFToken()
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                uploadArea.style.opacity = '1';
+                uploadArea.style.pointerEvents = 'auto';
+                
+                if (data.success) {
+                    document.getElementById('question-count').textContent = data.question_count || 0;
+                    showNotification('success', 'File đã được tải lên thành công!');
+                } else {
+                    showNotification('error', 'Lỗi: ' + (data.error || 'Không thể tải lên file'));
+                }
+            })
+            .catch(error => {
+                uploadArea.style.opacity = '1';
+                uploadArea.style.pointerEvents = 'auto';
+                console.error('Error:', error);
+                showNotification('error', 'Có lỗi xảy ra khi tải file');
+            });
+        }
+        
+        function saveFinalEvaluation(type) {
+            let data = {
+                course_id: getCourseId(),
+                evaluation_type: type
+            };
+            
+            if (type === 'practical') {
+                const editor = document.getElementById('practical-question-editor');
+                data.question = editor ? editor.innerHTML : '';
+            } else if (type === 'quiz') {
+                data.time_limit = document.getElementById('time-limit').value;
+                data.attempt_limit = document.getElementById('attempt-limit').value;
+                data.passing_score = document.getElementById('passing-score').value;
+            }
+            
+            // Show loading state
+            const saveBtn = document.querySelector(`[data-type="${type}"].save-btn`);
+            const originalText = saveBtn.innerHTML;
+            saveBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Đang lưu...';
+            saveBtn.disabled = true;
+            
+            fetch('/api/final-evaluation/update/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCSRFToken()
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(data => {
+                saveBtn.innerHTML = originalText;
+                saveBtn.disabled = false;
+                
+                if (data.success) {
+                    showNotification('success', 'Đã lưu cài đặt thành công!');
+                    showPublishStatus('Có thay đổi cần xuất bản');
+                } else {
+                    showNotification('error', 'Lỗi: ' + (data.error || 'Không thể lưu cài đặt'));
+                }
+            })
+            .catch(error => {
+                saveBtn.innerHTML = originalText;
+                saveBtn.disabled = false;
+                console.error('Error:', error);
+                showNotification('error', 'Có lỗi xảy ra khi lưu');
+            });
+        }
+        
+        function previewEvaluation(type) {
+            // Open preview in new tab/window
+            const courseId = getCourseId();
+            const previewUrl = `/courses/${courseId}/courseware/final-evaluation?preview=${type}`;
+            window.open(previewUrl, '_blank');
+        }
+        
+        function publishChanges() {
+            const publishBtn = document.querySelector('.publish-btn');
+            const originalText = publishBtn.innerHTML;
+            publishBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Đang xuất bản...';
+            publishBtn.disabled = true;
+            
+            fetch('/api/final-evaluation/publish/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCSRFToken()
+                },
+                body: JSON.stringify({
+                    course_id: getCourseId()
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                publishBtn.innerHTML = originalText;
+                publishBtn.disabled = false;
+                
+                if (data.success) {
+                    showNotification('success', 'Đã xuất bản thành công!');
+                    showPublishStatus('Đã xuất bản');
+                } else {
+                    showNotification('error', 'Lỗi: ' + (data.error || 'Không thể xuất bản'));
+                }
+            })
+            .catch(error => {
+                publishBtn.innerHTML = originalText;
+                publishBtn.disabled = false;
+                console.error('Error:', error);
+                showNotification('error', 'Có lỗi xảy ra khi xuất bản');
+            });
+        }
+        
+        function loadExistingEvaluationData() {
+            fetch(`/api/final-evaluation/get/?course_id=${getCourseId()}`, {
+                method: 'GET',
+                headers: {
+                    'X-CSRFToken': getCSRFToken()
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.practical) {
+                    const editor = document.getElementById('practical-question-editor');
+                    const textarea = document.getElementById('practical-question-textarea');
+                    if (data.practical.question) {
+                        if (editor) editor.innerHTML = data.practical.question;
+                        if (textarea) textarea.value = data.practical.question;
+                    }
+                }
+                if (data.quiz) {
+                    if (data.quiz.time_limit) {
+                        document.getElementById('time-limit').value = data.quiz.time_limit;
+                    }
+                    if (data.quiz.attempt_limit) {
+                        document.getElementById('attempt-limit').value = data.quiz.attempt_limit;
+                    }
+                    if (data.quiz.passing_score) {
+                        document.getElementById('passing-score').value = data.quiz.passing_score;
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Error loading evaluation data:', error);
+            });
+        }
+        
+        function downloadExcelTemplate() {
+            // Create a simple Excel template structure for quiz questions
+            const templateData = [
+                ['Câu hỏi', 'Đáp án A', 'Đáp án B', 'Đáp án C', 'Đáp án D', 'Đáp án đúng (A/B/C/D)'],
+                ['Python là ngôn ngữ lập trình gì?', 'Compiled', 'Interpreted', 'Assembly', 'Machine', 'B'],
+                ['Ai tạo ra Python?', 'Dennis Ritchie', 'Guido van Rossum', 'James Gosling', 'Brendan Eich', 'B'],
+                ['Python ra đời năm nào?', '1989', '1991', '1995', '2000', 'B'],
+                ['Đặc điểm nào KHÔNG phải của Python?', 'Dễ học', 'Mã nguồn mở', 'Chạy chậm', 'Cú pháp phức tạp', 'D'],
+                ['Phần mở rộng file Python là gì?', '.py', '.python', '.pt', '.pyt', 'A']
+            ];
+            
+            // Convert to CSV format for download
+            const csvContent = templateData.map(row => 
+                row.map(cell => `"${cell}"`).join(',')
+            ).join('\n');
+            
+            // Create download link
+            const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            
+            link.setAttribute('href', url);
+            link.setAttribute('download', 'quiz_template_final_evaluation.csv');
+            link.style.visibility = 'hidden';
+            
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            showNotification('info', 'Đã tải template Excel thành công!');
+        }
+        
+        function showNotification(type, message) {
+            // Create notification element
+            const notification = document.createElement('div');
+            notification.className = `notification notification-${type}`;
+            notification.innerHTML = `
+                <div class="notification-content">
+                    <i class="fa fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'}"></i>
+                    <span>${message}</span>
+                </div>
+            `;
+            
+            // Add notification styles if not exist
+            if (!document.getElementById('notification-styles')) {
+                const styles = document.createElement('style');
+                styles.id = 'notification-styles';
+                styles.textContent = `
+                    .notification {
+                        position: fixed;
+                        top: 20px;
+                        right: 20px;
+                        padding: 15px 20px;
+                        border-radius: 6px;
+                        color: white;
+                        font-weight: 500;
+                        z-index: 10000;
+                        animation: slideIn 0.3s ease;
+                        max-width: 400px;
+                    }
+                    .notification-success { background: #28a745; }
+                    .notification-error { background: #dc3545; }
+                    .notification-info { background: #17a2b8; }
+                    .notification-content {
+                        display: flex;
+                        align-items: center;
+                        gap: 10px;
+                    }
+                    @keyframes slideIn {
+                        from { transform: translateX(100%); opacity: 0; }
+                        to { transform: translateX(0); opacity: 1; }
+                    }
+                    @keyframes slideOut {
+                        from { transform: translateX(0); opacity: 1; }
+                        to { transform: translateX(100%); opacity: 0; }
+                    }
+                `;
+                document.head.appendChild(styles);
+            }
+            
+            document.body.appendChild(notification);
+            
+            // Auto remove after 4 seconds
+            setTimeout(() => {
+                notification.style.animation = 'slideOut 0.3s ease';
+                setTimeout(() => {
+                    if (notification.parentNode) {
+                        notification.parentNode.removeChild(notification);
+                    }
+                }, 300);
+            }, 4000);
+        }
+        
+        function showPublishStatus(status) {
+            const statusElement = document.getElementById('publish-status');
+            if (statusElement) {
+                statusElement.querySelector('.status-text').textContent = status;
+                statusElement.style.display = 'block';
+            }
+        }
+        
+        function getCourseId() {
+            // Extract course ID from URL or page context
+            const pathParts = window.location.pathname.split('/');
+            const containerIndex = pathParts.indexOf('container_embed');
+            if (containerIndex > -1 && pathParts[containerIndex + 1]) {
+                // Extract course ID from block locator
+                const blockLocator = pathParts[containerIndex + 1];
+                const match = blockLocator.match(/course-v1:([^+]+\+[^+]+\+[^+]+)/);
+                return match ? match[1] : '';
+            }
+            return '';
+        }
+        
+        function getCSRFToken() {
+            const tokenElement = document.querySelector('[name=csrfmiddlewaretoken]');
+            return tokenElement ? tokenElement.value : '';
+        }
+        
+        function shouldShowFinalEvaluationInterfaceMFE() {
+            // Check URL for final evaluation indicators in MFE context
+            var url = window.location.href;
+            var pageTitle = document.title;
+            
+            // MFE-specific URL patterns
+            var urlCheck = url.includes('Kiểm tra cuối khoá') || 
+                          url.includes('kiểm%20tra%20cuối%20khóa') ||
+                          url.includes('final-evaluation') ||
+                          url.includes('container_embed');
+            
+            // Check page title
+            var titleCheck = pageTitle.includes('Kiểm tra cuối khoá') ||
+                           pageTitle.includes('kiểm tra cuối khóa');
+            
+            // Check URL path for specific pattern (MFE uses container_embed)
+            var pathCheck = window.location.pathname.includes('container_embed') && 
+                           (url.includes('Kiểm tra cuối khoá') || titleCheck);
+            
+            // Check for data attributes or other MFE-specific indicators
+            var dataCheck = document.querySelector('[data-usage-id*="kiểm-tra"]') ||
+                           document.querySelector('[data-block-type="vertical"]');
+            
+            console.log('MFE Detection:', { urlCheck, titleCheck, pathCheck, dataCheck, url });
+            
+            return urlCheck || titleCheck || pathCheck;
+        }
+        
+        function createFinalEvaluationInterfaceMFE() {
+            console.log('Creating fallback MFE final evaluation interface...');
+            
+            // Find the content container
+            var container = document.querySelector('.content-primary') || 
+                           document.querySelector('.inner-wrapper') || 
+                           document.querySelector('body');
+            
+            if (!container) {
+                console.error('Could not find container for MFE final evaluation interface');
+                return;
+            }
+            
+            // Hide existing content
+            var existingContent = container.querySelectorAll('section, .wrapper-xblock');
+            existingContent.forEach(function(el) {
+                el.style.display = 'none';
+            });
+            
+            // Create the fallback interface
+            var fallbackInterface = document.createElement('div');
+            fallbackInterface.className = 'final-evaluation-mfe-management';
+            fallbackInterface.innerHTML = `
+                <input type="hidden" name="csrfmiddlewaretoken" value="${getCSRFToken() || ''}">
+                <div style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; margin-bottom: 20px; border-radius: 8px;">
+                    <strong>⚠️ MFE Ghi chú:</strong> Giao diện kiểm tra cuối khóa đã được kích hoạt bằng client-side detection.
+                    <br><small>URL: ${window.location.href}</small>
+                </div>
+                <div class="evaluation-management-header">
+                    <h2><i class="fa fa-graduation-cap"></i> Quản lý kiểm tra cuối khóa</h2>
+                    <p class="header-description">Thiết lập nội dung bài kiểm tra cuối khóa cho học viên (Fallback Mode)</p>
+                </div>
+                
+                <div style="padding: 40px; text-align: center; background: white; border-radius: 12px; border: 1px solid #ddd; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                    <div style="font-size: 64px; color: #667eea; margin-bottom: 20px;">🎓</div>
+                    <h3 style="color: #333; margin-bottom: 15px;">Giao diện kiểm tra cuối khóa</h3>
+                    <p style="color: #666; margin-bottom: 20px; line-height: 1.6;">
+                        Đây là trang quản lý kiểm tra cuối khóa được phát hiện tự động.<br>
+                        Giao diện đầy đủ đang được phát triển để cung cấp các tính năng quản lý evaluation.
+                    </p>
+                    
+                    <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                        <h4 style="color: #333; margin-bottom: 15px;">🔧 Tính năng dự kiến:</h4>
+                        <ul style="list-style: none; padding: 0; margin: 0;">
+                            <li style="padding: 5px 0;">📝 Quản lý bài tập thực hành</li>
+                            <li style="padding: 5px 0;">📋 Thiết lập bài trắc nghiệm</li>
+                            <li style="padding: 5px 0;">⚙️ Cấu hình thông số bài kiểm tra</li>
+                            <li style="padding: 5px 0;">👁️ Xem trước giao diện học viên</li>
+                        </ul>
+                    </div>
+                    
+                    <div style="display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;">
+                        <button onclick="window.history.back()" style="background: #667eea; color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; transition: background 0.3s;">
+                            ← Quay lại
+                        </button>
+                        <button onclick="window.location.reload()" style="background: #28a745; color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; transition: background 0.3s;">
+                            🔄 Làm mới
+                        </button>
+                        <button onclick="console.log('Debug info:', { url: window.location.href, title: document.title, path: window.location.pathname })" style="background: #17a2b8; color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; transition: background 0.3s;">
+                            🐛 Debug
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            // Insert the interface
+            container.appendChild(fallbackInterface);
+            
+            console.log('Fallback MFE final evaluation interface created successfully');
+        }
+        
+        // Initialize when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initializeFinalEvaluationMFE);
+        } else {
+            initializeFinalEvaluationMFE();
+        }
     </script>
 </html>

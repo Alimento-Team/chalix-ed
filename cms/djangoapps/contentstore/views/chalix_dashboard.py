@@ -129,13 +129,29 @@ def _create_course_structure_from_program(store, course_key, user_id, template_p
     # Create FinalEvaluation record based on program settings
     try:
         from cms.djangoapps.contentstore.models import FinalEvaluation
-        evaluation_type = FinalEvaluation.EVALUATION_TYPE_PRACTICAL if template_program.allow_practical_submission else FinalEvaluation.EVALUATION_TYPE_QUIZ
         
-        FinalEvaluation.objects.create(
-            course_key=course_key,
-            program=template_program,
-            evaluation_type=evaluation_type
-        )
+        # Check which evaluation types the program allows
+        if template_program.allow_practical_submission:
+            FinalEvaluation.objects.create(
+                course_key=course_key,
+                program=template_program,
+                evaluation_type=FinalEvaluation.EVALUATION_TYPE_PRACTICAL
+            )
+        
+        if template_program.allow_multiple_choice:
+            FinalEvaluation.objects.create(
+                course_key=course_key,
+                program=template_program,
+                evaluation_type=FinalEvaluation.EVALUATION_TYPE_QUIZ
+            )
+            
+        # If neither is set, default to practical
+        if not template_program.allow_practical_submission and not template_program.allow_multiple_choice:
+            FinalEvaluation.objects.create(
+                course_key=course_key,
+                program=template_program,
+                evaluation_type=FinalEvaluation.EVALUATION_TYPE_PRACTICAL
+            )
     except Exception as e:
         logger.warning(f"Failed to create FinalEvaluation record for course {course_key}: {e}")
     
@@ -487,6 +503,7 @@ def create_course_api(request):
     online_course_link = _get_payload_value(payload, 'online_course_link', 'onlineCourseLink', default='')
     instructor = _get_payload_value(payload, 'instructor', default='')
     estimated_hours_raw = _get_payload_value(payload, 'estimated_hours', 'estimatedHours', default=None)
+    final_evaluation_type = _get_payload_value(payload, 'final_evaluation_type', 'finalEvaluationType', default='')
 
     # Convert numeric fields
     estimated_hours = None
@@ -523,10 +540,36 @@ def create_course_api(request):
 
     try:
         # Use OpenEDX standard course creation
+        # Get course_level from payload
+        course_level = _get_payload_value(payload, 'course_level', 'courseLevel', default='')
+        
         course_fields = {
             'display_name': title,
             'course_type': course_type,
+            'course_level': course_level,
         }
+        
+        # Set final_evaluation_type (from payload or inherit from template program)
+        if final_evaluation_type:
+            # Use direct value from payload if provided
+            course_fields['final_evaluation_type'] = final_evaluation_type
+            logger.info(f"[CHALIX] Setting final_evaluation_type on course block from payload: {final_evaluation_type}")
+        elif template_program:
+            # Determine evaluation type based on program settings
+            if template_program.allow_practical_submission and template_program.allow_multiple_choice:
+                # If both are allowed, default to quiz (could be changed later by instructor)
+                course_fields['final_evaluation_type'] = 'quiz'
+            elif template_program.allow_practical_submission:
+                course_fields['final_evaluation_type'] = 'project'
+            elif template_program.allow_multiple_choice:
+                course_fields['final_evaluation_type'] = 'quiz'
+            else:
+                # Default to project if neither is explicitly set
+                course_fields['final_evaluation_type'] = 'project'
+            logger.info(f"[CHALIX] Setting final_evaluation_type on course block from template program: {course_fields['final_evaluation_type']}")
+        else:
+            # Default to empty if no template program
+            course_fields['final_evaluation_type'] = ''
         
         # Create the course using OpenEDX standard method
         new_course = create_new_course(
@@ -563,7 +606,7 @@ def create_course_api(request):
 
         # Update course with new fields if provided
         updated_course_details = None
-        if short_description or online_course_link or instructor or estimated_hours is not None:
+        if short_description or online_course_link or instructor or estimated_hours is not None or template_program:
             try:
                 from openedx.core.djangoapps.models.course_details import CourseDetails
                 course_update_data = {}
@@ -575,6 +618,33 @@ def create_course_api(request):
                     course_update_data['instructor'] = instructor
                 if estimated_hours is not None:
                     course_update_data['estimated_hours'] = estimated_hours
+                
+                # Always include course_type and course_level to ensure they are saved
+                course_update_data['course_type'] = course_type
+                course_update_data['course_level'] = course_level
+                
+                # Set final_evaluation_type (from payload or inherit from template program)
+                if final_evaluation_type:
+                    # Use direct value from payload if provided
+                    course_update_data['final_evaluation_type'] = final_evaluation_type
+                    logger.info(f"[CHALIX] Setting final_evaluation_type from payload: {final_evaluation_type}")
+                elif template_program:
+                    # Determine evaluation type based on program settings
+                    if template_program.allow_practical_submission and template_program.allow_multiple_choice:
+                        # If both are allowed, default to quiz (could be changed later by instructor)
+                        course_update_data['final_evaluation_type'] = 'quiz'
+                    elif template_program.allow_practical_submission:
+                        course_update_data['final_evaluation_type'] = 'project'
+                    elif template_program.allow_multiple_choice:
+                        course_update_data['final_evaluation_type'] = 'quiz'
+                    else:
+                        # Default to project if neither is explicitly set
+                        course_update_data['final_evaluation_type'] = 'project'
+                    logger.info(f"[CHALIX] Setting final_evaluation_type from template program: {course_update_data['final_evaluation_type']}")
+                else:
+                    # No template program, set empty
+                    course_update_data['final_evaluation_type'] = ''
+                    logger.info("[CHALIX] No final_evaluation_type specified and no template program")
                 
                 # Need to provide required fields to avoid KeyError
                 course_update_data['overview'] = ''
@@ -717,6 +787,7 @@ def list_local_courses_api(request):
                     formatted_course['online_course_link'] = getattr(details, 'online_course_link', '')
                     formatted_course['instructor'] = getattr(details, 'instructor', '')
                     formatted_course['estimated_hours'] = getattr(details, 'estimated_hours', 0)
+                    formatted_course['final_evaluation_type'] = getattr(details, 'final_evaluation_type', '')
                     # Also get course_type and course_level from the course details
                     store = modulestore()
                     # Force refresh to avoid caching issues
@@ -733,6 +804,7 @@ def list_local_courses_api(request):
                         formatted_course['online_course_link'] = getattr(block, 'online_course_link', '')
                         formatted_course['instructor'] = getattr(block, 'instructor', '')
                         formatted_course['estimated_hours'] = getattr(block, 'estimated_hours', 0)
+                        formatted_course['final_evaluation_type'] = getattr(block, 'final_evaluation_type', '')
                         formatted_course['course_type'] = getattr(block, 'course_type', '')
                         formatted_course['course_level'] = getattr(block, 'course_level', '')
             except Exception:
@@ -1058,9 +1130,15 @@ def course_detail_api(request, course_key_string):
     Methods: GET, PATCH
     Returns JSON with course details.
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"course_detail_api called with course_key_string: {course_key_string}, method: {request.method}")
+    
     try:
         course_key = CourseKey.from_string(course_key_string)
-    except Exception:
+        logger.info(f"Parsed course_key: {course_key}")
+    except Exception as e:
+        logger.error(f"Failed to parse course key '{course_key_string}': {e}")
         return JsonResponse({'error': 'Invalid course key'}, status=400)
     
     # Check user access to the course
@@ -1102,6 +1180,10 @@ def course_detail_api_get(request, course_key):
     URL: /api/chalix/dashboard/course-detail/<course_key>/
     Returns JSON with course details.
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"course_detail_api_get called with course_key: {course_key}")
+    
     try:
         # course_key is already parsed, no need to parse again
         pass
@@ -1127,6 +1209,7 @@ def course_detail_api_get(request, course_key):
         except Exception:
             created_date = ''
         
+        # Initialize course data with basic info
         course_data = {
             'id': str(course_key),
             'course_key': str(course_key),
@@ -1135,9 +1218,6 @@ def course_detail_api_get(request, course_key):
             'org': course_key.org,
             'number': course_key.course,  # 'number' field is called 'course' in the key
             'run': course_key.run,
-            'short_description': getattr(course, 'short_description', ''),
-            'course_type': getattr(course, 'course_type', ''),
-            'course_level': getattr(course, 'course_level', ''),
             'created': created_date,
             'url': f'/courses/{course_key}/',
             'studio_url': f'/course/{course_key}',
@@ -1146,42 +1226,153 @@ def course_detail_api_get(request, course_key):
             'end_date': getattr(course, 'end', None).isoformat() if getattr(course, 'end', None) else None,
             'units': []  # Initialize empty units array
         }
-        # Include newly-added fields from modulestore block if present
+        
+        # Load CourseDetails first to get all custom fields
         try:
-            # Prefer CourseDetails.fetch which consolidates about attributes and block attributes
-            try:
-                details = CourseDetails.fetch(course_key)
-                course_data['online_course_link'] = getattr(details, 'online_course_link', '')
-                course_data['instructor'] = getattr(details, 'instructor', '')
-                course_data['estimated_hours'] = getattr(details, 'estimated_hours', 0)
-            except Exception:
-                # Fallback: read directly from course block
-                course_data['online_course_link'] = getattr(course, 'online_course_link', '')
-                course_data['instructor'] = getattr(course, 'instructor', '')
-                course_data['estimated_hours'] = getattr(course, 'estimated_hours', 0)
-        except Exception:
-            course_data['online_course_link'] = ''
-            course_data['instructor'] = ''
-            course_data['estimated_hours'] = 0
+            details = CourseDetails.fetch(course_key)
+            logger.info(f"CourseDetails fetched for {course_key}")
+            
+            # Debug: log what we get from details and course
+            details_course_level = getattr(details, 'course_level', '')
+            course_course_level = getattr(course, 'course_level', '')
+            logger.info(f"DEBUG course_level: details='{details_course_level}', course_block='{course_course_level}'")
+            
+            # Update course_data with CourseDetails fields
+            course_data.update({
+                'short_description': getattr(details, 'short_description', '') or getattr(course, 'short_description', ''),
+                'course_type': getattr(details, 'course_type', '') or getattr(course, 'course_type', ''),
+                'course_level': details_course_level or course_course_level,
+                'online_course_link': getattr(details, 'online_course_link', '') or getattr(course, 'online_course_link', ''),
+                'instructor': getattr(details, 'instructor', '') or getattr(course, 'instructor', ''),
+                'estimated_hours': getattr(details, 'estimated_hours', 0) or getattr(course, 'estimated_hours', 0),
+                'final_evaluation_type': getattr(details, 'final_evaluation_type', '') or getattr(course, 'final_evaluation_type', '')
+            })
+            
+            logger.info(f"Course details loaded: course_level='{course_data['course_level']}', course_type='{course_data['course_type']}', short_description='{course_data['short_description'][:50] if course_data['short_description'] else 'EMPTY'}...'")
+            
+        except Exception as e:
+            logger.error(f"Error loading CourseDetails for {course_key}: {e}")
+            # Fallback to course block attributes
+            course_course_level = getattr(course, 'course_level', '')
+            logger.info(f"DEBUG fallback course_level from course block: '{course_course_level}'")
+            
+            course_data.update({
+                'short_description': getattr(course, 'short_description', ''),
+                'course_type': getattr(course, 'course_type', ''),
+                'course_level': course_course_level,
+                'online_course_link': getattr(course, 'online_course_link', ''),
+                'instructor': getattr(course, 'instructor', ''),
+                'estimated_hours': getattr(course, 'estimated_hours', 0),
+                'final_evaluation_type': getattr(course, 'final_evaluation_type', '')
+            })
+
+        # Try to get creator information from LocalCourse record
+        try:
+            local_course = LocalCourse.objects.get(course_key=str(course_key))
+            course_data.update({
+                'created_by': getattr(local_course.created_by, 'username', None) if local_course.created_by else None,
+                'created_at': local_course.created_at.isoformat() if local_course.created_at else course_data.get('created', '')
+            })
+            logger.info(f"LocalCourse found for {course_key}, creator: {course_data.get('created_by')}")
+        except LocalCourse.DoesNotExist:
+            logger.info(f"No LocalCourse found for {course_key}, using fallback creator info")
+            # Fallback to created date from course overview if available
+            course_data.update({
+                'created_by': None,
+                'created_at': course_data.get('created', '')
+            })
+        except Exception as e:
+            logger.error(f"Error getting LocalCourse for {course_key}: {e}")
+            course_data.update({
+                'created_by': None,
+                'created_at': course_data.get('created', '')
+            })
+
         
         # Add course structure (chapters/sections as units)
         try:
-            chapters = course.get_children()
+            import logging
+            logger = logging.getLogger(__name__)
+            
+            # Get course structure more robustly
+            chapters = course.get_children() if hasattr(course, 'get_children') else []
             units = []
-            for chapter in chapters:
-                if hasattr(chapter, 'display_name'):
-                    unit_data = {
-                        'title': getattr(chapter, 'display_name', 'Chương'),
-                        'name': getattr(chapter, 'display_name', 'Chương'),
-                        'description': getattr(chapter, 'short_description', '') or 'Chưa có mô tả'
-                    }
-                    units.append(unit_data)
+            
+            logger.info(f"Course {course_key} - course type: {type(course)}")
+            logger.info(f"Course {course_key} has {len(chapters)} chapters")
+            
+            if chapters:
+                for i, chapter in enumerate(chapters):
+                    logger.info(f"Chapter {i}: type={type(chapter)}, display_name={getattr(chapter, 'display_name', 'N/A')}, location={getattr(chapter, 'location', 'N/A')}")
+                    
+                    if hasattr(chapter, 'display_name') and chapter.display_name:
+                        # Check if this looks like template data but be less aggressive
+                        is_template_data = (
+                            'template' in chapter.display_name.lower() or
+                            chapter.display_name.lower().strip() in ['sample', 'example', 'demo']
+                        )
+                        
+                        if is_template_data:
+                            logger.warning(f"Skipping template chapter: {chapter.display_name}")
+                            continue
+                        
+                        # Get subsections and add them directly as units (skip the chapter level)
+                        if hasattr(chapter, 'get_children'):
+                            try:
+                                chapter_children = chapter.get_children()
+                                logger.info(f"Chapter '{chapter.display_name}' has {len(chapter_children)} subsections")
+                                
+                                for subsection in chapter_children:
+                                    if hasattr(subsection, 'display_name') and subsection.display_name:
+                                        # Add each subsection as a separate unit
+                                        unit_data = {
+                                            'title': subsection.display_name,
+                                            'name': subsection.display_name,
+                                            'description': getattr(subsection, 'short_description', '') or 'Chưa có mô tả',
+                                            'chapter': chapter.display_name  # Keep reference to parent chapter
+                                        }
+                                        units.append(unit_data)
+                                        logger.info(f"Added unit: {unit_data['title']} from chapter: {chapter.display_name}")
+                            except Exception as e:
+                                logger.error(f"Error getting subsections for chapter '{chapter.display_name}': {e}")
+                        else:
+                            # If no subsections, add the chapter itself as a unit
+                            unit_data = {
+                                'title': chapter.display_name,
+                                'name': chapter.display_name,
+                                'description': getattr(chapter, 'short_description', '') or 'Chưa có mô tả',
+                                'chapter': chapter.display_name
+                            }
+                            units.append(unit_data)
+                            logger.info(f"Added chapter as unit: {unit_data['title']}")
+            else:
+                # No chapters found - this might be a newly created course
+                logger.warning(f"Course {course_key} has no chapters. This might be a new course.")
+                units = []
+            
+            # If no real content found (empty or only template data), provide a helpful default
+            if not units:
+                logger.info(f"No real course content found for {course_key}, providing default structure")
+                units = [{
+                    'title': 'Chưa có nội dung',
+                    'name': 'Chưa có nội dung',
+                    'description': 'Khóa học này chưa có chương và bài học. Vui lòng vào Studio để thêm nội dung.',
+                    'chapter': 'Chưa có chương'
+                }]
+            
             course_data['units'] = units
+            logger.info(f"Course {course_key} units loaded: {len(units)} units")
+            
         except Exception as e:
             import logging
             logger = logging.getLogger(__name__)
-            logger.debug(f"Could not load course units for {course_key}: {str(e)}")
-            course_data['units'] = []
+            logger.error(f"Could not load course units for {course_key}: {str(e)}", exc_info=True)
+            course_data['units'] = [{
+                'title': 'Lỗi tải nội dung',
+                'name': 'Lỗi tải nội dung',
+                'description': f'Không thể tải danh sách chương: {str(e)}',
+                'subsections': []
+            }]
         
         return JsonResponse(course_data)
         
@@ -1329,6 +1520,11 @@ def update_course_api(request):
         if estimated_hours is not None:
             course_update_data['estimated_hours'] = estimated_hours
         
+        # Add final evaluation type field
+        final_evaluation_type = payload.get('final_evaluation_type', '').strip()
+        if final_evaluation_type:
+            course_update_data['final_evaluation_type'] = final_evaluation_type
+        
         # Add course_type and course_level fields from payload
         # Always include these fields even if empty to ensure they get updated
         course_type = payload.get('course_type', '').strip()
@@ -1352,7 +1548,8 @@ def update_course_api(request):
         # Debug logging
         import logging
         logger = logging.getLogger(__name__)
-        logger.info(f"Update course API: course_key={course_key_string}, level='{level}', course_type='{course_type}'")
+        logger.info(f"Update course API: course_key={course_key_string}, level='{level}', course_type='{course_type}', final_evaluation_type='{final_evaluation_type}'")
+        logger.info(f"Full course update payload: {course_update_data}")
 
         # Call CourseDetails.update_from_json defensively: if a KeyError occurs because
         # some code path expects a key to exist, set a sensible default and retry once.
@@ -1393,6 +1590,7 @@ def update_course_api(request):
             'online_course_link': getattr(updated_course_details, 'online_course_link', ''),
             'instructor': getattr(updated_course_details, 'instructor', ''),
             'estimated_hours': getattr(updated_course_details, 'estimated_hours', 0),
+            'final_evaluation_type': getattr(updated_course_details, 'final_evaluation_type', ''),
             'start_date': updated_course_details.start_date.isoformat() if updated_course_details.start_date else None,
             'end_date': updated_course_details.end_date.isoformat() if updated_course_details.end_date else None,
             'message': 'Đã cập nhật khóa học thành công!'
@@ -1825,43 +2023,83 @@ def _export_statistics_csv(request):
 
 # Final Evaluation API endpoints
 
+@login_required
 @csrf_exempt
 @require_http_methods(["GET"])
 def get_final_evaluation_api(request, course_key_string):
     """
-    Get final evaluation for a course.
+    Get final evaluation for a course - returns both practical and quiz evaluations if available.
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"get_final_evaluation_api called with course_key_string: {course_key_string}")
+    
     try:
         from opaque_keys.edx.keys import CourseKey
-        from cms.djangoapps.contentstore.models import FinalEvaluation
         
         course_key = CourseKey.from_string(course_key_string)
+        logger.info(f"Parsed course_key: {course_key}")
         
-        try:
-            evaluation = FinalEvaluation.objects.get(course_key=course_key, is_active=True)
-            return JsonResponse({
-                'success': True,
-                'evaluation': {
-                    'id': evaluation.id,
-                    'evaluation_type': evaluation.evaluation_type,
-                    'practical_question': evaluation.practical_question,
-                    'has_quiz_file': bool(evaluation.quiz_file),
-                    'quiz_file_name': evaluation.quiz_file.name.split('/')[-1] if evaluation.quiz_file else None,
-                    'program_title': evaluation.program.title if evaluation.program else None
-                }
-            })
-        except FinalEvaluation.DoesNotExist:
+        # Check if course exists first
+        store = modulestore()
+        course = store.get_course(course_key)
+        
+        if not course:
+            logger.warning(f"Course not found: {course_key}")
             return JsonResponse({
                 'success': False,
-                'error': 'Evaluation not found for this course'
+                'error': f'Course not found: {course_key}'
+            }, status=404)
+        
+        # Get final evaluation type from course details
+        try:
+            details = CourseDetails.fetch(course_key)
+            final_evaluation_type = getattr(details, 'final_evaluation_type', '')
+            logger.info(f"Course {course_key} has final_evaluation_type: {final_evaluation_type}")
+            
+            if not final_evaluation_type:
+                return JsonResponse({
+                    'success': True,
+                    'evaluation': {
+                        'evaluation_type': None,
+                        'practical_question': '',
+                        'has_quiz_file': False
+                    },
+                    'has_evaluation': False
+                })
+            
+            # Return evaluation based on type
+            evaluation_data = {
+                'evaluation_type': final_evaluation_type,
+                'practical_question': 'Hãy nộp bài thu hoạch của bạn theo yêu cầu của giảng viên.',
+                'has_quiz_file': False
+            }
+            
+            if final_evaluation_type == 'project':
+                evaluation_data['evaluation_type'] = 'practical'
+            elif final_evaluation_type == 'quiz':
+                evaluation_data['evaluation_type'] = 'quiz'
+                evaluation_data['has_quiz_file'] = True
+            
+            return JsonResponse({
+                'success': True,
+                'evaluation': evaluation_data,
+                'has_evaluation': True
             })
+            
+        except Exception as e:
+            logger.error(f"Error fetching course details for {course_key}: {e}")
+            return JsonResponse({
+                'success': False,
+                'error': f'Error fetching course details: {str(e)}'
+            }, status=500)
             
     except Exception as e:
         logger.error(f"Error getting final evaluation for course {course_key_string}: {e}")
         return JsonResponse({
             'success': False,
             'error': str(e)
-        })
+        }, status=500)
 
 
 @csrf_exempt
@@ -1878,7 +2116,12 @@ def update_final_evaluation_api(request, course_key_string):
         data = json.loads(request.body.decode('utf-8'))
         practical_question = data.get('practical_question', '')
         
-        evaluation = FinalEvaluation.objects.get(course_key=course_key, is_active=True)
+        # Get the practical evaluation specifically
+        evaluation = FinalEvaluation.objects.get(
+            course_key=course_key, 
+            evaluation_type=FinalEvaluation.EVALUATION_TYPE_PRACTICAL,
+            is_active=True
+        )
         evaluation.practical_question = practical_question
         evaluation.save()
         
@@ -1890,7 +2133,7 @@ def update_final_evaluation_api(request, course_key_string):
     except FinalEvaluation.DoesNotExist:
         return JsonResponse({
             'success': False,
-            'error': 'Evaluation not found for this course'
+            'error': 'Practical evaluation not found for this course'
         })
     except Exception as e:
         logger.error(f"Error updating final evaluation for course {course_key_string}: {e}")
@@ -1942,8 +2185,12 @@ def upload_evaluation_quiz_api(request, course_key_string):
                     'error': f'Missing required columns: {", ".join(missing_columns)}'
                 })
             
-            # Get evaluation
-            evaluation = FinalEvaluation.objects.get(course_key=course_key, is_active=True)
+            # Get quiz evaluation specifically
+            evaluation = FinalEvaluation.objects.get(
+                course_key=course_key, 
+                evaluation_type=FinalEvaluation.EVALUATION_TYPE_QUIZ,
+                is_active=True
+            )
             
             # Clear existing questions for this evaluation
             ChalixQuizQuestion.objects.filter(course_key=course_key).delete()

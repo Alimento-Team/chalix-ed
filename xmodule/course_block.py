@@ -345,6 +345,13 @@ class CourseFields:  # lint-amnesty, pylint: disable=missing-class-docstring
         default="",
         scope=Scope.settings
     )
+
+    final_evaluation_type = String(
+        display_name=_("Final Evaluation Type"),
+        help=_("Type of final evaluation: 'Nộp bài thu hoạch' (Project Submission) or 'Làm bài trắc nghiệm' (Multiple Choice Quiz)"),
+        default="",
+        scope=Scope.settings
+    )
     lti_passports = List(
         display_name=_("LTI Passports"),
         help=_('Enter the passports for course LTI tools in the following format: "id:client_key:client_secret".'),

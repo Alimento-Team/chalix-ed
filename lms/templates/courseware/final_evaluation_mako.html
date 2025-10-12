@@ -1,0 +1,909 @@
+<%!
+from django.utils.translation import gettext as _
+from openedx.core.djangolib.markup import HTML, Text
+import json
+%>
+
+<%namespace name='static' file='/static_content.html'/>
+
+<%
+    # Prepare evaluation data for JavaScript
+    practical_data = None
+    quiz_data = None
+    
+    if final_evaluation_data.get('practical'):
+        practical_eval = final_evaluation_data['practical']
+        practical_data = {
+            'id': practical_eval.id,
+            'question': practical_eval.question,
+            'created_at': practical_eval.created_at.isoformat() if practical_eval.created_at else None
+        }
+    
+    if final_evaluation_data.get('quiz'):
+        quiz_eval = final_evaluation_data['quiz']
+        quiz_data = {
+            'id': quiz_eval.id,
+            'quiz_file': quiz_eval.quiz_file.url if quiz_eval.quiz_file else None,
+            'created_at': quiz_eval.created_at.isoformat() if quiz_eval.created_at else None
+        }
+    
+    evaluation_js_data = {
+        'practical': practical_data,
+        'quiz': quiz_data,
+        'course_id': str(course.id)
+    }
+    evaluation_js_json = json.dumps(evaluation_js_data)
+%>
+
+<div id="final-evaluation-container" class="final-evaluation-container">
+    <div class="evaluation-header">
+        <h2>Kiểm tra cuối khóa</h2>
+        <div class="evaluation-status" id="evaluation-status">
+            <span class="status-indicator" id="status-indicator">Chưa hoàn thành</span>
+        </div>
+    </div>
+    
+    <div id="evaluation-content" class="evaluation-content">
+        <div class="loading-spinner">
+            <div class="spinner"></div>
+            <p>Đang tải...</p>
+        </div>
+    </div>
+    
+    <!-- Template for practical evaluation -->
+    <div id="practical-evaluation-template" style="display: none;">
+        <div class="evaluation-type-section practical-section">
+            <div class="evaluation-type-info">
+                <h3>📝 Nộp bài thu hoạch</h3>
+                <p>Thực hiện bài tập thực hành và nộp file kết quả</p>
+            </div>
+            
+            <div class="practical-question">
+                <h4>Yêu cầu bài tập:</h4>
+                <div class="question-content" id="practical-question-content"></div>
+            </div>
+            
+            <div class="submission-area">
+                <div class="file-upload-section">
+                    <h4>Nộp bài của bạn:</h4>
+                    <div class="upload-zone" id="practical-upload-zone">
+                        <div class="upload-info">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                            <p>Kéo thả file vào đây hoặc <button type="button" class="upload-btn">chọn file</button></p>
+                            <p class="file-types">Hỗ trợ: DOCX, PPTX, PDF (tối đa 10MB)</p>
+                        </div>
+                        <input type="file" id="practical-file-input" accept=".docx,.pptx,.pdf" style="display: none;">
+                    </div>
+                    <button id="submit-practical-btn" class="submit-btn" style="display: none;">Nộp bài</button>
+                </div>
+                
+                <div class="submission-status" id="practical-status" style="display: none;">
+                    <div class="status-card">
+                        <h4>Trạng thái nộp bài</h4>
+                        <div class="status-details">
+                            <p><strong>File đã nộp:</strong> <span id="submitted-file-name"></span></p>
+                            <p><strong>Thời gian nộp:</strong> <span id="submission-time"></span></p>
+                            <p><strong>Trạng thái:</strong> <span id="grading-status" class="status-pending">Chờ chấm điểm</span></p>
+                            <div class="grade-section" id="grade-section" style="display: none;">
+                                <p><strong>Điểm số:</strong> <span id="grade-value"></span></p>
+                                <p><strong>Nhận xét:</strong></p>
+                                <div id="feedback-content" class="feedback-content"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Template for quiz evaluation -->
+    <div id="quiz-evaluation-template" style="display: none;">
+        <div class="evaluation-type-section quiz-section">
+            <div class="evaluation-type-info">
+                <h3>📋 Làm bài trắc nghiệm</h3>
+                <p>Hoàn thành bài kiểm tra trắc nghiệm cuối khóa</p>
+            </div>
+            
+            <div class="quiz-header">
+                <div class="quiz-info">
+                    <div class="info-item">
+                        <strong>Số câu hỏi:</strong> <span id="total-questions">0</span>
+                    </div>
+                    <div class="info-item">
+                        <strong>Thời gian:</strong> <span id="time-limit">Không giới hạn</span>
+                    </div>
+                    <div class="info-item">
+                        <strong>Số lần làm:</strong> <span id="attempts-info">Không giới hạn</span>
+                    </div>
+                </div>
+                <button id="start-quiz-btn" class="quiz-start-btn">Bắt đầu làm bài</button>
+            </div>
+            
+            <div id="quiz-content" class="quiz-content" style="display: none;">
+                <div class="quiz-progress">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progress-fill"></div>
+                    </div>
+                    <span class="progress-text" id="progress-text">Câu 1/10</span>
+                    <div class="timer" id="timer" style="display: none;">
+                        <i class="fas fa-clock"></i>
+                        <span id="time-remaining">00:00</span>
+                    </div>
+                </div>
+                
+                <div class="question-container" id="question-container">
+                    <!-- Questions will be loaded here -->
+                </div>
+                
+                <div class="quiz-navigation">
+                    <button id="prev-question" class="nav-btn" disabled>Câu trước</button>
+                    <div class="question-numbers" id="question-numbers">
+                        <!-- Question numbers will be populated here -->
+                    </div>
+                    <button id="next-question" class="nav-btn">Câu tiếp</button>
+                </div>
+                
+                <div class="quiz-actions">
+                    <button id="submit-quiz-btn" class="submit-quiz-btn" style="display: none;">Nộp bài</button>
+                </div>
+            </div>
+            
+            <div class="quiz-results" id="quiz-results" style="display: none;">
+                <div class="results-header">
+                    <h4>Kết quả bài kiểm tra</h4>
+                    <div class="score-display">
+                        <div class="score-circle">
+                            <span id="score-percentage">0%</span>
+                        </div>
+                        <p>Điểm: <span id="score-points">0/10</span></p>
+                    </div>
+                </div>
+                
+                <div class="results-details">
+                    <div class="result-item">
+                        <strong>Thời gian hoàn thành:</strong> <span id="completion-time"></span>
+                    </div>
+                    <div class="result-item">
+                        <strong>Số câu đúng:</strong> <span id="correct-answers">0</span>
+                    </div>
+                    <div class="result-item">
+                        <strong>Số câu sai:</strong> <span id="incorrect-answers">0</span>
+                    </div>
+                </div>
+                
+                <button id="review-answers-btn" class="review-btn">Xem lại đáp án</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Question template for quiz -->
+    <div id="question-template" style="display: none;">
+        <div class="question-item">
+            <div class="question-text">
+                <h4 class="question-title"></h4>
+                <div class="question-content"></div>
+            </div>
+            <div class="answers-list">
+                <!-- Answer options will be populated here -->
+            </div>
+        </div>
+    </div>
+    
+    <!-- No evaluation message -->
+    <div id="no-evaluation-message" style="display: none;">
+        <div class="no-evaluation-card">
+            <div class="message-icon">
+                <i class="fas fa-info-circle"></i>
+            </div>
+            <h3>Chưa có bài kiểm tra</h3>
+            <p>Giảng viên chưa thiết lập bài kiểm tra cuối khóa cho môn học này.</p>
+            <p>Vui lòng liên hệ với giảng viên để biết thêm chi tiết.</p>
+        </div>
+    </div>
+</div>
+
+<!-- CSS Styles -->
+<style>
+.final-evaluation-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+    font-family: 'Arial', sans-serif;
+}
+
+.evaluation-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 20px;
+    border-radius: 10px 10px 0 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.evaluation-header h2 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 600;
+}
+
+.evaluation-status {
+    background: rgba(255, 255, 255, 0.2);
+    padding: 8px 16px;
+    border-radius: 20px;
+}
+
+.status-indicator {
+    font-weight: 500;
+    font-size: 14px;
+}
+
+.evaluation-content {
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-top: none;
+    border-radius: 0 0 10px 10px;
+    min-height: 400px;
+    position: relative;
+}
+
+.loading-spinner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 300px;
+}
+
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #667eea;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 16px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.evaluation-type-section {
+    padding: 30px;
+}
+
+.evaluation-type-info {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+.evaluation-type-info h3 {
+    font-size: 20px;
+    margin: 0 0 10px 0;
+    color: #333;
+}
+
+.evaluation-type-info p {
+    color: #666;
+    margin: 0;
+    font-size: 16px;
+}
+
+/* Practical Evaluation Styles */
+.practical-question {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 25px;
+}
+
+.practical-question h4 {
+    margin: 0 0 15px 0;
+    color: #333;
+    font-size: 16px;
+}
+
+.question-content {
+    line-height: 1.6;
+    color: #555;
+}
+
+.file-upload-section h4 {
+    margin: 0 0 15px 0;
+    color: #333;
+    font-size: 16px;
+}
+
+.upload-zone {
+    border: 2px dashed #ccc;
+    border-radius: 8px;
+    padding: 40px 20px;
+    text-align: center;
+    transition: all 0.3s ease;
+    background: #fafafa;
+    margin-bottom: 20px;
+}
+
+.upload-zone:hover {
+    border-color: #667eea;
+    background: #f0f4ff;
+}
+
+.upload-zone.dragover {
+    border-color: #667eea;
+    background: #e6f0ff;
+}
+
+.upload-info i {
+    font-size: 48px;
+    color: #ccc;
+    margin-bottom: 16px;
+}
+
+.upload-btn {
+    background: none;
+    border: none;
+    color: #667eea;
+    text-decoration: underline;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+.file-types {
+    font-size: 14px;
+    color: #888;
+    margin-top: 8px;
+}
+
+.submit-btn, .quiz-start-btn, .submit-quiz-btn, .review-btn {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    padding: 12px 30px;
+    border-radius: 6px;
+    font-size: 16px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.submit-btn:hover, .quiz-start-btn:hover, .submit-quiz-btn:hover, .review-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.submit-btn:disabled, .quiz-start-btn:disabled, .submit-quiz-btn:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.submission-status {
+    margin-top: 20px;
+}
+
+.status-card {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 20px;
+}
+
+.status-card h4 {
+    margin: 0 0 15px 0;
+    color: #333;
+}
+
+.status-details p {
+    margin: 8px 0;
+    color: #555;
+}
+
+.status-pending {
+    color: #ffc107;
+    font-weight: 500;
+}
+
+.status-graded {
+    color: #28a745;
+    font-weight: 500;
+}
+
+.grade-section {
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid #e9ecef;
+}
+
+.feedback-content {
+    background: white;
+    border: 1px solid #e9ecef;
+    border-radius: 4px;
+    padding: 15px;
+    margin-top: 8px;
+    line-height: 1.6;
+    color: #555;
+}
+
+/* Quiz Evaluation Styles */
+.quiz-header {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 25px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.quiz-info {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.info-item {
+    color: #555;
+    font-size: 14px;
+}
+
+.quiz-progress {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 25px;
+    padding: 15px 20px;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.progress-bar {
+    flex: 1;
+    height: 8px;
+    background: #e9ecef;
+    border-radius: 4px;
+    margin: 0 15px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    transition: width 0.3s ease;
+    width: 0%;
+}
+
+.progress-text, .timer {
+    font-weight: 500;
+    color: #333;
+}
+
+.timer i {
+    margin-right: 5px;
+    color: #dc3545;
+}
+
+.question-container {
+    margin-bottom: 30px;
+}
+
+.question-item {
+    background: white;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 25px;
+}
+
+.question-title {
+    color: #333;
+    margin: 0 0 15px 0;
+    font-size: 18px;
+}
+
+.question-content {
+    line-height: 1.6;
+    color: #555;
+    margin-bottom: 20px;
+}
+
+.answers-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.answer-option {
+    display: flex;
+    align-items: center;
+    padding: 15px;
+    border: 2px solid #e9ecef;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: white;
+}
+
+.answer-option:hover {
+    border-color: #667eea;
+    background: #f0f4ff;
+}
+
+.answer-option.selected {
+    border-color: #667eea;
+    background: #e6f0ff;
+}
+
+.answer-option input[type="radio"] {
+    margin-right: 12px;
+    transform: scale(1.2);
+}
+
+.answer-text {
+    flex: 1;
+    color: #333;
+    font-size: 15px;
+}
+
+.quiz-navigation {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 25px;
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.nav-btn {
+    background: white;
+    border: 1px solid #ddd;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.nav-btn:hover:not(:disabled) {
+    background: #f8f9fa;
+    border-color: #667eea;
+}
+
+.nav-btn:disabled {
+    background: #f8f9fa;
+    color: #999;
+    cursor: not-allowed;
+}
+
+.question-numbers {
+    display: flex;
+    gap: 8px;
+}
+
+.question-number {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: white;
+    font-size: 14px;
+}
+
+.question-number:hover {
+    border-color: #667eea;
+}
+
+.question-number.current {
+    background: #667eea;
+    color: white;
+    border-color: #667eea;
+}
+
+.question-number.answered {
+    background: #28a745;
+    color: white;
+    border-color: #28a745;
+}
+
+.quiz-actions {
+    text-align: center;
+    margin-top: 20px;
+}
+
+.quiz-results {
+    padding: 30px;
+    text-align: center;
+}
+
+.results-header {
+    margin-bottom: 30px;
+}
+
+.results-header h4 {
+    margin: 0 0 20px 0;
+    color: #333;
+    font-size: 24px;
+}
+
+.score-display {
+    display: inline-block;
+}
+
+.score-circle {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 15px;
+    color: white;
+    font-size: 24px;
+    font-weight: bold;
+}
+
+.results-details {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 25px;
+    text-align: left;
+}
+
+.result-item {
+    margin: 10px 0;
+    color: #555;
+}
+
+/* No evaluation message */
+.no-evaluation-card {
+    text-align: center;
+    padding: 60px 40px;
+    color: #666;
+}
+
+.message-icon {
+    font-size: 48px;
+    color: #ddd;
+    margin-bottom: 20px;
+}
+
+.no-evaluation-card h3 {
+    color: #333;
+    margin: 0 0 15px 0;
+    font-size: 20px;
+}
+
+.no-evaluation-card p {
+    margin: 8px 0;
+    line-height: 1.6;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .final-evaluation-container {
+        padding: 10px;
+        margin: 0;
+    }
+    
+    .evaluation-header {
+        flex-direction: column;
+        text-align: center;
+        gap: 15px;
+    }
+    
+    .quiz-header {
+        flex-direction: column;
+        gap: 15px;
+    }
+    
+    .quiz-navigation {
+        flex-direction: column;
+        gap: 15px;
+    }
+    
+    .question-numbers {
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+    
+    .quiz-progress {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .progress-bar {
+        margin: 0;
+        order: -1;
+    }
+}
+</style>
+
+<!-- JavaScript functionality -->
+<script>
+// Initialize the evaluation interface when document is ready
+window.finalEvaluationData = ${evaluation_js_json | n};
+
+class FinalEvaluationManager {
+    constructor(data) {
+        this.data = data;
+        this.currentQuestion = 0;
+        this.answers = {};
+        this.quizStartTime = null;
+        this.timer = null;
+        
+        this.init();
+    }
+    
+    init() {
+        this.setupEventHandlers();
+        this.loadEvaluationContent();
+    }
+    
+    setupEventHandlers() {
+        // Practical evaluation handlers
+        const fileInput = document.getElementById('practical-file-input');
+        const uploadZone = document.getElementById('practical-upload-zone');
+        const uploadBtn = uploadZone?.querySelector('.upload-btn');
+        const submitBtn = document.getElementById('submit-practical-btn');
+        
+        if (uploadBtn) {
+            uploadBtn.addEventListener('click', () => fileInput?.click());
+        }
+        
+        if (fileInput) {
+            fileInput.addEventListener('change', (e) => this.handleFileSelect(e.target.files[0]));
+        }
+        
+        if (uploadZone) {
+            uploadZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadZone.classList.add('dragover');
+            });
+            
+            uploadZone.addEventListener('dragleave', () => {
+                uploadZone.classList.remove('dragover');
+            });
+            
+            uploadZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadZone.classList.remove('dragover');
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    this.handleFileSelect(files[0]);
+                }
+            });
+        }
+        
+        if (submitBtn) {
+            submitBtn.addEventListener('click', () => this.submitPracticalWork());
+        }
+        
+        // Quiz evaluation handlers
+        const startQuizBtn = document.getElementById('start-quiz-btn');
+        if (startQuizBtn) {
+            startQuizBtn.addEventListener('click', () => this.startQuiz());
+        }
+        
+        const submitQuizBtn = document.getElementById('submit-quiz-btn');
+        if (submitQuizBtn) {
+            submitQuizBtn.addEventListener('click', () => this.submitQuiz());
+        }
+        
+        const prevBtn = document.getElementById('prev-question');
+        const nextBtn = document.getElementById('next-question');
+        
+        if (prevBtn) {
+            prevBtn.addEventListener('click', () => this.previousQuestion());
+        }
+        
+        if (nextBtn) {
+            nextBtn.addEventListener('click', () => this.nextQuestion());
+        }
+    }
+    
+    async loadEvaluationContent() {
+        try {
+            const contentDiv = document.getElementById('evaluation-content');
+            const loadingSpinner = contentDiv.querySelector('.loading-spinner');
+            
+            // Show appropriate evaluation type
+            if (this.data.practical) {
+                await this.loadPracticalEvaluation();
+            } else if (this.data.quiz) {
+                await this.loadQuizEvaluation();
+            } else {
+                this.showNoEvaluationMessage();
+            }
+            
+            // Hide loading spinner
+            if (loadingSpinner) {
+                loadingSpinner.style.display = 'none';
+            }
+            
+        } catch (error) {
+            console.error('Error loading evaluation content:', error);
+            this.showErrorMessage();
+        }
+    }
+    
+    async loadPracticalEvaluation() {
+        const template = document.getElementById('practical-evaluation-template');
+        const content = document.getElementById('evaluation-content');
+        
+        if (template && content) {
+            // Clone template and show it
+            const practicalSection = template.cloneNode(true);
+            practicalSection.id = 'practical-evaluation-active';
+            practicalSection.style.display = 'block';
+            
+            content.appendChild(practicalSection);
+            
+            // Load question content
+            const questionContent = practicalSection.querySelector('#practical-question-content');
+            if (questionContent && this.data.practical.question) {
+                questionContent.innerHTML = this.data.practical.question;
+            }
+            
+            // Check for existing submission
+            await this.checkPracticalSubmission();
+        }
+    }
+    
+    async loadQuizEvaluation() {
+        const template = document.getElementById('quiz-evaluation-template');
+        const content = document.getElementById('evaluation-content');
+        
+        if (template && content) {
+            // Clone template and show it
+            const quizSection = template.cloneNode(true);
+            quizSection.id = 'quiz-evaluation-active';
+            quizSection.style.display = 'block';
+            
+            content.appendChild(quizSection);
+            
+            // Load quiz data
+            await this.loadQuizData();
+        }
+    }
+    
+    showNoEvaluationMessage() {
+        const template = document.getElementById('no-evaluation-message');
+        const content = document.getElementById('evaluation-content');
+        
+        if (template && content) {
+            const noEvalSection = template.cloneNode(true);
+            noEvalSection.style.display = 'block';
+            content.appendChild(noEvalSection);
+        }
+    }
+    
+    showErrorMessage() {
+        const content = document.getElementById('evaluation-content');
+        if (content) {
+            content.innerHTML = `
+                <div style="padding: 40px; text-align: center; color: #dc3545;">
+                    <h3>Có lỗi xảy ra</h3>
+                    <p>Không thể tải nội dung bài kiểm tra. Vui lòng thử lại sau.</p>
+                </div>
+            `;
+        }
+    }
+    
+    // Additional methods would go here...
+    // (File handling, quiz management, submission logic, etc.)
+}
+
+// Initialize when document is ready
+document.addEventListener('DOMContentLoaded', function() {
+    new FinalEvaluationManager(window.finalEvaluationData);
+});
+</script>

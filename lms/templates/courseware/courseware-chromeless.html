@@ -90,7 +90,34 @@ ${HTML(fragment.foot_html())}
     style="display: block; width: auto; margin: 0;"
   >
       <main id="main" aria-label="Content">
-        ${HTML(fragment.body_html())}
+        <%
+          # Check if this is the final evaluation vertical
+          is_final_evaluation = (
+              hasattr(block, 'display_name') and 
+              block.display_name == "Kiểm tra cuối khoá" and
+              block.location.block_type == 'vertical'
+          )
+          
+          # If it's the final evaluation vertical, check if there's an evaluation record
+          final_evaluation_data = None
+          if is_final_evaluation:
+              try:
+                  from cms.djangoapps.contentstore.models import FinalEvaluation
+                  final_evaluations = FinalEvaluation.objects.filter(course_id=course.id)
+                  final_evaluation_data = {
+                      'practical': final_evaluations.filter(evaluation_type='practical').first(),
+                      'quiz': final_evaluations.filter(evaluation_type='quiz').first(),
+                  }
+              except ImportError:
+                  # In case we can't import the model, fall back to normal rendering
+                  final_evaluation_data = None
+        %>
+        
+        % if is_final_evaluation and final_evaluation_data:
+          <%include file="final_evaluation_mako.html" args="course=course, final_evaluation_data=final_evaluation_data"/>
+        % else:
+          ${HTML(fragment.body_html())}
+        % endif
       </main>
   </section>
 </div>

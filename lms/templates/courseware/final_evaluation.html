@@ -15,6 +15,111 @@
             <p>Đang tải...</p>
         </div>
     </div>
+    
+    <!-- Template for practical evaluation -->
+    <div id="practical-evaluation-template" style="display: none;">
+        <div class="evaluation-type-section practical-section">
+            <div class="evaluation-type-info">
+                <h3>📝 Nộp bài thu hoạch</h3>
+                <p>Thực hiện bài tập thực hành và nộp file kết quả</p>
+            </div>
+            
+            <div class="practical-question">
+                <h4>Yêu cầu bài tập:</h4>
+                <div class="question-content" id="practical-question-content"></div>
+            </div>
+            
+            <div class="submission-area">
+                <div class="file-upload-section">
+                    <h4>Nộp bài của bạn:</h4>
+                    <div class="upload-zone" id="practical-upload-zone">
+                        <div class="upload-info">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                            <p>Kéo thả file vào đây hoặc <button type="button" class="upload-btn">chọn file</button></p>
+                            <p class="file-types">Hỗ trợ: DOCX, PPTX, PDF (tối đa 10MB)</p>
+                        </div>
+                        <input type="file" id="practical-file-input" accept=".docx,.pptx,.pdf" style="display: none;">
+                    </div>
+                    <button id="submit-practical-btn" class="submit-btn" style="display: none;">Nộp bài</button>
+                </div>
+                
+                <div class="submission-status" id="practical-status" style="display: none;">
+                    <div class="status-card">
+                        <h4>Trạng thái nộp bài</h4>
+                        <div class="status-details">
+                            <p><strong>File đã nộp:</strong> <span id="submitted-file-name"></span></p>
+                            <p><strong>Thời gian nộp:</strong> <span id="submission-time"></span></p>
+                            <div id="grade-section" style="display: none;">
+                                <p><strong>Điểm số:</strong> <span id="submission-grade"></span></p>
+                                <p><strong>Nhận xét:</strong></p>
+                                <div id="teacher-feedback"></div>
+                            </div>
+                        </div>
+                        <button id="resubmit-btn" class="resubmit-btn">Nộp lại</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Template for quiz evaluation -->
+    <div id="quiz-evaluation-template" style="display: none;">
+        <div class="evaluation-type-section quiz-section">
+            <div class="evaluation-type-info quiz-info">
+                <h3>📊 Làm bài trắc nghiệm</h3>
+                <p>Hoàn thành bài kiểm tra trắc nghiệm cuối khóa</p>
+            </div>
+            
+            <div class="quiz-start-area" id="quiz-start-area">
+                <div class="quiz-instructions">
+                    <h4>Hướng dẫn làm bài:</h4>
+                    <ul>
+                        <li>Bài kiểm tra gồm nhiều câu hỏi trắc nghiệm</li>
+                        <li>Mỗi câu hỏi chỉ có một đáp án đúng</li>
+                        <li>Bạn chỉ có một lần làm bài</li>
+                        <li>Hãy đọc kỹ câu hỏi trước khi chọn đáp án</li>
+                    </ul>
+                </div>
+                <button id="start-quiz-btn" class="start-quiz-btn">Bắt đầu bài cuối khóa</button>
+            </div>
+            
+            <div class="quiz-content" id="quiz-content" style="display: none;">
+                <div class="quiz-progress">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="quiz-progress-fill"></div>
+                    </div>
+                    <span id="quiz-progress-text">Câu 1/10</span>
+                </div>
+                
+                <div class="question-container" id="current-question">
+                    <!-- Question content will be inserted here -->
+                </div>
+                
+                <div class="quiz-navigation">
+                    <button id="prev-question-btn" class="nav-btn" disabled>Câu trước</button>
+                    <button id="next-question-btn" class="nav-btn">Câu tiếp theo</button>
+                    <button id="finish-quiz-btn" class="finish-btn" style="display: none;">Hoàn thành</button>
+                </div>
+            </div>
+            
+            <div class="quiz-result" id="quiz-result" style="display: none;">
+                <div class="result-card">
+                    <h4>🎉 Kết quả bài kiểm tra</h4>
+                    <div class="score-display">
+                        <div class="score-circle">
+                            <span id="final-score">0</span>
+                        </div>
+                        <div class="score-details">
+                            <p><strong>Điểm số:</strong> <span id="score-points"></span></p>
+                            <p><strong>Số câu đúng:</strong> <span id="correct-count"></span></p>
+                            <p><strong>Tổng số câu:</strong> <span id="total-questions"></span></p>
+                        </div>
+                    </div>
+                    <div class="completion-status" id="completion-status"></div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <style>
@@ -453,6 +558,197 @@
     border: 1px solid #c8e6c9;
     margin: 20px 0;
 }
+
+/* New styles for multiple evaluation types */
+.evaluation-type-section {
+    margin-bottom: 30px;
+    padding: 20px;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    background: white;
+}
+
+.evaluation-type-info.quiz-info {
+    background: #f3e5f5;
+    border-left: 4px solid #7b1fa2;
+}
+
+.evaluation-type-info.quiz-info h3 {
+    color: #6a1b9a;
+}
+
+.upload-zone {
+    border: 2px dashed #ddd;
+    border-radius: 8px;
+    padding: 30px;
+    text-align: center;
+    background: #fafafa;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.upload-zone:hover, 
+.upload-zone.dragover {
+    border-color: #007cba;
+    background: #f0f8ff;
+}
+
+.upload-zone .upload-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.upload-zone i {
+    font-size: 48px;
+    color: #007cba;
+    margin-bottom: 16px;
+}
+
+.submit-btn, .start-quiz-btn, .resubmit-btn {
+    background: #007cba;
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 500;
+    margin-top: 16px;
+}
+
+.submit-btn:hover, .start-quiz-btn:hover, .resubmit-btn:hover {
+    background: #005a8b;
+}
+
+.start-quiz-btn {
+    background: #4caf50;
+    padding: 16px 32px;
+    font-size: 18px;
+}
+
+.start-quiz-btn:hover {
+    background: #45a049;
+}
+
+.status-card, .result-card {
+    background: #f9f9f9;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 20px;
+    margin-top: 20px;
+}
+
+.quiz-progress {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.progress-bar {
+    flex: 1;
+    height: 8px;
+    background: #e0e0e0;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: #4caf50;
+    transition: width 0.3s ease;
+}
+
+.question-container {
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 24px;
+    margin-bottom: 20px;
+}
+
+.quiz-navigation {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+}
+
+.nav-btn, .finish-btn {
+    background: #6c757d;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.nav-btn:hover, .finish-btn:hover {
+    background: #5a6268;
+}
+
+.nav-btn:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+}
+
+.finish-btn {
+    background: #dc3545;
+}
+
+.finish-btn:hover {
+    background: #c82333;
+}
+
+.score-display {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    margin: 20px 0;
+}
+
+.score-circle {
+    width: 80px;
+    height: 80px;
+    background: #4caf50;
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    font-weight: bold;
+}
+
+.score-details {
+    flex: 1;
+}
+
+.file-types {
+    font-size: 12px;
+    color: #666;
+}
+
+.upload-btn {
+    background: none;
+    border: none;
+    color: #007cba;
+    text-decoration: underline;
+    cursor: pointer;
+    font-size: inherit;
+}
+
+.quiz-instructions ul {
+    text-align: left;
+    padding-left: 20px;
+}
+
+.quiz-instructions li {
+    margin-bottom: 8px;
+    color: #555;
+}
 </style>
 
 <script>
@@ -477,7 +773,7 @@ class FinalEvaluationManager {
             const data = await response.json();
             
             if (data.success) {
-                this.renderEvaluation(data.evaluation);
+                this.renderEvaluations(data);
             } else {
                 this.showError(data.error);
             }
@@ -487,44 +783,76 @@ class FinalEvaluationManager {
         }
     }
     
-    renderEvaluation(evaluation) {
+    renderEvaluations(data) {
         const container = document.getElementById('evaluation-content');
         const statusIndicator = document.getElementById('status-indicator');
         
-        if (evaluation.evaluation_type === 'practical') {
-            this.renderPracticalAssignment(evaluation, container);
-            if (evaluation.has_submission) {
-                statusIndicator.textContent = 'Đã nộp bài';
-                statusIndicator.className = 'status-indicator completed';
+        container.innerHTML = '';
+        
+        // Update overall status
+        let completedCount = 0;
+        let totalCount = 0;
+        
+        if (data.has_practical) {
+            totalCount++;
+            if (data.practical_evaluation.has_submission) {
+                completedCount++;
             }
+        }
+        
+        if (data.has_quiz) {
+            totalCount++;
+            if (data.quiz_evaluation.quiz_completed) {
+                completedCount++;
+            }
+        }
+        
+        if (completedCount === totalCount && totalCount > 0) {
+            statusIndicator.textContent = 'Hoàn thành';
+            statusIndicator.className = 'status-indicator completed';
+        } else if (completedCount > 0) {
+            statusIndicator.textContent = `Đã hoàn thành ${completedCount}/${totalCount}`;
+            statusIndicator.className = 'status-indicator in-progress';
         } else {
-            this.renderQuizEvaluation(evaluation, container);
-            if (evaluation.quiz_completed) {
-                statusIndicator.textContent = `Đã hoàn thành - ${evaluation.quiz_score}%`;
-                statusIndicator.className = 'status-indicator completed';
-            }
+            statusIndicator.textContent = 'Chưa hoàn thành';
+            statusIndicator.className = 'status-indicator';
+        }
+        
+        // Render practical evaluation if available
+        if (data.has_practical) {
+            this.renderPracticalAssignment(data.practical_evaluation, container);
+        }
+        
+        // Render quiz evaluation if available
+        if (data.has_quiz) {
+            this.renderQuizEvaluation(data.quiz_evaluation, container);
+        }
+        
+        // If no evaluations available
+        if (!data.has_practical && !data.has_quiz) {
+            container.innerHTML = '<div class="no-evaluation"><p>Không có hình thức kiểm tra cuối khóa nào được thiết lập.</p></div>';
         }
     }
     
     renderPracticalAssignment(evaluation, container) {
-        const html = `
-            <div class="evaluation-type-info">
-                <h3>Bài tập thực hành</h3>
-                <p>Nộp bài thu hoạch dưới dạng file DOCX, PPTX hoặc PDF</p>
-            </div>
-            
-            <div class="practical-assignment">
-                <div class="practical-question">
-                    <h4>Yêu cầu bài tập:</h4>
-                    <div class="question-text">${evaluation.practical_question || 'Không có yêu cầu cụ thể'}</div>
-                </div>
-                
-                ${evaluation.has_submission ? this.renderSubmittedAssignment(evaluation) : this.renderFileUpload()}
-            </div>
-        `;
+        // Clone the template
+        const template = document.getElementById('practical-evaluation-template');
+        const practicalSection = template.cloneNode(true);
+        practicalSection.style.display = 'block';
+        practicalSection.id = 'practical-evaluation-active';
         
-        container.innerHTML = html;
-        this.setupFileUpload();
+        // Fill in the question content
+        const questionContent = practicalSection.querySelector('#practical-question-content');
+        questionContent.textContent = evaluation.practical_question || 'Không có yêu cầu cụ thể';
+        
+        // Set up submission area based on current state
+        if (evaluation.has_submission) {
+            this.showSubmissionStatus(practicalSection, evaluation);
+        } else {
+            this.setupFileUpload(practicalSection);
+        }
+        
+        container.appendChild(practicalSection);
     }
     
     renderSubmittedAssignment(evaluation) {
@@ -580,38 +908,158 @@ class FinalEvaluationManager {
     }
     
     renderQuizEvaluation(evaluation, container) {
+        // Clone the template
+        const template = document.getElementById('quiz-evaluation-template');
+        const quizSection = template.cloneNode(true);
+        quizSection.style.display = 'block';
+        quizSection.id = 'quiz-evaluation-active';
+        
         if (evaluation.quiz_completed) {
-            const html = `
-                <div class="evaluation-type-info">
-                    <h3>Bài trắc nghiệm</h3>
-                    <p>Bài kiểm tra đã hoàn thành</p>
-                </div>
-                
-                <div class="quiz-complete">
-                    <div class="completion-message">🎉 Bạn đã hoàn thành bài kiểm tra!</div>
-                    <div class="score-display">${evaluation.quiz_score}%</div>
-                    <div class="score-details">
-                        Kết quả cuối cùng của bạn
-                    </div>
-                </div>
-            `;
-            container.innerHTML = html;
+            // Show completed quiz result
+            const startArea = quizSection.querySelector('#quiz-start-area');
+            const quizResult = quizSection.querySelector('#quiz-result');
+            
+            startArea.style.display = 'none';
+            quizResult.style.display = 'block';
+            
+            // Fill in the results
+            quizResult.querySelector('#final-score').textContent = Math.round(evaluation.quiz_score) + '%';
+            quizResult.querySelector('#score-points').textContent = evaluation.quiz_score + '/100';
+            // Note: We'd need additional data from the API for correct_count and total_questions
+            
         } else {
-            const html = `
-                <div class="evaluation-type-info">
-                    <h3>Bài trắc nghiệm</h3>
-                    <p>Hoàn thành bài trắc nghiệm để kết thúc khóa học</p>
-                </div>
-                
-                <div class="quiz-intro">
-                    <h3>Sẵn sàng bắt đầu bài kiểm tra cuối khóa?</h3>
-                    <p>Bài kiểm tra gồm nhiều câu hỏi trắc nghiệm. Bạn chỉ có một lần làm bài.</p>
-                    <button class="start-quiz-btn" onclick="finalEval.startQuiz()">
-                        Bắt đầu bài cuối khóa
-                    </button>
-                </div>
-            `;
-            container.innerHTML = html;
+            // Set up start quiz button
+            const startBtn = quizSection.querySelector('#start-quiz-btn');
+            startBtn.addEventListener('click', () => this.startQuiz());
+        }
+        
+        container.appendChild(quizSection);
+    }
+    
+    showSubmissionStatus(practicalSection, evaluation) {
+        const uploadZone = practicalSection.querySelector('#practical-upload-zone');
+        const submitBtn = practicalSection.querySelector('#submit-practical-btn');
+        const statusDiv = practicalSection.querySelector('#practical-status');
+        
+        // Hide upload zone and submit button
+        uploadZone.style.display = 'none';
+        submitBtn.style.display = 'none';
+        
+        // Show status
+        statusDiv.style.display = 'block';
+        statusDiv.querySelector('#submitted-file-name').textContent = 'Xem file đã nộp';
+        
+        // Add grade information if available
+        if (evaluation.submission_grade !== null) {
+            const gradeSection = statusDiv.querySelector('#grade-section');
+            gradeSection.style.display = 'block';
+            gradeSection.querySelector('#submission-grade').textContent = evaluation.submission_grade + '/100';
+            gradeSection.querySelector('#teacher-feedback').textContent = evaluation.teacher_feedback || 'Không có nhận xét';
+        }
+        
+        // Set up resubmit button
+        const resubmitBtn = statusDiv.querySelector('#resubmit-btn');
+        resubmitBtn.addEventListener('click', () => {
+            statusDiv.style.display = 'none';
+            uploadZone.style.display = 'block';
+            this.setupFileUpload(practicalSection);
+        });
+    }
+    
+    setupFileUpload(practicalSection) {
+        const uploadZone = practicalSection.querySelector('#practical-upload-zone');
+        const fileInput = practicalSection.querySelector('#practical-file-input');
+        const submitBtn = practicalSection.querySelector('#submit-practical-btn');
+        const uploadBtn = uploadZone.querySelector('.upload-btn');
+        
+        let selectedFile = null;
+        
+        // Handle file selection
+        uploadBtn.addEventListener('click', () => fileInput.click());
+        
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                selectedFile = e.target.files[0];
+                this.validateAndShowFile(selectedFile, uploadZone, submitBtn);
+            }
+        });
+        
+        // Handle drag and drop
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('dragover');
+        });
+        
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('dragover');
+        });
+        
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('dragover');
+            
+            if (e.dataTransfer.files.length > 0) {
+                selectedFile = e.dataTransfer.files[0];
+                this.validateAndShowFile(selectedFile, uploadZone, submitBtn);
+            }
+        });
+        
+        // Handle submit
+        submitBtn.addEventListener('click', () => {
+            if (selectedFile) {
+                this.submitPracticalAssignment(selectedFile);
+            }
+        });
+    }
+    
+    validateAndShowFile(file, uploadZone, submitBtn) {
+        const allowedTypes = ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 
+                             'application/vnd.openxmlformats-officedocument.presentationml.presentation', 
+                             'application/pdf'];
+        const maxSize = 10 * 1024 * 1024; // 10MB
+        
+        if (!allowedTypes.includes(file.type)) {
+            alert('Định dạng file không hỗ trợ. Vui lòng chọn file DOCX, PPTX hoặc PDF.');
+            return;
+        }
+        
+        if (file.size > maxSize) {
+            alert('File quá lớn. Kích thước tối đa cho phép là 10MB.');
+            return;
+        }
+        
+        // Show file info
+        const uploadInfo = uploadZone.querySelector('.upload-info');
+        uploadInfo.innerHTML = `
+            <i class="fas fa-file-alt"></i>
+            <p><strong>File đã chọn:</strong> ${file.name}</p>
+            <p class="file-types">Kích thước: ${(file.size / 1024 / 1024).toFixed(2)}MB</p>
+        `;
+        
+        submitBtn.style.display = 'block';
+    }
+    
+    async submitPracticalAssignment(file) {
+        const formData = new FormData();
+        formData.append('submission_file', file);
+        
+        try {
+            const response = await fetch(`/courseware/evaluation/${this.courseId}/submit/`, {
+                method: 'POST',
+                body: formData,
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                alert('Nộp bài thành công!');
+                this.loadEvaluationData(); // Reload to show updated status
+            } else {
+                alert('Lỗi: ' + data.error);
+            }
+        } catch (error) {
+            console.error('Error submitting assignment:', error);
+            alert('Lỗi khi nộp bài. Vui lòng thử lại.');
         }
     }
     

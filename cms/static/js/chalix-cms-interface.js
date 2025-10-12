@@ -960,7 +960,7 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    showFinalEvaluationModal(data.evaluation, courseKey);
+                    showFinalEvaluationModal(data, courseKey);
                 } else {
                     console.error('Error loading evaluation:', data.error);
                     alert('Không thể tải thông tin kiểm tra cuối khóa');
@@ -972,7 +972,10 @@
             });
     }
 
-    function showFinalEvaluationModal(evaluation, courseKey) {
+    function showFinalEvaluationModal(evaluationData, courseKey) {
+        const practical = evaluationData.practical_evaluation;
+        const quiz = evaluationData.quiz_evaluation;
+        
         const modalHTML = `
             <div id="finalEvaluationModal" class="final-evaluation-modal">
                 <div class="final-evaluation-modal-content">
@@ -982,36 +985,47 @@
                     </div>
                     <div class="final-evaluation-modal-body">
                         <div class="evaluation-info">
-                            <p><strong>Chương trình:</strong> ${evaluation.program_title || 'Không xác định'}</p>
-                            <p><strong>Loại kiểm tra:</strong> ${evaluation.evaluation_type === 'practical' ? 'Nộp bài thu hoạch' : 'Làm bài trắc nghiệm'}</p>
+                            <p><strong>Chương trình:</strong> ${(practical && practical.program_title) || (quiz && quiz.program_title) || 'Không xác định'}</p>
+                            <div class="evaluation-types">
+                                ${evaluationData.has_practical ? '<span class="eval-type-badge practical">Nộp bài thu hoạch</span>' : ''}
+                                ${evaluationData.has_quiz ? '<span class="eval-type-badge quiz">Làm bài trắc nghiệm</span>' : ''}
+                            </div>
                         </div>
                         
-                        ${evaluation.evaluation_type === 'practical' ? `
-                            <div class="practical-section">
-                                <h3>Câu hỏi thực hành</h3>
+                        ${evaluationData.has_practical ? `
+                            <div class="practical-section evaluation-section">
+                                <h3>📝 Câu hỏi thực hành (Nộp bài thu hoạch)</h3>
                                 <textarea id="practicalQuestion" class="practical-question-input" 
-                                         placeholder="Nhập câu hỏi hoặc hướng dẫn cho bài thực hành...">${evaluation.practical_question || ''}</textarea>
+                                         placeholder="Nhập câu hỏi hoặc hướng dẫn cho bài thực hành...">${practical.practical_question || ''}</textarea>
                                 <button id="savePracticalQuestion" class="save-practical-btn">Lưu câu hỏi</button>
                             </div>
-                        ` : `
-                            <div class="quiz-section">
-                                <h3>Quản lý bài trắc nghiệm</h3>
+                        ` : ''}
+                        
+                        ${evaluationData.has_quiz ? `
+                            <div class="quiz-section evaluation-section">
+                                <h3>📊 Quản lý bài trắc nghiệm</h3>
                                 <div class="quiz-upload-area">
                                     <input type="file" id="quizFileInput" accept=".xlsx,.xls" style="display: none;">
                                     <button id="uploadQuizBtn" class="upload-quiz-btn">Tải lên file Excel</button>
                                     <p class="upload-hint">Định dạng yêu cầu: Question, Choice_A, Choice_B, Choice_C, Choice_D, Correct_Answer</p>
                                 </div>
                                 
-                                ${evaluation.has_quiz_file ? `
+                                ${quiz.has_quiz_file ? `
                                     <div class="current-quiz-info">
-                                        <p><strong>File hiện tại:</strong> ${evaluation.quiz_file_name}</p>
+                                        <p><strong>File hiện tại:</strong> ${quiz.quiz_file_name}</p>
                                         <button id="previewQuizBtn" class="preview-quiz-btn">Xem trước câu hỏi</button>
                                     </div>
                                 ` : ''}
                                 
                                 <div id="quizPreview" class="quiz-preview" style="display: none;"></div>
                             </div>
-                        `}
+                        ` : ''}
+                        
+                        ${!evaluationData.has_practical && !evaluationData.has_quiz ? `
+                            <div class="no-evaluation">
+                                <p>Không có hình thức kiểm tra cuối khóa nào được thiết lập cho khóa học này.</p>
+                            </div>
+                        ` : ''}
                     </div>
                 </div>
                 <div class="final-evaluation-modal-overlay"></div>
@@ -1021,32 +1035,39 @@
         document.body.insertAdjacentHTML('beforeend', modalHTML);
         
         // Add event listeners
-        setupFinalEvaluationModalEvents(evaluation, courseKey);
+        setupFinalEvaluationModalEvents(evaluationData, courseKey);
     }
 
-    function setupFinalEvaluationModalEvents(evaluation, courseKey) {
+    function setupFinalEvaluationModalEvents(evaluationData, courseKey) {
         const modal = document.getElementById('finalEvaluationModal');
         
         // Close modal
         modal.querySelector('.final-evaluation-close-btn').addEventListener('click', closeFinalEvaluationModal);
         modal.querySelector('.final-evaluation-modal-overlay').addEventListener('click', closeFinalEvaluationModal);
         
-        if (evaluation.evaluation_type === 'practical') {
-            // Save practical question
-            modal.querySelector('#savePracticalQuestion').addEventListener('click', function() {
-                savePracticalQuestion(courseKey);
-            });
-        } else {
-            // Quiz upload
+        // Practical evaluation events
+        if (evaluationData.has_practical) {
+            const savePracticalBtn = modal.querySelector('#savePracticalQuestion');
+            if (savePracticalBtn) {
+                savePracticalBtn.addEventListener('click', function() {
+                    savePracticalQuestion(courseKey);
+                });
+            }
+        }
+        
+        // Quiz evaluation events
+        if (evaluationData.has_quiz) {
             const uploadBtn = modal.querySelector('#uploadQuizBtn');
             const fileInput = modal.querySelector('#quizFileInput');
             
-            uploadBtn.addEventListener('click', () => fileInput.click());
-            fileInput.addEventListener('change', function(e) {
-                if (e.target.files.length > 0) {
-                    uploadQuizFile(courseKey, e.target.files[0]);
-                }
-            });
+            if (uploadBtn && fileInput) {
+                uploadBtn.addEventListener('click', () => fileInput.click());
+                fileInput.addEventListener('change', function(e) {
+                    if (e.target.files.length > 0) {
+                        uploadQuizFile(courseKey, e.target.files[0]);
+                    }
+                });
+            }
             
             // Preview quiz
             const previewBtn = modal.querySelector('#previewQuizBtn');
@@ -1242,6 +1263,50 @@
                 padding: 16px;
                 border-radius: 4px;
                 margin-bottom: 20px;
+            }
+            
+            .evaluation-types {
+                display: flex;
+                gap: 8px;
+                margin-top: 8px;
+            }
+            
+            .eval-type-badge {
+                display: inline-block;
+                padding: 4px 8px;
+                border-radius: 12px;
+                font-size: 12px;
+                font-weight: 500;
+            }
+            
+            .eval-type-badge.practical {
+                background: #e3f2fd;
+                color: #1565c0;
+            }
+            
+            .eval-type-badge.quiz {
+                background: #f3e5f5;
+                color: #7b1fa2;
+            }
+            
+            .evaluation-section {
+                margin-bottom: 30px;
+                border: 1px solid #e0e0e0;
+                border-radius: 8px;
+                padding: 20px;
+            }
+            
+            .evaluation-section h3 {
+                margin: 0 0 16px 0;
+                color: #333;
+                font-size: 16px;
+            }
+            
+            .no-evaluation {
+                text-align: center;
+                padding: 40px;
+                color: #666;
+                font-style: italic;
             }
             
             .practical-question-input {
