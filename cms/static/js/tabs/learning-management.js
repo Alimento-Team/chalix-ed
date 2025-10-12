@@ -1006,7 +1006,12 @@
                     <h4 class="lm-card-title">${escapeHtml(course.title)}</h4>
                 </div>
                 <div class="lm-card-meta">
-                    ID: ${courseIdentifier} • ${course.course_type || 'Chưa phân loại'} • ${course.course_level || 'Chưa xác định trình độ'}
+                    ID: ${courseIdentifier} • ${course.course_type || 'Chưa phân loại'} • ${
+                        course.course_level === 'basic' ? 'Cơ bản' :
+                        course.course_level === 'intermediate' ? 'Trung cấp' :
+                        course.course_level === 'advanced' ? 'Nâng cao' :
+                        course.course_level || 'Chưa xác định trình độ'
+                    }
                 </div>
                 <div class="lm-card-desc">
                     ${escapeHtml(course.short_description || 'Chưa có mô tả')}
