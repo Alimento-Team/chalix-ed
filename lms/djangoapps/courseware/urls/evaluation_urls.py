@@ -19,21 +19,21 @@ urlpatterns = [
         name='submit_practical_assignment'
     ),
     
-    # Get quiz questions
+    # Get quiz questions (legacy)
     re_path(
         r'^evaluation/(?P<course_id>.+)/quiz/$',
         evaluation.get_quiz_questions,
         name='get_quiz_questions'
     ),
     
-    # Submit quiz answer
+    # Submit quiz answer (legacy)
     re_path(
         r'^evaluation/(?P<course_id>.+)/submit-answer/$',
         evaluation.submit_quiz_answer,
         name='submit_quiz_answer'
     ),
     
-    # Complete quiz
+    # Complete quiz (legacy)
     re_path(
         r'^evaluation/(?P<course_id>.+)/complete-quiz/$',
         evaluation.complete_quiz_attempt,

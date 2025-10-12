@@ -127,3 +127,11 @@ urlpatterns += [
         include('lms.djangoapps.course_home_api.content.urls')
     ),
 ]
+
+# Final Evaluation API URLs
+urlpatterns += [
+    re_path(
+        r'^final_evaluation/',
+        include('lms.djangoapps.course_home_api.final_evaluation.urls')
+    ),
+]
