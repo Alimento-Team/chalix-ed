@@ -1,7 +1,7 @@
 (function () {
     'use strict';
     
-    console.log('Learning Management JS loaded - with highlighted evaluation modes v1.3');
+    console.log('Learning Management JS loaded - with DEBUGGING evaluation modes v1.4');
 
     window.CMS_TABS = window.CMS_TABS || {};
 
@@ -688,13 +688,6 @@
     function render(container, config) {
         if (!container) return;
         console.log('[LM] Starting render for learning-management tab');
-        console.log('ℹ️ API Status: Some endpoints are not yet implemented. Edit/Save functions will work in demo mode.');
-        console.log('📝 Missing endpoints:', {
-            'update-program': '/api/chalix/dashboard/update-program/',
-            'update-course': '/api/chalix/dashboard/update-course/', 
-            'program-detail': '/api/chalix/dashboard/program-detail/<id>/',
-            'course-detail': '/api/chalix/dashboard/course-detail/<id>/'
-        });
         ensureStyles();
 
         container.innerHTML = `
@@ -1175,6 +1168,10 @@
                                 <label>Tự động cập nhật</label>
                                 <span>${program.update_topics ? 'Có' : 'Không'}</span>
                             </div>
+                            <div class="lm-detail-item">
+                                <label>Hình thức kiểm tra cuối khoá</label>
+                                <span>${program.allow_practical_submission ? 'Nộp bài thực hành' : 'Làm bài trắc nghiệm'}</span>
+                            </div>
                         </div>
                         ${program.short_description ? `
                             <div class="lm-detail-item">
@@ -1323,6 +1320,22 @@
                                 <button type="button" class="lm-add-topic-btn">+ Thêm chuyên đề</button>
                             </div>
                         </div>
+                        
+                        <!-- Evaluation mode switch (Nộp bài thu hoạch / Làm bài trắc nghiệm) -->
+                        <div class="lm-form-group">
+                            <label class="lm-form-label">Hình thức kiểm tra cuối khoá</label>
+                            <div style="display:flex;align-items:center;gap:12px;">
+                                <div id="practical-option" style="padding:8px 12px;border-radius:8px;background:${program.allow_practical_submission ? '#e3f2fd' : 'transparent'};cursor:pointer;">Nộp bài thu hoạch</div>
+                                <label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;">
+                                    <input type="checkbox" id="evaluation-mode-switch" name="evaluation_mode" ${program.allow_practical_submission ? '' : 'checked'} style="opacity:0;width:0;height:0;">
+                                    <div id="evaluation-switch-ui" style="width:46px;height:26px;border-radius:20px;background:${program.allow_practical_submission ? '#d1d5db' : '#3b82f6'};position:relative;transition:background 200ms;">
+                                        <div id="evaluation-switch-knob" style="width:20px;height:20px;background:#fff;border-radius:50%;position:absolute;top:3px;left:${program.allow_practical_submission ? '3px' : '23px'};transition:left 200ms;"></div>
+                                    </div>
+                                </label>
+                                <div id="quiz-option" style="padding:8px 12px;border-radius:8px;background:${program.allow_practical_submission ? 'transparent' : '#e3f2fd'};cursor:pointer;">Làm bài trắc nghiệm</div>
+                            </div>
+                            <div class="lm-form-help">Chọn hình thức kiểm tra cuối khoá cho chương trình này</div>
+                        </div>
                     </form>
                     
                     <div class="lm-modal-actions">
@@ -1400,6 +1413,100 @@
             });
         });
 
+        // Evaluation switch handlers
+        const evalCheckbox = overlay.querySelector('#evaluation-mode-switch');
+        const evalUi = overlay.querySelector('#evaluation-switch-ui');
+        const evalKnob = overlay.querySelector('#evaluation-switch-knob');
+        const practicalOption = overlay.querySelector('#practical-option');
+        const quizOption = overlay.querySelector('#quiz-option');
+
+        // Evaluation switch setup - ON=Quiz, OFF=Practical
+        function setEvaluationMode(isPractical) {
+            // Always query fresh from overlay to ensure elements exist
+            const checkbox = overlay.querySelector('#evaluation-mode-switch');
+            const ui = overlay.querySelector('#evaluation-switch-ui');
+            const knob = overlay.querySelector('#evaluation-switch-knob');
+            const practical = overlay.querySelector('#practical-option');
+            const quiz = overlay.querySelector('#quiz-option');
+            
+            console.log('setEvaluationMode called with:', isPractical, 'Elements found:', {
+                checkbox: !!checkbox,
+                ui: !!ui,
+                knob: !!knob,
+                practical: !!practical,
+                quiz: !!quiz
+            });
+            
+            // REVERSED LOGIC: checkbox ON = quiz, OFF = practical
+            const isQuizMode = !isPractical;
+            
+            // Update checkbox state (ON for quiz, OFF for practical)
+            if (checkbox) {
+                checkbox.checked = isQuizMode;
+            }
+            
+            // Update switch UI appearance (blue when ON/quiz, gray when OFF/practical)
+            if (ui) {
+                ui.style.background = isQuizMode ? '#3b82f6' : '#d1d5db';
+            }
+            
+            // Update knob position (right when ON/quiz, left when OFF/practical)
+            if (knob) {
+                knob.style.left = isQuizMode ? '23px' : '3px';
+            }
+            
+            // Update option backgrounds
+            if (practical) {
+                practical.style.background = isPractical ? '#e3f2fd' : 'transparent';
+            }
+            
+            if (quiz) {
+                quiz.style.background = isQuizMode ? '#e3f2fd' : 'transparent';
+            }
+            
+            console.log('Evaluation mode set to:', isPractical ? 'Practical (Nộp bài thu hoạch) - Switch OFF' : 'Quiz (Làm bài trắc nghiệm) - Switch ON');
+        }
+
+        // Initialize with program data
+        const initialPractical = !!program.allow_practical_submission;
+        setEvaluationMode(initialPractical);
+        console.log('Initialized evaluation switch. Program allows practical:', program.allow_practical_submission, 
+                   'Switch will be:', initialPractical ? 'OFF (Practical)' : 'ON (Quiz)');
+
+        // Click handlers with event delegation and fresh DOM queries
+        overlay.addEventListener('click', (e) => {
+            const target = e.target;
+            
+            // Handle switch UI clicks - toggle between modes
+            if (target.id === 'evaluation-switch-ui' || target.id === 'evaluation-switch-knob') {
+                e.preventDefault();
+                const checkbox = overlay.querySelector('#evaluation-mode-switch');
+                if (checkbox) {
+                    // Since checkbox ON = quiz, OFF = practical
+                    // If checkbox is currently ON (quiz), toggle to OFF (practical)
+                    // If checkbox is currently OFF (practical), toggle to ON (quiz)
+                    const currentlyQuiz = checkbox.checked;
+                    const newIsPractical = currentlyQuiz; // Toggle to opposite
+                    setEvaluationMode(newIsPractical);
+                    console.log('Switch UI clicked, toggled to:', newIsPractical ? 'Practical' : 'Quiz');
+                }
+            }
+            
+            // Handle practical option clicks - always set to practical
+            else if (target.id === 'practical-option' || target.closest('#practical-option')) {
+                e.preventDefault();
+                setEvaluationMode(true); // Set to practical (switch OFF)
+                console.log('Practical option selected');
+            }
+            
+            // Handle quiz option clicks - always set to quiz
+            else if (target.id === 'quiz-option' || target.closest('#quiz-option')) {
+                e.preventDefault();
+                setEvaluationMode(false); // Set to quiz (switch ON)
+                console.log('Quiz option selected');
+            }
+        });
+
         // Save handler
         saveBtn.addEventListener('click', () => {
             const formData = new FormData(form);
@@ -1410,14 +1517,25 @@
             // Get the selected icon from the hidden input
             const selectedIcon = selectedIconInput.value || 'seed-of-life';
 
+            const evalCheckboxValue = overlay.querySelector('#evaluation-mode-switch').checked;
             const programData = {
                 id: program.id,
                 title: formData.get('title'),
                 short_description: formData.get('short_description'),
                 icon: selectedIcon,
                 update_topics: formData.has('update_topics'),
+                // REVERSED LOGIC: checkbox ON = quiz (allow_multiple_choice), OFF = practical (allow_practical_submission)
+                allow_practical_submission: evalCheckboxValue === false,
+                allow_multiple_choice: evalCheckboxValue === true,
                 topics: topics
             };
+
+            console.log('Saving program data:', {
+                evalCheckboxValue,
+                allow_practical_submission: programData.allow_practical_submission,
+                allow_multiple_choice: programData.allow_multiple_choice,
+                fullProgramData: programData
+            });
 
             // Validate required fields
             if (!programData.title || !programData.title.trim()) {
@@ -1439,19 +1557,24 @@
             saveProgramChanges(programData)
                 .then((response) => {
                     console.log('Save successful:', response);
+                    console.log('Updated program data being used to update UI:', programData);
                     const successMessage = response.message || 'Đã lưu chương trình học thành công!';
                     messageDiv.innerHTML = `<div class="lm-message lm-success">${successMessage}</div>`;
                     // Ensure visible list and any open details are updated with the new data
                     try {
                         updateProgramInDOM(programData);
                         updateOpenProgramDetails(programData);
-                    } catch (e) { console.warn('Failed to update open program details', e); }
+                        console.log('UI update calls completed');
+                    } catch (e) { 
+                        console.warn('Failed to update UI after save:', e); 
+                    }
 
                     setTimeout(() => {
-                        if (onSuccess && response.refresh === true) {
+                        // Always refresh after save to ensure fresh data
+                        overlay.remove();
+                        console.log('Closing edit modal and refreshing program list');
+                        if (onSuccess) {
                             onSuccess();
-                        } else {
-                            console.info('[LM] Skipping automatic list reload after save; UI updated locally.');
                         }
                     }, 1500);
                 })
@@ -1682,6 +1805,18 @@
             // Update description
             const descEl = overlay.querySelector('.lm-description');
             if (descEl) descEl.textContent = programData.short_description || 'Chưa có mô tả';
+
+            // Update evaluation setting display
+            const detailItems = overlay.querySelectorAll('.lm-detail-item');
+            detailItems.forEach(item => {
+                const label = item.querySelector('label');
+                if (label && label.textContent === 'Hình thức kiểm tra cuối khoá') {
+                    const valueSpan = item.querySelector('span');
+                    if (valueSpan) {
+                        valueSpan.textContent = programData.allow_practical_submission ? 'Nộp bài thực hành' : 'Làm bài trắc nghiệm';
+                    }
+                }
+            });
 
             // Update topics list
             const topicsList = overlay.querySelector('.lm-topics-list');
@@ -1981,6 +2116,13 @@
                                     }
                                 </div>
                             </div>
+
+                            <div class="lm-detail-section">
+                                <h4>Kiểm tra cuối khoá</h4>
+                                <div id="final-eval-area">
+                                    <div id="final-eval-loading">Đang tải thông tin kiểm tra cuối khoá...</div>
+                                </div>
+                            </div>
                         </div>
                         
                         <div class="lm-detail-sidebar">
@@ -2062,6 +2204,151 @@
             const courseIdentifier = (course.id !== undefined && course.id !== null) ? course.id : course.course_key;
             deleteCourse(courseIdentifier, onSuccess);
         });
+
+        // Final evaluation: fetch evaluation info and render UI
+        (function loadFinalEvaluation() {
+            const finalArea = overlay.querySelector('#final-eval-area');
+            if (!finalArea) return;
+            finalArea.innerHTML = '<div id="final-eval-loading">Đang tải thông tin kiểm tra cuối khoá...</div>';
+
+            fetch(`/api/chalix/dashboard/evaluation/get/${course.id || course.course_key}/`, {
+                credentials: 'same-origin',
+                headers: { 'Accept': 'application/json' }
+            })
+            .then(resp => resp.json())
+            .then(data => {
+                if (!data || !data.success) {
+                    finalArea.innerHTML = '<div class="lm-no-topics">Chưa có kiểm tra cuối khoá</div>';
+                    return;
+                }
+                const evalInfo = data.evaluation || {};
+                // Render UI depending on evaluation_type
+                if (evalInfo.evaluation_type === 'practical') {
+                    finalArea.innerHTML = `
+                        <div>
+                            <div style="margin-bottom:8px;font-weight:600;">Câu hỏi giảng viên:</div>
+                            <div id="practical-question-display" style="background:#f8fafc;padding:12px;border-radius:6px;border:1px solid #e5e7eb;">${escapeHtml(evalInfo.practical_question || '—')}</div>
+                            <button class="lm-btn secondary" id="edit-practical-btn" style="margin-top:8px;">Chỉnh sửa câu hỏi</button>
+                            <div id="practical-edit-area" style="display:none;margin-top:8px;"></div>
+                        </div>
+                    `;
+                    const editBtn = finalArea.querySelector('#edit-practical-btn');
+                    const display = finalArea.querySelector('#practical-question-display');
+                    const editArea = finalArea.querySelector('#practical-edit-area');
+
+                    editBtn.addEventListener('click', () => {
+                        editArea.style.display = 'block';
+                        editArea.innerHTML = `
+                            <textarea id="practical-question-input" style="width:100%;min-height:120px;" class="lm-form-input">${escapeHtml(evalInfo.practical_question || '')}</textarea>
+                            <div style="margin-top:8px;display:flex;gap:8px;justify-content:flex-end;">
+                                <button class="lm-btn secondary" id="cancel-practical-btn">Hủy</button>
+                                <button class="lm-btn primary" id="save-practical-btn">Lưu câu hỏi</button>
+                            </div>
+                        `;
+                        editArea.querySelector('#cancel-practical-btn').addEventListener('click', () => { editArea.style.display = 'none'; });
+                        editArea.querySelector('#save-practical-btn').addEventListener('click', () => {
+                            const val = editArea.querySelector('#practical-question-input').value;
+                            finalArea.querySelector('#save-practical-btn').disabled = true;
+                            fetch(`/api/chalix/dashboard/evaluation/update/${course.id || course.course_key}/`, {
+                                method: 'POST',
+                                credentials: 'same-origin',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'X-CSRFToken': getCookie('csrftoken')
+                                },
+                                body: JSON.stringify({ practical_question: val })
+                            })
+                            .then(r => r.json())
+                            .then(res => {
+                                if (res && res.success) {
+                                    display.textContent = val;
+                                    editArea.style.display = 'none';
+                                } else {
+                                    alert('Không thể lưu câu hỏi: ' + (res && res.error ? res.error : 'Lỗi server'));
+                                }
+                            })
+                            .catch(e => { console.error(e); alert('Lỗi khi lưu câu hỏi'); })
+                            .finally(() => { finalArea.querySelector('#save-practical-btn').disabled = false; });
+                        });
+                    });
+                } else if (evalInfo.evaluation_type === 'quiz') {
+                    finalArea.innerHTML = `
+                        <div>
+                            <div style="margin-bottom:8px;font-weight:600;">Bộ đề trắc nghiệm</div>
+                            <div id="quiz-file-info">${evalInfo.has_quiz_file ? escapeHtml(evalInfo.quiz_file_name || '') : 'Chưa tải file'}</div>
+                            <div style="margin-top:8px;display:flex;gap:8px;justify-content:flex-end;">
+                                <label class="lm-btn secondary" style="cursor:pointer;">
+                                    Tải file
+                                    <input type="file" id="quiz-file-input" accept=".xlsx,.xls" style="display:none;">
+                                </label>
+                                <button class="lm-btn primary" id="preview-quiz-btn">Xem trước</button>
+                            </div>
+                            <div id="quiz-preview-area" style="margin-top:12px;"></div>
+                        </div>
+                    `;
+                    const fileInput = finalArea.querySelector('#quiz-file-input');
+                    const previewBtn = finalArea.querySelector('#preview-quiz-btn');
+                    const fileInfo = finalArea.querySelector('#quiz-file-info');
+                    const previewArea = finalArea.querySelector('#quiz-preview-area');
+
+                    fileInput.addEventListener('change', (e) => {
+                        const file = e.target.files[0];
+                        if (!file) return;
+                        const fd = new FormData();
+                        fd.append('quiz_file', file);
+                        fetch(`/api/chalix/dashboard/evaluation/upload-quiz/${course.id || course.course_key}/`, {
+                            method: 'POST',
+                            credentials: 'same-origin',
+                            headers: { 'X-CSRFToken': getCookie('csrftoken') },
+                            body: fd
+                        })
+                        .then(r => r.json())
+                        .then(res => {
+                            if (res && res.success) {
+                                fileInfo.textContent = file.name;
+                                alert('Tải file thành công.');
+                            } else {
+                                alert('Tải file thất bại: ' + (res && res.error ? res.error : 'Lỗi'));
+                            }
+                        })
+                        .catch(err => { console.error(err); alert('Lỗi tải file'); });
+                    });
+
+                    previewBtn.addEventListener('click', () => {
+                        previewArea.innerHTML = 'Đang tải câu hỏi...';
+                        fetch(`/api/chalix/dashboard/evaluation/preview-quiz/${course.id || course.course_key}/`, {
+                            credentials: 'same-origin',
+                            headers: { 'Accept': 'application/json' }
+                        })
+                        .then(r => r.json())
+                        .then(res => {
+                            if (res && res.success) {
+                                const questions = res.questions || [];
+                                if (questions.length === 0) {
+                                    previewArea.innerHTML = '<div class="lm-no-topics">Không có câu hỏi</div>';
+                                    return;
+                                }
+                                previewArea.innerHTML = questions.map((q, idx) => `
+                                    <div style="border-bottom:1px solid #e5e7eb;padding:8px 0;">
+                                        <div style="font-weight:600;">${idx+1}. ${escapeHtml(q.question)}</div>
+                                        <div style="margin-top:6px;">${q.choices.map(c => `<div>- ${escapeHtml(c.text)}</div>`).join('')}</div>
+                                    </div>
+                                `).join('');
+                            } else {
+                                previewArea.innerHTML = '<div class="lm-no-topics">Không thể tải câu hỏi</div>';
+                            }
+                        })
+                        .catch(err => { console.error(err); previewArea.innerHTML = '<div class="lm-no-topics">Lỗi khi tải câu hỏi</div>'; });
+                    });
+                } else {
+                    finalArea.innerHTML = '<div class="lm-no-topics">Chưa có kiểm tra cuối khoá</div>';
+                }
+            })
+            .catch(err => {
+                console.error('Failed to load final evaluation:', err);
+                finalArea.innerHTML = '<div class="lm-no-topics">Không thể tải thông tin kiểm tra cuối khoá</div>';
+            });
+        })();
     }
 
     function editCourse(courseId, onSuccess) {

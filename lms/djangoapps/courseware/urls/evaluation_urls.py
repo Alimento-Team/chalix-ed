@@ -2,7 +2,7 @@
 URL patterns for final evaluation in LMS
 """
 from django.urls import path, re_path
-from . import evaluation
+from lms.djangoapps.courseware.views import evaluation
 
 urlpatterns = [
     # Get evaluation data

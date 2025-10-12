@@ -913,6 +913,17 @@ def update_program_api(request):
             program.short_description = short_description
             program.icon = icon
             program.update_topics = update_topics
+            # Update evaluation fields if provided
+            if 'allow_practical_submission' in payload:
+                try:
+                    program.allow_practical_submission = bool(payload.get('allow_practical_submission'))
+                except Exception:
+                    program.allow_practical_submission = True
+            if 'allow_multiple_choice' in payload:
+                try:
+                    program.allow_multiple_choice = bool(payload.get('allow_multiple_choice'))
+                except Exception:
+                    program.allow_multiple_choice = False
             program.save()
 
             # Update topics - delete existing and create new ones
@@ -966,6 +977,8 @@ def update_program_api(request):
             'short_description': program.short_description, 
             'icon': program.icon,
             'update_topics': program.update_topics,
+            'allow_practical_submission': getattr(program, 'allow_practical_submission', True),
+            'allow_multiple_choice': getattr(program, 'allow_multiple_choice', False),
             'topics': topics_data,
             'updated_at': program.updated_at.isoformat(),
             'message': 'Đã cập nhật chương trình học thành công!'
@@ -1226,6 +1239,8 @@ def program_detail_api(request, cid):
         'short_description': program.short_description,
         'icon': program.icon,
         'update_topics': program.update_topics,
+        'allow_practical_submission': getattr(program, 'allow_practical_submission', False),
+        'allow_multiple_choice': getattr(program, 'allow_multiple_choice', True),
         'created_at': program.created_at.isoformat(),
         'updated_at': program.updated_at.isoformat(),
         'created_by': getattr(program.created_by, 'username', None),
