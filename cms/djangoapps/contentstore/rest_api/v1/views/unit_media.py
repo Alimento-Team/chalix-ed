@@ -141,6 +141,12 @@ class UnitMediaListView(DeveloperErrorViewMixin, APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
+        # Debug: Log request data
+        LOGGER.info(f"📤 POST request received for {media_type}")
+        LOGGER.info(f"📤 Request Content-Type: {request.content_type}")
+        LOGGER.info(f"📤 Request keys in request.data: {list(request.data.keys())}")
+        LOGGER.info(f"📤 Full request.data: {request.data}")
+        
         try:
             # Derive course_id from unit_id
             try:
@@ -160,7 +166,7 @@ class UnitMediaListView(DeveloperErrorViewMixin, APIView):
                     status=status.HTTP_403_FORBIDDEN
                 )
             
-            # Validate upload data - make serializer optional for presigned URL requests
+            # Validate upload data - support both file uploads and URL submissions
             if 'file' in request.data:
                 # Direct file upload requires validation
                 serializer = UnitMediaFileUploadSerializer(
@@ -172,6 +178,113 @@ class UnitMediaListView(DeveloperErrorViewMixin, APIView):
                     return Response(
                         {'error': 'Invalid upload data', 'details': serializer.errors},
                         status=status.HTTP_400_BAD_REQUEST
+                    )
+            elif 'video_url' in request.data:
+                # NEW: Handle video URL submission (YouTube, Google Drive, etc.)
+                LOGGER.info("✅ Detected video_url in request data")
+                video_url = request.data.get('video_url', '').strip()
+                video_source_type = request.data.get('video_source_type', '')
+                display_name = request.data.get('display_name', 'External Video')
+                
+                LOGGER.info(f"📝 video_url={video_url}, source_type={video_source_type}, display_name={display_name}")
+                
+                if not video_url:
+                    return Response(
+                        {'error': 'video_url is required'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                
+                # Basic URL validation
+                try:
+                    from urllib.parse import urlparse
+                    parsed = urlparse(video_url)
+                    if not parsed.scheme or not parsed.netloc:
+                        raise ValueError("Invalid URL")
+                except:
+                    return Response(
+                        {'error': 'Invalid video URL format'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                
+                # Validate supported video sources
+                is_youtube = 'youtube.com' in video_url or 'youtu.be' in video_url
+                is_google_drive = 'drive.google.com' in video_url
+                
+                if not (is_youtube or is_google_drive):
+                    return Response(
+                        {'error': 'Only YouTube and Google Drive URLs are currently supported'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                
+                # Create a media file record for the URL
+                try:
+                    # Try to fetch a nicer title for the video (YouTube oEmbed / Drive)
+                    try:
+                        from cms.djangoapps.contentstore.unit_media_storage_handlers import fetch_remote_video_title
+                        fetched_title = fetch_remote_video_title(video_url, video_source_type)
+                    except Exception:
+                        fetched_title = None
+
+                    final_title = fetched_title or display_name
+
+                    # Determine an embeddable public URL for known providers
+                    embeddable_public_url = video_url
+                    try:
+                        from urllib.parse import parse_qs, urlparse
+                        parsed = urlparse(video_url)
+                        # YouTube: convert watch or youtu.be to embed URL
+                        if 'youtube.com' in video_url or 'youtu.be' in video_url:
+                            # Extract video id
+                            video_id = None
+                            if 'youtu.be' in parsed.netloc:
+                                # path like /<id>
+                                video_id = parsed.path.lstrip('/')
+                            else:
+                                qs = parse_qs(parsed.query)
+                                video_id = qs.get('v', [None])[0]
+                            if video_id:
+                                embeddable_public_url = f'https://www.youtube.com/embed/{video_id}'
+
+                        # Google Drive: use preview endpoint
+                        if 'drive.google.com' in video_url:
+                            # Replace /view with /preview when present
+                            if video_url.endswith('/view'):
+                                embeddable_public_url = video_url.replace('/view', '/preview')
+                            else:
+                                embeddable_public_url = video_url
+                    except Exception:
+                        embeddable_public_url = video_url
+
+                    media_file = UnitMediaFile.objects.create(
+                        unit_id=unit_id,
+                        course_id=course_id,
+                        media_type=media_type,
+                        file_name=f"{final_title}.url",
+                        display_name=final_title,
+                        file_size=0,  # URLs don't have file size
+                        file_type='video/external',  # Special type for external videos
+                        file_path=None,  # No file path for URLs
+                        upload_url=None,  # No upload URL for external videos
+                        public_url=embeddable_public_url,
+                        url=video_url,
+                        upload_status='ready',
+                        created_by=request.user,
+                        external_url=video_url,  # Store the URL
+                        video_source_type=video_source_type,  # Store the source type
+                        client_video_id=str(uuid.uuid4()),  # Generate unique ID
+                    )
+                    
+                    LOGGER.info(f"✅ Successfully created external video: {media_file.id}")
+                    
+                    # Return created file
+                    response_data = UnitMediaFileSerializer(media_file).data
+                    return Response(response_data, status=status.HTTP_201_CREATED)
+                    
+                except Exception as e:
+                    LOGGER.error(f"Failed to create URL media file: {str(e)}")
+                    return Response(
+                        {'error': 'Failed to create video from URL'},
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR
                     )
             else:
                 # Presigned URL request - use serializer for validation

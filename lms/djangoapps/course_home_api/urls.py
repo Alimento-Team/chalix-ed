@@ -109,7 +109,7 @@ urlpatterns += [
     # Legacy proxy endpoints - deprecated in favor of content API
     # Kept for backward compatibility but redirected to content API
     re_path(
-        fr'units/(?P<unit_id>[^/]+)/(?P<media_type>videos|slides)/$',
+        r'^units/(?P<unit_id>[^/]+)/(?P<media_type>videos|slides)/$',
         StudioProxyView.as_view(),
         name='course-home-unit-media-proxy',
     ),

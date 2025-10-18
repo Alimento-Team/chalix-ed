@@ -292,7 +292,7 @@ class _BuiltInVideoBlock(
         track_status = (self.download_track and self.track)
         transcript_download_format = self.transcript_download_format if not track_status else None
         sources = [source for source in self.html5_sources if source]
-
+        
         download_video_link = None
         branding_info = None
         youtube_streams = ""
@@ -722,7 +722,6 @@ class _BuiltInVideoBlock(
             'translation'
         ).rstrip('/?')
         editable_fields['handout']['type'] = 'FileUploader'
-
         return editable_fields
 
     @classmethod

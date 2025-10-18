@@ -49,6 +49,10 @@ class StudioProxyView(View):
             headers['USE-JWT-COOKIE'] = request.META['HTTP_USE_JWT_COOKIE']
         if 'HTTP_X_REQUESTED_WITH' in request.META:
             headers['X-Requested-With'] = request.META['HTTP_X_REQUESTED_WITH']
+        
+        # Forward Content-Type header for POST requests
+        if 'CONTENT_TYPE' in request.META:
+            headers['Content-Type'] = request.META['CONTENT_TYPE']
 
         # Forward cookies (including session/JWT cookie) to Studio
         cookies = request.COOKIES
@@ -83,18 +87,23 @@ class StudioProxyView(View):
     def get(self, request, unit_id, media_type=None):
         # unit_id is URL-encoded by the client; decode for forwarding
         decoded_unit_id = urllib.parse.unquote(unit_id)
-        log.info(f'StudioProxyView.get called with unit_id={unit_id}, decoded={decoded_unit_id}, media_type={media_type}')
+        log.info(f'✓✓✓ StudioProxyView.get CALLED ✓✓✓')
+        log.info(f'StudioProxyView.get unit_id={unit_id}, decoded={decoded_unit_id}, media_type={media_type}')
+        
+        # Re-encode the unit_id for the path to CMS to preserve special characters
+        encoded_unit_id = urllib.parse.quote(decoded_unit_id, safe='')
         
         path = ''
         if media_type:
             # e.g. api/contentstore/v1/units/<unit_id>/videos/
             # media_type already comes in as plural (videos, slides) from URL pattern
-            path = f"api/contentstore/v1/units/{decoded_unit_id}/{media_type}/"
+            path = f"api/contentstore/v1/units/{encoded_unit_id}/{media_type}/"
         else:
             # container handler
-            path = f"api/contentstore/v1/container_handler/{decoded_unit_id}"
+            path = f"api/contentstore/v1/container_handler/{encoded_unit_id}"
         
         log.info(f'Constructed path for Studio: {path}')
+        log.info(f'Re-encoded unit_id: {encoded_unit_id}')
         return self._forward(request, path)
 
     def post(self, request, unit_id, media_type=None):

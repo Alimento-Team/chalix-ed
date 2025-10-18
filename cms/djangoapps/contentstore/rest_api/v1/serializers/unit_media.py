@@ -15,6 +15,8 @@ class UnitMediaFileSerializer(serializers.ModelSerializer):
     is_video = serializers.BooleanField(read_only=True)
     is_slide = serializers.BooleanField(read_only=True)
     uploaded_by_username = serializers.CharField(source='uploaded_by.username', read_only=True)
+    public_url = serializers.CharField(read_only=True)
+    url = serializers.CharField(read_only=True)
     
     class Meta:
         model = UnitMediaFile
@@ -30,6 +32,8 @@ class UnitMediaFileSerializer(serializers.ModelSerializer):
             'file_type',
             'file_path',
             'upload_url',
+            'public_url',
+            'url',
             'file_extension',
             'is_video',
             'is_slide',
@@ -42,6 +46,8 @@ class UnitMediaFileSerializer(serializers.ModelSerializer):
             'id',
             'file_path',
             'upload_url',
+            'public_url',
+            'url',
             'uploaded_by',
             'created_at',
             'updated_at'

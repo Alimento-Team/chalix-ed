@@ -131,6 +131,55 @@ def get_unit_media_storage_url(file_path):
         LOGGER.debug(f"Using fallback URL: {fallback_url}")
         return fallback_url
 
+
+    def fetch_remote_video_title(video_url, source_type=''):
+        """
+        Try to fetch a human friendly title for the given video URL.
+
+        Supports YouTube (fetches via oEmbed) and Google Drive (attempts a simple HEAD/GET
+        to extract a filename from Content-Disposition or page title). This is best-effort
+        and will return None on failure.
+        """
+        try:
+            import requests
+            from bs4 import BeautifulSoup
+        except Exception:
+            LOGGER.debug("Requests or BeautifulSoup not available for fetching remote title")
+            return None
+
+        try:
+            # YouTube: use oEmbed endpoint to fetch title
+            if 'youtube.com' in video_url or 'youtu.be' in video_url:
+                oembed = f"https://www.youtube.com/oembed?url={video_url}&format=json"
+                resp = requests.get(oembed, timeout=5)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    return data.get('title')
+
+            # Google Drive: try to fetch page and parse title
+            if 'drive.google.com' in video_url:
+                resp = requests.get(video_url, timeout=5)
+                if resp.status_code == 200:
+                    # Look for title tag
+                    soup = BeautifulSoup(resp.text, 'html.parser')
+                    title_tag = soup.find('title')
+                    if title_tag and title_tag.text:
+                        return title_tag.text.strip()
+
+            # Generic fallback: try fetching headers for filename
+            resp = requests.head(video_url, allow_redirects=True, timeout=5)
+            if resp.status_code in (200, 302, 301):
+                cd = resp.headers.get('content-disposition', '')
+                if 'filename=' in cd:
+                    # content-disposition: attachment; filename="Video.mp4"
+                    filename = cd.split('filename=')[-1].strip('"')
+                    return filename
+
+        except Exception as e:
+            LOGGER.debug(f"Failed to fetch remote video title for {video_url}: {str(e)}")
+
+        return None
+
 def generate_unit_media_presigned_upload_url(file_name, content_type, media_type):
     """
     Generate presigned upload URL for unit media files (similar to video upload system).

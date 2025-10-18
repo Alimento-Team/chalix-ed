@@ -794,14 +794,79 @@ class UnitMediaFile(models.Model):
     # Storage information
     file_path = models.CharField(
         max_length=500,
+        blank=True,
+        null=True,
         verbose_name=_("File Path"),
-        help_text=_("Relative path to the stored file")
+        help_text=_("Relative path to the stored file (empty for external videos)")
     )
     
     upload_url = models.URLField(
         max_length=500,  # Increased from default 200 to handle longer URLs
+        blank=True,
+        null=True,
         verbose_name=_("Upload URL"),
-        help_text=_("Public URL for accessing the uploaded file")
+        help_text=_("Public URL for accessing the uploaded file (empty for external videos)")
+    )
+    
+    # External video URL fields (for YouTube, Google Drive, etc.)
+    external_url = models.URLField(
+        max_length=1000,  # Support longer URLs
+        blank=True,
+        null=True,
+        verbose_name=_("External Video URL"),
+        help_text=_("URL for external video sources like YouTube or Google Drive")
+    )
+
+    # Convenience fields for compatibility with the video model frontend
+    # and for easier consumption by other parts of the system. For external
+    # videos these will be set to the same value as `external_url`.
+    public_url = models.URLField(
+        max_length=1000,
+        blank=True,
+        null=True,
+        verbose_name=_("Public URL"),
+        help_text=_("Publicly accessible URL for this media (for external videos this maps to external_url)")
+    )
+
+    url = models.URLField(
+        max_length=1000,
+        blank=True,
+        null=True,
+        verbose_name=_("URL"),
+        help_text=_("Alternate URL field retained for compatibility with consumers that expect `url`")
+    )
+    
+    video_source_type = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        verbose_name=_("Video Source Type"),
+        help_text=_("Type of video source: youtube, google_drive, upload, etc.")
+    )
+    
+    client_video_id = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        verbose_name=_("Client Video ID"),
+        help_text=_("Unique identifier for the video on the client side")
+    )
+    
+    upload_status = models.CharField(
+        max_length=50,
+        default='pending',
+        verbose_name=_("Upload Status"),
+        help_text=_("Status of the upload: pending, ready, failed, etc.")
+    )
+    
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='created_unit_media',
+        verbose_name=_("Created By"),
+        help_text=_("User who created this media record")
     )
     
     # User tracking
@@ -871,6 +936,14 @@ class UnitMediaFile(models.Model):
     def clean(self):
         """Validate the model before saving"""
         from django.core.exceptions import ValidationError
+        
+        # Skip validation for external videos (YouTube, Google Drive, etc.)
+        if self.file_type == 'video/external':
+            # External videos don't need file validation
+            # Set display_name if not provided
+            if not self.display_name:
+                self.display_name = self.file_name
+            return
         
         # Validate file extension based on media type
         extension = self.file_extension
