@@ -181,10 +181,11 @@ COURSE_AUTHORING_MICROFRONTEND_URL = 'http://localhost:2001'
 DISCUSSIONS_MICROFRONTEND_URL = 'http://localhost:2002'
 
 ################### FRONTEND APPLICATION ACCOUNT ###################
-ACCOUNT_MICROFRONTEND_URL = 'http://localhost:1997'
+# Point account/profile microfrontends to the local apps host used for MFE development
+ACCOUNT_MICROFRONTEND_URL = 'http://apps.local.openedx.io:1997'
 
 ################### FRONTEND APPLICATION PROFILE ###################
-PROFILE_MICROFRONTEND_URL = 'http://localhost:1995'
+PROFILE_MICROFRONTEND_URL = 'http://apps.local.openedx.io:1995'
 
 ################### FRONTEND APPLICATION LEARNING ###################
 LEARNING_MICROFRONTEND_URL = 'http://localhost:2000'

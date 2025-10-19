@@ -20,6 +20,7 @@ from cms.djangoapps.contentstore.models import (
     CourseType,
     LearningContextLinksStatus,
     VideoUploadConfig,
+    Organization,
 )
 from cms.djangoapps.contentstore.outlines_regenerate import CourseOutlineRegenerate
 from openedx.core.djangoapps.content.learning_sequences.api import key_supports_outlines
@@ -261,11 +262,11 @@ from cms.djangoapps.contentstore.chalix_roles import enforce_single_bo_account, 
 
 class ChalixUserRoleForm(forms.ModelForm):
     """Custom form for ChalixUserRole with validation"""
-    
+
     class Meta:
         model = ChalixUserRole
         fields = '__all__'
-    
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # Add help text for role constraints
@@ -277,15 +278,15 @@ class ChalixUserRoleForm(forms.ModelForm):
             description = constraint.get('description', '')
             help_text = f"{label} - {description} (Max accounts: {max_accounts if max_accounts else 'Unlimited'})"
             role_choices.append((role, help_text))
-        
+
         self.fields['role'].help_text = "Select the role type. Note: Only one 'bo' (Department) account is allowed."
-    
+
     def clean(self):
         cleaned_data = super().clean()
         user = cleaned_data.get('user')
         role = cleaned_data.get('role')
         organization = cleaned_data.get('organization')
-        
+
         # Check bo constraint only for new instances or role changes
         if role == 'bo':
             if not self.instance.pk or (self.instance.pk and self.instance.role != 'bo'):
@@ -293,7 +294,7 @@ class ChalixUserRoleForm(forms.ModelForm):
                     enforce_single_bo_account(user, role, organization)
                 except PermissionDenied as e:
                     raise forms.ValidationError(str(e))
-        
+
         return cleaned_data
 
 
@@ -315,10 +316,10 @@ class ChalixUserRoleAdmin(admin.ModelAdmin):
         (_('User Information'), {
             'fields': ('user', 'role'),
             'description': 'Assign roles with the following constraints:<br>'
-                          '• <strong>bo (Department)</strong>: Only ONE account allowed<br>'
-                          '• <strong>co_quan (Organization)</strong>: Multiple accounts allowed<br>'
-                          '• <strong>giang_vien (Instructor)</strong>: Multiple accounts allowed<br>'
-                          '• <strong>cong_chuc (Learner)</strong>: Multiple accounts allowed'
+            '• <strong>bo (Department)</strong>: Only ONE account allowed<br>'
+            '• <strong>co_quan (Organization)</strong>: Multiple accounts allowed<br>'
+            '• <strong>giang_vien (Instructor)</strong>: Multiple accounts allowed<br>'
+            '• <strong>cong_chuc (Learner)</strong>: Multiple accounts allowed'
         }),
         (_('Organization'), {
             'fields': ('organization',)
@@ -349,11 +350,11 @@ class ChalixUserRoleAdmin(admin.ModelAdmin):
         if obj:  # Editing existing object
             return ('created_by', 'created_at', 'updated_at')
         return ('created_at', 'updated_at')
-        
+
     def changelist_view(self, request, extra_context=None):
         """Add role statistics to changelist"""
         extra_context = extra_context or {}
-        
+
         # Get role statistics
         role_stats = {}
         constraints = get_role_constraints()
@@ -366,7 +367,7 @@ class ChalixUserRoleAdmin(admin.ModelAdmin):
                 'max_allowed': max_allowed,
                 'at_limit': max_allowed == 1 and active_count >= 1 if max_allowed else False
             }
-        
+
         extra_context['role_statistics'] = role_stats
         return super().changelist_view(request, extra_context)
 
@@ -399,6 +400,7 @@ admin.site.register(User, ChalixUserAdmin)
 
 
 admin.site.register(BackfillCourseTabsConfig, ConfigurationModelAdmin)
+admin.site.register(Organization)
 admin.site.register(VideoUploadConfig, ConfigurationModelAdmin)
 admin.site.register(CourseOutlineRegenerate, CourseOutlineRegenerateAdmin)
 admin.site.register(CleanStaleCertificateAvailabilityDatesConfig, ConfigurationModelAdmin)

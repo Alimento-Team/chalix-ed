@@ -59,13 +59,24 @@
                 candidates.push(base + '/static/js/user-popup-bundle.js');
             }
 
-            // If the platform injected CMS_ROLE_DATA with an account_settings_url, prefer that
-            // as a candidate to load the bundle from the account MFE host.
+            // If the platform injected CMS_ROLE_DATA with an mfe_base_url, use that for loading bundles
             try {
-                if (window.CMS_ROLE_DATA && window.CMS_ROLE_DATA.account_settings_url) {
-                    const acct = String(window.CMS_ROLE_DATA.account_settings_url).replace(/\/$/, '');
-                    candidates.push(acct + '/user-popup-bundle.js');
-                    candidates.push(acct + '/static/js/user-popup-bundle.js');
+                if (window.CMS_ROLE_DATA && window.CMS_ROLE_DATA.mfe_base_url) {
+                    const mfeBase = String(window.CMS_ROLE_DATA.mfe_base_url).replace(/\/$/, '');
+                    if (mfeBase) {
+                        candidates.push(mfeBase + '/user-popup-bundle.js');
+                        candidates.push(mfeBase + '/static/js/user-popup-bundle.js');
+                    }
+                }
+                // Fallback: try to extract MFE base from account_settings_url
+                else if (window.CMS_ROLE_DATA && window.CMS_ROLE_DATA.account_settings_url) {
+                    const acctUrl = String(window.CMS_ROLE_DATA.account_settings_url);
+                    // Strip /account/ path to get the MFE base URL for loading bundles
+                    const mfeBase = acctUrl.replace(/\/account\/?$/, '').replace(/\/$/, '');
+                    if (mfeBase && mfeBase !== acctUrl.replace(/\/$/, '')) {
+                        candidates.push(mfeBase + '/user-popup-bundle.js');
+                        candidates.push(mfeBase + '/static/js/user-popup-bundle.js');
+                    }
                 }
             } catch (e) {
                 // ignore any odd global values
@@ -157,13 +168,30 @@
         const originAccountBase = location.origin + '/account/';
 
         // Use CMS-provided URLs directly since they're authoritative from platform config
-        // Normalize trailing slashes so links are predictable.
-        let accountBase = roleData.account_settings_url || originAccountBase;
-        if (typeof accountBase === 'string' && !accountBase.endsWith('/')) {
+        // The account_settings_url should point directly to the account page
+        let accountBase = roleData.account_settings_url || (originAccountBase);
+        
+        // Check if the accountBase already includes /account/ path, if not append it
+        if (accountBase && !accountBase.includes('/account')) {
+            // Remove trailing slash, append /account/, then add trailing slash
+            accountBase = accountBase.replace(/\/+$/, '') + '/account/';
+        } else if (typeof accountBase === 'string' && !accountBase.endsWith('/')) {
+            // Just ensure trailing slash if /account is already present
             accountBase = accountBase + '/';
         }
 
-        let profileBase = roleData.profile_base_url || originAccountBase;
+        // For profile, extract MFE base URL from account_settings_url if available
+        let profileBase = roleData.profile_base_url;
+        if (!profileBase && roleData.account_settings_url) {
+            // Extract MFE base from account URL and use it for profile
+            const mfeBase = roleData.account_settings_url.replace(/\/account\/?$/, '');
+            if (mfeBase && mfeBase !== roleData.account_settings_url.replace(/\/$/, '')) {
+                profileBase = mfeBase;
+            }
+        }
+        if (!profileBase) {
+            profileBase = originAccountBase.replace(/\/account\/?$/, '');
+        }
         if (typeof profileBase === 'string' && profileBase.endsWith('/')) {
             // remove trailing slash for consistent concatenation below
             profileBase = profileBase.replace(/\/+$/, '');
@@ -191,21 +219,54 @@
 
         const userInfo = getCurrentUserInfo();
         const urls = getNavigationUrls();
+        
+        // Debug logging to see what URLs we're getting
+        console.log('Fallback popup URLs:', urls);
+        console.log('CMS_ROLE_DATA.account_settings_url:', window.CMS_ROLE_DATA?.account_settings_url);
 
+        // Get the button position to position the popup correctly
+        const triggerButton = document.getElementById('user-avatar-popup-trigger');
+        const buttonRect = triggerButton ? triggerButton.getBoundingClientRect() : null;
+        
         const popup = document.createElement('div');
         popup.className = 'user-popup-fallback';
-        popup.style.cssText = `
-            position: absolute;
-            top: 60px;
-            right: 0;
+        
+        // Use fixed positioning to ensure visibility
+        const popupStyle = buttonRect ? `
+            position: fixed;
+            top: ${buttonRect.bottom + 5}px;
+            right: ${window.innerWidth - buttonRect.right}px;
             width: 280px;
+            max-width: 90vw;
             background: white;
             border: 1px solid #e0e0e0;
             border-radius: 8px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            z-index: 1000;
+            z-index: 99999;
             font-family: 'Inter', sans-serif;
+            display: block;
+            visibility: visible;
+            opacity: 1;
+            pointer-events: auto;
+        ` : `
+            position: absolute;
+            top: 45px;
+            right: 0;
+            width: 280px;
+            max-width: 90vw;
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 99999;
+            font-family: 'Inter', sans-serif;
+            display: block;
+            visibility: visible;
+            opacity: 1;
+            pointer-events: auto;
         `;
+        
+        popup.style.cssText = popupStyle;
 
         popup.innerHTML = `
             <div style="padding: 16px 0;">
@@ -225,8 +286,15 @@
             </div>
         `;
 
-        rootElement.appendChild(popup);
+        // Always append to body for fixed positioning
+        document.body.appendChild(popup);
+        
+        // (Removed debug mutation observer and noisy logs)
+        
         console.log('Fallback UserPopup created successfully');
+        
+        // Force a reflow to ensure the popup is rendered
+        popup.offsetHeight;
     }
 
     /**
@@ -298,20 +366,30 @@
      * Public interface for initializing the popup
      */
     window.initUserPopupComponent = function(containerElement) {
-        // Load the bundle and initialize
-        loadUserPopupBundle()
-            .then(() => initializeUserPopupComponent())
-            .catch(error => {
-                console.warn('MFE bundle not available, using fallback popup:', error);
-                // Fallback: create simple HTML popup
-                createFallbackPopup();
-            });
+        // Skip bundle loading and go directly to fallback popup
+        // The MFE React bundle approach isn't set up, so use the simple HTML popup
+        console.log('Using fallback popup directly (MFE React bundle not configured)');
+        createFallbackPopup();
+        
+        // Comment out bundle loading to avoid 404 errors:
+        // loadUserPopupBundle()
+        //     .then(() => initializeUserPopupComponent())
+        //     .catch(error => {
+        //         console.warn('MFE bundle not available, using fallback popup:', error);
+        //         createFallbackPopup();
+        //     });
     };
 
     /**
      * Close the UserPopup component
      */
-    window.closeUserPopupComponent = function() {
+    window.closeUserPopupComponent = function(force) {
+        // If the popup was just opened, ignore accidental/early close calls unless explicitly forced.
+        if (window._popupJustOpened && !force) {
+            console.log('closeUserPopupComponent: ignored because popup was just opened');
+            return;
+        }
+
         const rootElement = document.getElementById(config.componentRoot);
         if (rootElement) {
             // Try React unmount first
@@ -320,6 +398,13 @@
             }
             // Clear any HTML content (fallback popup)
             rootElement.innerHTML = '';
+            
+            // Also remove any popup attached to body
+            const bodyPopups = document.querySelectorAll('.user-popup-fallback');
+            bodyPopups.forEach(popup => popup.remove());
+            
+            // Clear the dataset flag
+            delete rootElement.dataset.popupAttached;
             
             const trigger = document.getElementById('user-avatar-popup-trigger');
             if (trigger) {

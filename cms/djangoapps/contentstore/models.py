@@ -1,6 +1,5 @@
 
 
-
 import uuid
 from datetime import datetime, timezone
 
@@ -61,6 +60,21 @@ class CourseType(models.Model):
         verbose_name = _("Course Type")
         verbose_name_plural = _("Course Types")
         ordering = ['sort_order', 'name']
+
+    def __str__(self):
+        return self.name
+
+
+class Organization(models.Model):
+    """Cơ quan (Organization) model for administrative grouping."""
+    name = models.CharField(max_length=255, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        app_label = "contentstore"
+        verbose_name = "Organization"
+        verbose_name_plural = "Organizations"
 
     def __str__(self):
         return self.name
@@ -571,17 +585,17 @@ class LocalProgram(models.Model):
     short_description = models.TextField(blank=True, help_text="Short description of the program")
     icon = models.CharField(max_length=100, blank=True, default='seed-of-life')  # Icon identifier
     update_topics = models.BooleanField(default=False, help_text="Whether to automatically update topics")
-    
+
     # End-of-course evaluation format options
     allow_practical_submission = models.BooleanField(
-        default=True, 
+        default=True,
         help_text="Allow learners to submit practical assignments as end-of-course evaluation"
     )
     allow_multiple_choice = models.BooleanField(
-        default=False, 
+        default=False,
         help_text="Allow learners to take multiple choice tests as end-of-course evaluation"
     )
-    
+
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -725,24 +739,24 @@ class UnitMediaFile(models.Model):
     Model for storing media files (videos and slides) attached to specific course units.
     This replaces course-level media attachments with unit-level attachments for better UX.
     """
-    
+
     # Media type choices
     MEDIA_TYPE_CHOICES = [
         ('video', _('Video')),
         ('slide', _('Slide')),
     ]
-    
+
     # File extension validators
     VIDEO_EXTENSIONS = ['mp4', 'mov', 'avi', 'wmv', 'mkv']
     SLIDE_EXTENSIONS = ['pdf', 'docx']
-    
+
     id = models.UUIDField(
-        primary_key=True, 
-        default=uuid.uuid4, 
+        primary_key=True,
+        default=uuid.uuid4,
         editable=False,
         verbose_name=_("Media File ID")
     )
-    
+
     # Unit and course relationship
     unit_id = models.CharField(
         max_length=255,
@@ -750,14 +764,14 @@ class UnitMediaFile(models.Model):
         verbose_name=_("Unit ID"),
         help_text=_("The unique identifier of the course unit this media belongs to")
     )
-    
+
     course_id = CourseKeyField(
         max_length=255,
         db_index=True,
         verbose_name=_("Course ID"),
         help_text=_("The course key this media belongs to")
     )
-    
+
     # Media type and metadata
     media_type = models.CharField(
         max_length=10,
@@ -766,31 +780,31 @@ class UnitMediaFile(models.Model):
         verbose_name=_("Media Type"),
         help_text=_("Type of media file (video or slide)")
     )
-    
+
     file_name = models.CharField(
         max_length=255,
         verbose_name=_("File Name"),
         help_text=_("Original filename as uploaded by user")
     )
-    
+
     display_name = models.CharField(
         max_length=255,
         blank=True,
         verbose_name=_("Display Name"),
         help_text=_("User-friendly name for the media file")
     )
-    
+
     file_size = models.BigIntegerField(
         verbose_name=_("File Size"),
         help_text=_("Size of the file in bytes")
     )
-    
+
     file_type = models.CharField(
         max_length=100,
         verbose_name=_("File Type"),
         help_text=_("MIME type of the file (e.g., video/mp4, application/pdf)")
     )
-    
+
     # Storage information
     file_path = models.CharField(
         max_length=500,
@@ -799,7 +813,7 @@ class UnitMediaFile(models.Model):
         verbose_name=_("File Path"),
         help_text=_("Relative path to the stored file (empty for external videos)")
     )
-    
+
     upload_url = models.URLField(
         max_length=500,  # Increased from default 200 to handle longer URLs
         blank=True,
@@ -807,7 +821,7 @@ class UnitMediaFile(models.Model):
         verbose_name=_("Upload URL"),
         help_text=_("Public URL for accessing the uploaded file (empty for external videos)")
     )
-    
+
     # External video URL fields (for YouTube, Google Drive, etc.)
     external_url = models.URLField(
         max_length=1000,  # Support longer URLs
@@ -835,7 +849,7 @@ class UnitMediaFile(models.Model):
         verbose_name=_("URL"),
         help_text=_("Alternate URL field retained for compatibility with consumers that expect `url`")
     )
-    
+
     video_source_type = models.CharField(
         max_length=50,
         blank=True,
@@ -843,7 +857,7 @@ class UnitMediaFile(models.Model):
         verbose_name=_("Video Source Type"),
         help_text=_("Type of video source: youtube, google_drive, upload, etc.")
     )
-    
+
     client_video_id = models.CharField(
         max_length=255,
         blank=True,
@@ -851,14 +865,14 @@ class UnitMediaFile(models.Model):
         verbose_name=_("Client Video ID"),
         help_text=_("Unique identifier for the video on the client side")
     )
-    
+
     upload_status = models.CharField(
         max_length=50,
         default='pending',
         verbose_name=_("Upload Status"),
         help_text=_("Status of the upload: pending, ready, failed, etc.")
     )
-    
+
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -868,7 +882,7 @@ class UnitMediaFile(models.Model):
         verbose_name=_("Created By"),
         help_text=_("User who created this media record")
     )
-    
+
     # User tracking
     uploaded_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -879,13 +893,13 @@ class UnitMediaFile(models.Model):
         verbose_name=_("Uploaded By"),
         help_text=_("User who uploaded this media file")
     )
-    
+
     # Timestamps
     created_at = models.DateTimeField(
         auto_now_add=True,
         verbose_name=_("Created At")
     )
-    
+
     updated_at = models.DateTimeField(
         auto_now=True,
         verbose_name=_("Updated At")
@@ -936,7 +950,7 @@ class UnitMediaFile(models.Model):
     def clean(self):
         """Validate the model before saving"""
         from django.core.exceptions import ValidationError
-        
+
         # Skip validation for external videos (YouTube, Google Drive, etc.)
         if self.file_type == 'video/external':
             # External videos don't need file validation
@@ -944,7 +958,7 @@ class UnitMediaFile(models.Model):
             if not self.display_name:
                 self.display_name = self.file_name
             return
-        
+
         # Validate file extension based on media type
         extension = self.file_extension
         if self.media_type == 'video' and extension not in self.VIDEO_EXTENSIONS:
@@ -991,29 +1005,29 @@ class ChalixQuiz(models.Model):
         max_length=255,
         help_text="Course key where this quiz belongs"
     )
-    
+
     parent_locator = models.CharField(
         max_length=255,
         help_text="Locator string of the parent block (section/subsection) where quiz is attached"
     )
-    
+
     title = models.CharField(
         max_length=255,
         verbose_name=_("Quiz Title")
     )
-    
+
     description = models.TextField(
         blank=True,
         verbose_name=_("Quiz Description"),
         help_text=_("Optional description for the quiz")
     )
-    
+
     is_active = models.BooleanField(
         default=True,
         verbose_name=_("Is Active"),
         help_text=_("Whether this quiz is active (soft delete flag)")
     )
-    
+
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -1022,12 +1036,12 @@ class ChalixQuiz(models.Model):
         related_name='created_quizzes',
         verbose_name=_("Created By")
     )
-    
+
     created_at = models.DateTimeField(
         auto_now_add=True,
         verbose_name=_("Created At")
     )
-    
+
     updated_at = models.DateTimeField(
         auto_now=True,
         verbose_name=_("Updated At")
@@ -1060,19 +1074,19 @@ class ChalixQuizQuestion(models.Model):
         ('single_choice', _('Single Choice')),
         ('multiple_choice', _('Multiple Choice')),
     ]
-    
+
     quiz = models.ForeignKey(
         ChalixQuiz,
         on_delete=models.CASCADE,
         related_name='questions',
         verbose_name=_("Quiz")
     )
-    
+
     question_text = models.TextField(
         verbose_name=_("Question Text"),
         help_text=_("The question text displayed to students")
     )
-    
+
     question_type = models.CharField(
         max_length=20,
         choices=QUESTION_TYPE_CHOICES,
@@ -1080,24 +1094,24 @@ class ChalixQuizQuestion(models.Model):
         verbose_name=_("Question Type"),
         help_text=_("Whether this is a single choice or multiple choice question")
     )
-    
+
     order_index = models.PositiveIntegerField(
         default=0,
         verbose_name=_("Order Index"),
         help_text=_("Order of this question within the quiz")
     )
-    
+
     is_active = models.BooleanField(
         default=True,
         verbose_name=_("Is Active"),
         help_text=_("Whether this question is active (soft delete flag)")
     )
-    
+
     created_at = models.DateTimeField(
         auto_now_add=True,
         verbose_name=_("Created At")
     )
-    
+
     updated_at = models.DateTimeField(
         auto_now=True,
         verbose_name=_("Updated At")
@@ -1136,35 +1150,35 @@ class ChalixQuizChoice(models.Model):
         related_name='choices',
         verbose_name=_("Question")
     )
-    
+
     choice_text = models.TextField(
         verbose_name=_("Choice Text"),
         help_text=_("The text of this choice option")
     )
-    
+
     is_correct = models.BooleanField(
         default=False,
         verbose_name=_("Is Correct"),
         help_text=_("Whether this choice is a correct answer")
     )
-    
+
     order_index = models.PositiveIntegerField(
         default=0,
         verbose_name=_("Order Index"),
         help_text=_("Order of this choice within the question")
     )
-    
+
     is_active = models.BooleanField(
         default=True,
         verbose_name=_("Is Active"),
         help_text=_("Whether this choice is active (soft delete flag)")
     )
-    
+
     created_at = models.DateTimeField(
         auto_now_add=True,
         verbose_name=_("Created At")
     )
-    
+
     updated_at = models.DateTimeField(
         auto_now=True,
         verbose_name=_("Updated At")
@@ -1190,39 +1204,39 @@ class FinalEvaluation(models.Model):
     """
     EVALUATION_TYPE_PRACTICAL = 'practical'
     EVALUATION_TYPE_QUIZ = 'quiz'
-    
+
     EVALUATION_TYPE_CHOICES = [
         (EVALUATION_TYPE_PRACTICAL, 'Nộp bài thu hoạch'),
         (EVALUATION_TYPE_QUIZ, 'Làm bài trắc nghiệm'),
     ]
-    
+
     course_key = CourseKeyField(
         max_length=255,
         db_index=True,
         verbose_name=_("Course Key"),
         help_text=_("The course this evaluation belongs to")
     )
-    
+
     program = models.ForeignKey(
         LocalProgram,
         on_delete=models.CASCADE,
         related_name='evaluations',
         verbose_name=_("Program")
     )
-    
+
     evaluation_type = models.CharField(
         max_length=20,
         choices=EVALUATION_TYPE_CHOICES,
         verbose_name=_("Evaluation Type")
     )
-    
+
     # For practical assignments
     practical_question = models.TextField(
         blank=True,
         verbose_name=_("Practical Question"),
         help_text=_("The question/instructions for practical assignment submission")
     )
-    
+
     # For quiz evaluations
     quiz_file = models.FileField(
         upload_to='course_evaluations/quizzes/',
@@ -1231,12 +1245,12 @@ class FinalEvaluation(models.Model):
         verbose_name=_("Quiz Excel File"),
         help_text=_("Excel file containing quiz questions and answers")
     )
-    
+
     is_active = models.BooleanField(
         default=True,
         verbose_name=_("Is Active")
     )
-    
+
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -1244,15 +1258,15 @@ class FinalEvaluation(models.Model):
         blank=True,
         related_name='created_evaluations'
     )
-    
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
         verbose_name = _("Final Evaluation")
         verbose_name_plural = _("Final Evaluations")
         unique_together = ['course_key', 'program', 'evaluation_type']
-        
+
     def __str__(self):
         return f"{self.course_key} - {self.get_evaluation_type_display()}"
 
@@ -1266,21 +1280,21 @@ class LearnerSubmission(models.Model):
         on_delete=models.CASCADE,
         related_name='submissions'
     )
-    
+
     learner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name='evaluation_submissions'
     )
-    
+
     submission_file = models.FileField(
         upload_to='course_evaluations/submissions/',
         validators=[FileExtensionValidator(['docx', 'pptx', 'pdf'])],
         verbose_name=_("Submission File")
     )
-    
+
     submitted_at = models.DateTimeField(auto_now_add=True)
-    
+
     # Grading fields
     grade = models.DecimalField(
         max_digits=5,
@@ -1289,12 +1303,12 @@ class LearnerSubmission(models.Model):
         blank=True,
         verbose_name=_("Grade")
     )
-    
+
     feedback = models.TextField(
         blank=True,
         verbose_name=_("Teacher Feedback")
     )
-    
+
     graded_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -1302,14 +1316,14 @@ class LearnerSubmission(models.Model):
         blank=True,
         related_name='graded_submissions'
     )
-    
+
     graded_at = models.DateTimeField(null=True, blank=True)
-    
+
     class Meta:
         verbose_name = _("Learner Submission")
         verbose_name_plural = _("Learner Submissions")
         unique_together = ['evaluation', 'learner']
-        
+
     def __str__(self):
         return f"{self.learner.username} - {self.evaluation.course_key}"
 
@@ -1323,16 +1337,16 @@ class QuizAttempt(models.Model):
         on_delete=models.CASCADE,
         related_name='quiz_attempts'
     )
-    
+
     learner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name='quiz_attempts'
     )
-    
+
     started_at = models.DateTimeField(auto_now_add=True)
     completed_at = models.DateTimeField(null=True, blank=True)
-    
+
     score = models.DecimalField(
         max_digits=5,
         decimal_places=2,
@@ -1340,17 +1354,17 @@ class QuizAttempt(models.Model):
         blank=True,
         verbose_name=_("Score")
     )
-    
+
     total_questions = models.PositiveIntegerField(default=0)
     correct_answers = models.PositiveIntegerField(default=0)
-    
+
     is_completed = models.BooleanField(default=False)
-    
+
     class Meta:
         verbose_name = _("Quiz Attempt")
         verbose_name_plural = _("Quiz Attempts")
         unique_together = ['evaluation', 'learner']
-        
+
     def __str__(self):
         return f"{self.learner.username} - {self.evaluation.course_key} - {self.score or 'In Progress'}"
 
@@ -1364,26 +1378,26 @@ class QuizAnswer(models.Model):
         on_delete=models.CASCADE,
         related_name='answers'
     )
-    
+
     question = models.ForeignKey(
         ChalixQuizQuestion,
         on_delete=models.CASCADE
     )
-    
+
     selected_choice = models.ForeignKey(
         ChalixQuizChoice,
         on_delete=models.CASCADE,
         null=True,
         blank=True
     )
-    
+
     is_correct = models.BooleanField(default=False)
     answered_at = models.DateTimeField(auto_now_add=True)
-    
+
     class Meta:
         verbose_name = _("Quiz Answer")
         verbose_name_plural = _("Quiz Answers")
         unique_together = ['attempt', 'question']
-        
+
     def __str__(self):
         return f"{self.attempt.learner.username} - Q{self.question.id} - {'✓' if self.is_correct else '✗'}"

@@ -61,32 +61,49 @@
             // If no explicit port and hostname is same, don't append port (will use default)
             lmsBaseUrl = protocol + '//' + lmsHost + (lmsPort ? ':' + lmsPort : '');
         }
-        
-        // Use the current origin's account path as fallback when explicit URLs are not provided
-        const originAccountBase = location.origin + '/account/';
 
-        function sameOriginOrFallback(maybeUrl, fallback) {
-            if (!maybeUrl) return fallback;
+
+        // Helper to safely join a base URL with a path segment
+        function joinUrl(base, pathSegment) {
+            if (!base) return null;
             try {
-                const parsed = new URL(maybeUrl, location.href);
-                if (parsed.origin === location.origin) return parsed.origin + parsed.pathname.replace(/\/$/, '');
+                // new URL(relative, base) handles joining correctly
+                return new URL(pathSegment, base).href;
             } catch (e) {
-                // ignore invalid URLs
+                // Fallback simple join
+                return base.replace(/\/$/, '') + '/' + pathSegment.replace(/^\//, '');
             }
-            return fallback;
         }
 
         // Use CMS-provided URLs directly since they're authoritative from platform config
-        const accountBase = roleData.account_settings_url || originAccountBase;
-        const profileBase = roleData.profile_base_url || originAccountBase;
+        // The account_settings_url should point directly to the account page
+        let accountBase = roleData.account_settings_url;
+        // Ensure it ends with trailing slash for consistency and points to /account/ path
+        if (typeof accountBase === 'string' && !accountBase.endsWith('/')) {
+            accountBase = accountBase + '/';
+        }
+
+        // For profile, extract MFE base URL from account_settings_url if available
+        let profileBase = roleData.profile_base_url;
+        if (!profileBase && roleData.account_settings_url) {
+            // Extract MFE base from account URL and use it for profile
+            const mfeBase = roleData.account_settings_url.replace(/\/account\/?$/, '');
+            if (mfeBase && mfeBase !== roleData.account_settings_url.replace(/\/$/, '')) {
+                profileBase = mfeBase;
+            }
+        }
+        if (typeof profileBase === 'string' && profileBase.endsWith('/')) {
+            // remove trailing slash for consistent concatenation below
+            profileBase = profileBase.replace(/\/+$/, '');
+        }
 
         return {
             // LMS dashboard - navigate to LMS
             courses: lmsBaseUrl + '/dashboard',
-            // Account settings MFE (link to /account by default)
-            account: accountBase,
-            // Profile MFE
-            profile: profileBase + '/u/' + username,
+            // Account settings MFE (point to account root by default, ensure trailing slash)
+            account: accountBase || null,
+            // Profile MFE (profileBase + /u/<username>)
+            profile: profileBase ? (profileBase + '/u/' + username) : null,
             // Logout - always use the CMS frontend logout URL so the logout flow runs on
             // the current site (LogoutView -> IDA iframe logout -> redirect).
             logout: '/logout/'
@@ -150,7 +167,13 @@
     /**
      * Close the UserPopup component
      */
-    window.closeUserPopupComponent = function() {
+    window.closeUserPopupComponent = function(force) {
+        // Prevent early closure if popup was just opened unless forced
+        if (window._popupJustOpened && !force) {
+            console.log('closeUserPopupComponent (simple): ignored because popup was just opened');
+            return;
+        }
+
         const rootElement = document.getElementById('user-popup-root');
         if (rootElement) {
             rootElement.innerHTML = '';

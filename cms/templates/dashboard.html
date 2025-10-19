@@ -487,8 +487,12 @@ lms_base_url = _mfe_conf.get('LMS_BASE_URL') or getattr(settings, 'LMS_ROOT_URL'
             user_role: '${user_role or ""}',
             user_name: '${user_info.get("username", "") if user_info else ""}',
             organization_name: '${organization_name or ""}',
+            is_staff: ${str(is_staff).lower() if is_staff else 'false'},
+            is_global_staff: ${str(is_global_staff).lower() if is_global_staff else 'false'},
             // Platform URLs for popup navigation (will be resolved in JS)
             account_settings_url: '${settings.ACCOUNT_MICROFRONTEND_URL if hasattr(settings, "ACCOUNT_MICROFRONTEND_URL") else "/account/settings"}',
+            // MFE base URL for loading bundles (strip /account/ path from account_settings_url)
+            mfe_base_url: '${settings.ACCOUNT_MICROFRONTEND_URL.replace("/account/", "").rstrip("/") if hasattr(settings, "ACCOUNT_MICROFRONTEND_URL") and settings.ACCOUNT_MICROFRONTEND_URL and "/account/" in settings.ACCOUNT_MICROFRONTEND_URL else (settings.ACCOUNT_MICROFRONTEND_URL.rstrip("/") if hasattr(settings, "ACCOUNT_MICROFRONTEND_URL") and settings.ACCOUNT_MICROFRONTEND_URL else "")}',
             profile_base_url: '${settings.PROFILE_MICROFRONTEND_URL if hasattr(settings, "PROFILE_MICROFRONTEND_URL") else ""}',
             // Server-provided LMS base URL: prefer explicit platform configuration (MFE_CONFIG['LMS_BASE_URL'] or LMS_ROOT_URL)
             lms_base_url: '${lms_base_url}'
@@ -499,6 +503,7 @@ lms_base_url = _mfe_conf.get('LMS_BASE_URL') or getattr(settings, 'LMS_ROOT_URL'
     <script type="text/javascript" src="${static.url('js/tabs/learning-management.js')}"></script>
     <script type="text/javascript" src="${static.url('js/tabs/create-account.js')}"></script>
     <script type="text/javascript" src="${static.url('js/tabs/statistics.js')}"></script>
+    <script type="text/javascript" src="${static.url('js/tabs/management.js')}"></script>
     <script type="text/javascript" src="${static.url('js/chalix-dashboard.js')}"></script>
     <!-- Ensure our Chalix CMS interface script is loaded for the dashboard (cache-busted) -->
     <script src="${static.url('js/chalix-cms-interface.js')}?v=2.3.1"></script>
@@ -516,7 +521,7 @@ lms_base_url = _mfe_conf.get('LMS_BASE_URL') or getattr(settings, 'LMS_ROOT_URL'
                     var keys = Object.keys(registry);
                     console.info('[CMS DIAG] Registered CMS_TABS modules:', keys);
                     console.info('[CMS DIAG] Role data:', window.CMS_ROLE_DATA);
-                    ['learning-management','create-account','statistics'].forEach(function(k){
+                    ['learning-management','create-account','statistics','management'].forEach(function(k){
                         console.info('[CMS DIAG] module', k, 'registered=', !!registry[k]);
                     });
                 } catch (err) {
