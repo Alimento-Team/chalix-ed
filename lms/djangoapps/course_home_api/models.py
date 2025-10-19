@@ -44,8 +44,16 @@ class UnitMediaFileLMS(models.Model):
     display_name = models.CharField(max_length=255, blank=True)
     file_size = models.BigIntegerField(default=0)
     file_type = models.CharField(max_length=100)
-    file_path = models.CharField(max_length=500)
-    upload_url = models.CharField(max_length=500)
+    file_path = models.CharField(max_length=500, blank=True, null=True)
+    upload_url = models.CharField(max_length=500, blank=True, null=True)
+    
+    # External video URL fields (for YouTube, Google Drive, etc.)
+    external_url = models.URLField(max_length=1000, blank=True, null=True)
+    public_url = models.URLField(max_length=1000, blank=True, null=True)
+    url = models.URLField(max_length=1000, blank=True, null=True)
+    video_source_type = models.CharField(max_length=50, blank=True, null=True)
+    client_video_id = models.CharField(max_length=255, blank=True, null=True)
+    
     uploaded_by_id = models.IntegerField(null=True, blank=True)
     created_at = models.DateTimeField()
     updated_at = models.DateTimeField()
@@ -60,6 +68,10 @@ class UnitMediaFileLMS(models.Model):
 
     @classmethod
     def get_unit_media(cls, unit_id: str, media_type: str):
+        """Return media records for a unit. Keep implementation minimal for LMS.
+
+        This is an unmanaged mirror of the CMS model; avoid heavy logging here.
+        """
         qs = cls.objects.filter(unit_id=unit_id)
         if media_type:
             qs = qs.filter(media_type=media_type)

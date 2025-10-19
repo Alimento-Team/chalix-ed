@@ -52,6 +52,47 @@ except Exception:  # pragma: no cover - fail soft
 LOGGER = logging.getLogger(__name__)
 
 
+def extract_youtube_id(url):
+    """
+    Extract YouTube video ID from various YouTube URL formats.
+    
+    Supports:
+    - https://www.youtube.com/watch?v=VIDEO_ID
+    - https://youtu.be/VIDEO_ID
+    - https://www.youtube.com/embed/VIDEO_ID
+    """
+    if not url:
+        return None
+        
+    import re
+    from urllib.parse import urlparse, parse_qs
+    
+    try:
+        parsed = urlparse(url)
+        
+        # youtu.be format
+        if 'youtu.be' in parsed.netloc:
+            return parsed.path.lstrip('/')
+        
+        # youtube.com formats
+        if 'youtube.com' in parsed.netloc:
+            # Watch URL: ?v=VIDEO_ID
+            if parsed.path == '/watch':
+                qs = parse_qs(parsed.query)
+                return qs.get('v', [None])[0]
+            
+            # Embed URL: /embed/VIDEO_ID
+            if parsed.path.startswith('/embed/'):
+                return parsed.path.replace('/embed/', '')
+        
+        # Fallback: regex search for 11-character YouTube ID pattern
+        match = re.search(r'[a-zA-Z0-9_-]{11}', url)
+        return match.group(0) if match else None
+        
+    except Exception:
+        return None
+
+
 class CMSProxyMixin:
     """
     Mixin to provide CMS proxy functionality for content APIs.
@@ -325,20 +366,22 @@ class UnitMediaListView(DeveloperErrorViewMixin, APIView, CMSProxyMixin):
             # Start with DB-backed media (UnitMediaFile) if available
             db_items = []
             if CMSUnitMediaFile:
+                # Use DB-backed media (UnitMediaFile) when available
+                
                 if media_type in ['videos', 'slides']:
                     singular_type = 'video' if media_type == 'videos' else 'slide'
                     try:
-                        # Try decoded unit id first
+                        # Try decoded unit id first, then fallbacks for encoded/raw ids
                         qs = CMSUnitMediaFile.get_unit_media(decoded_unit_id, singular_type)
-                        # If none found, try the raw id passed in the URL (may be encoded)
                         if not qs.exists() and unit_id != decoded_unit_id:
                             qs = CMSUnitMediaFile.get_unit_media(unit_id, singular_type)
-                        # Also try a percent-encoded variant of the decoded id as last resort
                         if not qs.exists():
                             encoded_id = urllib.parse.quote(decoded_unit_id, safe=':/@+')
                             if encoded_id != decoded_unit_id and encoded_id != unit_id:
                                 qs = CMSUnitMediaFile.get_unit_media(encoded_id, singular_type)
+
                         for mf in qs:
+                            
                             # Safely resolve uploader username when available
                             uploader_username = None
                             try:
@@ -348,9 +391,112 @@ class UnitMediaListView(DeveloperErrorViewMixin, APIView, CMSProxyMixin):
                             except Exception:
                                 uploader_username = None
 
-                            # Prefer presigned GET URL to avoid ACL/CORS issues; fallback to normalized upload_url
-                            presigned = _presign_get_url(getattr(mf, 'file_path', None))
-                            normalized_url = presigned or _normalize_storage_url(getattr(mf, 'upload_url', None), getattr(mf, 'file_path', None))
+                            # For YouTube videos, use the stored URLs directly from DB
+                            # For file uploads, use presigned/normalized URLs
+                            public_url = getattr(mf, 'public_url', None)
+                            url = getattr(mf, 'url', None) 
+                            upload_url = getattr(mf, 'upload_url', None)
+                            file_path = getattr(mf, 'file_path', None)
+                            file_type = getattr(mf, 'file_type', None)
+                            external_url = getattr(mf, 'external_url', None)
+                            file_name = getattr(mf, 'file_name', None)
+                            
+                            # Initialize youtube_id to None so it's always defined
+                            youtube_id = None
+                            
+                            # Special handling for external videos (YouTube) that don't have URLs stored
+                            youtube_id = None
+                            if file_type == 'video/external' and not (public_url or url):
+                                # Method 1: Extract from external_url
+                                if external_url:
+                                    youtube_id = extract_youtube_id(external_url)
+
+                                # Method 2: Extract from file_name if necessary
+                                if not youtube_id and file_name and ('.url' in file_name.lower() or 'youtube' in file_name.lower()):
+                                    import re
+                                    match = re.search(r'[a-zA-Z0-9_-]{11}', file_name)
+                                    if match:
+                                        youtube_id = match.group(0)
+
+                                # Method 3: Try XBlock metadata fallback
+                                if not youtube_id:
+                                    try:
+                                        store = modulestore()
+                                        unit_usage_key = UsageKey.from_string(decoded_unit_id)
+
+                                        # Use appropriate branch
+                                        is_staff_view = bool(has_access(request.user, 'staff', course_overview)) or \
+                                                        bool(has_access(request.user, 'instructor', course_overview))
+                                        branch = ModuleStoreEnum.Branch.draft_preferred if is_staff_view else ModuleStoreEnum.Branch.published_only
+
+                                        with store.branch_setting(branch):
+                                            try:
+                                                vertical = store.get_item(unit_usage_key)
+                                                LOGGER.info(f"[DEBUG] Searching XBlocks in vertical {unit_usage_key} for YouTube ID")
+
+                                                for child_key in getattr(vertical, 'children', []) or []:
+                                                    try:
+                                                        child = store.get_item(child_key)
+                                                        child_category = _get_child_category(child)
+                                                        LOGGER.info(f"[DEBUG] Checking child {child_key}, category: {child_category}")
+
+                                                        if child_category == 'video':
+                                                            # Check all possible YouTube ID fields
+                                                            for youtube_field in ['youtube_id_1_0', 'youtube_id', 'youtube']:
+                                                                try:
+                                                                    # Try metadata first, then attribute
+                                                                    md = getattr(child, 'metadata', {}) or {}
+                                                                    video_youtube_id = md.get(youtube_field) or getattr(child, youtube_field, None)
+                                                                    if video_youtube_id:
+                                                                        youtube_id = video_youtube_id
+                                                                        LOGGER.info(f"[DEBUG] Found YouTube ID from XBlock {child_key}.{youtube_field}: {youtube_id}")
+                                                                        break
+                                                                except Exception:
+                                                                    # If modulestore lookup fails at any nested point, continue to next field
+                                                                    continue
+
+                                                            # If we found a youtube_id, generate URLs
+                                                            if youtube_id and not (public_url or url):
+                                                                public_url = f"https://www.youtube.com/embed/{youtube_id}"
+                                                                url = f"https://www.youtube.com/watch?v={youtube_id}"
+
+                                                    except Exception:
+                                                        # Skip problematic child entries
+                                                        continue
+                                            except Exception:
+                                                # modulestore lookup failed; continue without XBlock fallback
+                                                pass
+                                    except Exception:
+                                        # modulestore setup failed; ignore XBlock fallback
+                                        pass
+
+                                if youtube_id:
+                                    public_url = f"https://www.youtube.com/embed/{youtube_id}"
+                                    url = f"https://www.youtube.com/watch?v={youtube_id}"
+                                    LOGGER.info(f"[DEBUG] Generated YouTube URLs for {mf.id}: youtube_id={youtube_id}, public_url={public_url}")
+                            
+                            # Prioritize generated YouTube URLs for external videos
+                            if youtube_id and file_type == 'video/external':
+                                final_public_url = f"https://www.youtube.com/embed/{youtube_id}"
+                                final_url = f"https://www.youtube.com/watch?v={youtube_id}"
+                                final_download_url = final_url
+                                final_upload_url = final_public_url
+                                LOGGER.info(f"[DEBUG] Using generated YouTube URLs for external video {mf.id}")
+                            # If we have explicit public_url or url (YouTube videos), use them directly
+                            elif public_url or url:
+                                final_public_url = public_url
+                                final_url = url
+                                final_download_url = url or public_url
+                                final_upload_url = public_url or upload_url
+                            else:
+                                # For file uploads, use presigned/normalized approach
+                                presigned = _presign_get_url(file_path)
+                                normalized_url = presigned or _normalize_storage_url(upload_url, file_path)
+                                final_public_url = normalized_url
+                                final_url = normalized_url
+                                final_download_url = normalized_url
+                                final_upload_url = normalized_url
+
                             base = {
                                 'id': str(mf.id),
                                 'title': mf.display_name or mf.file_name,
@@ -360,16 +506,17 @@ class UnitMediaListView(DeveloperErrorViewMixin, APIView, CMSProxyMixin):
                                 'size': mf.file_size,
                                 'uploadedByUsername': uploader_username,
                                 # Provide multiple URL fields for consumer flexibility
-                                'url': normalized_url,
-                                'downloadUrl': normalized_url,
-                                'uploadUrl': normalized_url,
+                                'url': final_url,
+                                'publicUrl': final_public_url,
+                                'downloadUrl': final_download_url,
+                                'uploadUrl': final_upload_url,
                             }
                             if singular_type == 'video':
                                 # Learning MFE looks for videoUrl/url/downloadUrl
-                                base['videoUrl'] = normalized_url
+                                base['videoUrl'] = final_url
                             else:
                                 # Slides: prefer fileUrl
-                                base['fileUrl'] = normalized_url
+                                base['fileUrl'] = final_url
                             db_items.append(base)
                     except Exception as db_err:  # pragma: no cover - defensive
                         LOGGER.warning(f"DB unit media lookup failed for unit {decoded_unit_id}: {db_err}")
@@ -435,39 +582,76 @@ class UnitMediaListView(DeveloperErrorViewMixin, APIView, CMSProxyMixin):
                             child = store.get_item(child_key)
                         except ItemNotFoundError:
                             continue
+                        except Exception as child_err:
+                            # Log and skip problematic children to avoid 500 errors
+                            LOGGER.warning(f"Failed to load child {child_key}: {child_err}")
+                            continue
 
-                        cat = _get_child_category(child)
-                        md = getattr(child, 'metadata', {}) or {}
-                        title = getattr(child, 'display_name', '')
+                        try:
+                            cat = _get_child_category(child)
+                            md = getattr(child, 'metadata', {}) or {}
+                            title = getattr(child, 'display_name', '')
+                        except Exception as metadata_err:
+                            # Skip children with metadata access issues
+                            LOGGER.warning(f"Failed to access metadata for child {child_key}: {metadata_err}")
+                            continue
 
                         if cat == 'video':
-                            videos.append({
-                                'id': str(getattr(child, 'location', '')),
-                                'title': title,
-                                'youtubeId': md.get('youtube_id_1_0') or getattr(child, 'youtube_id_1_0', ''),
-                                'videoUrl': md.get('video_url') or getattr(child, 'video_url', ''),
-                                'edxVideoId': md.get('edx_video_id') or getattr(child, 'edx_video_id', ''),
-                            })
-                        elif cat == 'html':
-                            file_url = md.get('file_url')
-                            slides.append({
-                                'id': str(getattr(child, 'location', '')),
-                                'title': title,
-                                'fileUrl': file_url,
-                                'fileType': md.get('file_type') or ('html' if not file_url else 'pdf'),
-                            })
-                        elif cat == 'problem':
-                            # Always provide questionCount as int (default 1 if missing)
-                            qcount = md.get('question_count')
                             try:
-                                qcount = int(qcount) if qcount is not None else 1
-                            except Exception:
-                                qcount = 1
-                            quizzes.append({
-                                'id': str(getattr(child, 'location', '')),
-                                'title': title,
-                                'questionCount': qcount,
-                            })
+                                youtube_id = md.get('youtube_id_1_0') or getattr(child, 'youtube_id_1_0', '')
+                                video_url = md.get('video_url') or getattr(child, 'video_url', '')
+                                edx_video_id = md.get('edx_video_id') or getattr(child, 'edx_video_id', '')
+                                
+                                # Build YouTube URLs if we have a YouTube ID
+                                public_url = None
+                                watch_url = None
+                                if youtube_id:
+                                    public_url = f"https://www.youtube.com/embed/{youtube_id}"
+                                    watch_url = f"https://www.youtube.com/watch?v={youtube_id}"
+                                
+                                videos.append({
+                                    'id': str(getattr(child, 'location', '')),
+                                    'title': title,
+                                    'youtubeId': youtube_id,
+                                    'videoUrl': video_url or watch_url or '',
+                                    'edxVideoId': edx_video_id,
+                                    # Add the missing URL fields that frontend expects
+                                    'url': watch_url,
+                                    'publicUrl': public_url,
+                                    'downloadUrl': watch_url,
+                                    'uploadUrl': public_url,
+                                })
+                            except Exception as video_err:
+                                LOGGER.warning(f"Failed to serialize video XBlock {child_key}: {video_err}")
+                                continue
+                        elif cat == 'html':
+                            try:
+                                file_url = md.get('file_url')
+                                slides.append({
+                                    'id': str(getattr(child, 'location', '')),
+                                    'title': title,
+                                    'fileUrl': file_url,
+                                    'fileType': md.get('file_type') or ('html' if not file_url else 'pdf'),
+                                })
+                            except Exception as slide_err:
+                                LOGGER.warning(f"Failed to serialize slide XBlock {child_key}: {slide_err}")
+                                continue
+                        elif cat == 'problem':
+                            try:
+                                # Always provide questionCount as int (default 1 if missing)
+                                qcount = md.get('question_count')
+                                try:
+                                    qcount = int(qcount) if qcount is not None else 1
+                                except Exception:
+                                    qcount = 1
+                                quizzes.append({
+                                    'id': str(getattr(child, 'location', '')),
+                                    'title': title,
+                                    'questionCount': qcount,
+                                })
+                            except Exception as quiz_err:
+                                LOGGER.warning(f"Failed to serialize quiz XBlock {child_key}: {quiz_err}")
+                                continue
                 if not quizzes:
                     child_locs = []
                     for ck in getattr(vertical, 'children', []) or []:
@@ -526,8 +710,29 @@ class UnitMediaDetailView(DeveloperErrorViewMixin, APIView, CMSProxyMixin):
             if CMSUnitMediaFile and media_type in ['video', 'slide']:
                 try:
                     mf = CMSUnitMediaFile.objects.get(id=media_id, unit_id=decoded_unit_id, media_type=media_type)
-                    presigned = _presign_get_url(getattr(mf, 'file_path', None))
-                    normalized_url = presigned or _normalize_storage_url(getattr(mf, 'upload_url', None), getattr(mf, 'file_path', None))
+                    
+                    # For YouTube videos, use the stored URLs directly from DB
+                    # For file uploads, use presigned/normalized URLs
+                    public_url = getattr(mf, 'public_url', None)
+                    url = getattr(mf, 'url', None) 
+                    upload_url = getattr(mf, 'upload_url', None)
+                    file_path = getattr(mf, 'file_path', None)
+                    
+                    # If we have explicit public_url or url (YouTube videos), use them directly
+                    if public_url or url:
+                        final_public_url = public_url
+                        final_url = url
+                        final_download_url = url or public_url
+                        final_upload_url = public_url or upload_url
+                    else:
+                        # For file uploads, use presigned/normalized approach
+                        presigned = _presign_get_url(file_path)
+                        normalized_url = presigned or _normalize_storage_url(upload_url, file_path)
+                        final_public_url = normalized_url
+                        final_url = normalized_url
+                        final_download_url = normalized_url
+                        final_upload_url = normalized_url
+                    
                     data = {
                         'id': str(mf.id),
                         'title': mf.display_name or mf.file_name,
@@ -535,14 +740,15 @@ class UnitMediaDetailView(DeveloperErrorViewMixin, APIView, CMSProxyMixin):
                         'fileName': mf.file_name,
                         'fileType': mf.file_type,
                         'size': mf.file_size,
-                        'url': normalized_url,
-                        'downloadUrl': normalized_url,
-                        'uploadUrl': normalized_url,
+                        'url': final_url,
+                        'publicUrl': final_public_url,
+                        'downloadUrl': final_download_url,
+                        'uploadUrl': final_upload_url,
                     }
                     if media_type == 'video':
-                        data['videoUrl'] = normalized_url
+                        data['videoUrl'] = final_url
                     else:
-                        data['fileUrl'] = normalized_url
+                        data['fileUrl'] = final_url
                     return Response(data, status=status.HTTP_200_OK)
                 except CMSUnitMediaFile.DoesNotExist:
                     pass
@@ -770,20 +976,32 @@ class ContainerHandlerView(DeveloperErrorViewMixin, APIView, CMSProxyMixin):
                         ch = store.get_item(ck)
                     except ItemNotFoundError:
                         continue
-                    children.append(child_info(ch))
-                    if debug_enabled:
-                        # Provide extra diagnostics about the child to help map categories
-                        metadata = getattr(ch, 'metadata', {}) or {}
-                        loc = getattr(ch, 'location', None)
-                        block_type = getattr(loc, 'block_type', None) if loc is not None else None
-                        debug_children.append({
-                            'id': str(loc) if loc is not None else str(getattr(ch, 'id', '')),
-                            'category': _get_child_category(ch),
-                            'class': type(ch).__name__,
-                            'block_type': block_type,
-                            'display_name': getattr(ch, 'display_name', ''),
-                            'metadata_keys': list(metadata.keys()),
-                        })
+                    except Exception as child_err:
+                        LOGGER.warning(f"Failed to load container child {ck}: {child_err}")
+                        continue
+                    try:
+                        children.append(child_info(ch))
+                        if debug_enabled:
+                            # Provide extra diagnostics about the child to help map categories
+                            metadata = getattr(ch, 'metadata', {}) or {}
+                            loc = getattr(ch, 'location', None)
+                            block_type = getattr(loc, 'block_type', None) if loc is not None else None
+                            debug_children.append({
+                                'id': str(loc) if loc is not None else str(getattr(ch, 'id', '')),
+                                'category': _get_child_category(ch),
+                                'class': type(ch).__name__,
+                                'block_type': block_type,
+                                'display_name': getattr(ch, 'display_name', ''),
+                                'metadata_keys': list(metadata.keys()),
+                            })
+                    except Exception as info_err:
+                        LOGGER.warning(f"Failed to get info for container child {ck}: {info_err}")
+                        if debug_enabled:
+                            debug_children.append({
+                                'id': str(ck),
+                                'error': f'Failed to serialize: {str(info_err)}',
+                            })
+                        continue
 
             # Also add ChalixQuiz objects as virtual children
             try:
@@ -1110,12 +1328,28 @@ class CourseAggregateView(DeveloperErrorViewMixin, APIView):
         return {'videos': videos, 'slides': slides, 'quizzes': quizzes}
     def _serialize_video(self, block):
         md = getattr(block, 'metadata', {}) or {}
+        youtube_id = md.get('youtube_id_1_0') or getattr(block, 'youtube_id_1_0', '')
+        video_url = md.get('video_url') or getattr(block, 'video_url', '')
+        edx_video_id = md.get('edx_video_id') or getattr(block, 'edx_video_id', '')
+        
+        # Build YouTube URLs if we have a YouTube ID
+        public_url = None
+        watch_url = None
+        if youtube_id:
+            public_url = f"https://www.youtube.com/embed/{youtube_id}"
+            watch_url = f"https://www.youtube.com/watch?v={youtube_id}"
+        
         return {
             'id': str(block.location),
             'title': getattr(block, 'display_name', ''),
-            'youtubeId': md.get('youtube_id_1_0') or getattr(block, 'youtube_id_1_0', ''),
-            'videoUrl': md.get('video_url') or getattr(block, 'video_url', ''),
-            'edxVideoId': md.get('edx_video_id') or getattr(block, 'edx_video_id', ''),
+            'youtubeId': youtube_id,
+            'videoUrl': video_url or watch_url or '',
+            'edxVideoId': edx_video_id,
+            # Add the missing URL fields that frontend expects
+            'url': watch_url,
+            'publicUrl': public_url,
+            'downloadUrl': watch_url,
+            'uploadUrl': public_url,
         }
 
     def _serialize_slide(self, block):
