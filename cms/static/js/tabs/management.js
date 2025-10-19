@@ -22,9 +22,7 @@
 
       // HTML for the management interface
       var html = '<div class="organization-management">' +
-        '<h2>Quản lý Cơ quan</h2>' +
         '<div class="org-form-container">' +
-          '<h3>Tạo cơ quan</h3>' +
           '<form id="org-form" style="margin-bottom: 30px;">' +
             '<div class="form-group" style="margin-bottom: 10px;">' +
               '<label for="org-name">Tên cơ quan:</label>' +

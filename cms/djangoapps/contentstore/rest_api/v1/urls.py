@@ -41,6 +41,7 @@ from ...views.user_management import (
     bulk_create_users,
     get_user_organizations,
     get_available_roles,
+    list_users,
 )
 
 # Import user template views
@@ -197,6 +198,7 @@ urlpatterns = [
     path('users/bulk-create', bulk_create_users, name='bulk_create_users'), 
     path('users/organizations', get_user_organizations, name='get_user_organizations'),
     path('users/roles', get_available_roles, name='get_available_roles'),
+    path('users/list', list_users, name='list_users'),
     
     # Template and instructions
     path('users/template/download', download_user_template, name='download_user_template'),

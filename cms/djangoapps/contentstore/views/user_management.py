@@ -436,12 +436,158 @@ def get_available_roles(request):
 def get_user_current_role(user) -> Optional[ChalixUserRole]:
     """Get the current active Chalix role for a user."""
     try:
-        return ChalixUserRole.objects.filter(
+        role = ChalixUserRole.objects.filter(
             user=user,
             is_active=True
         ).first()
+
+        if role:
+            return role
+
+        # If the user is a Django staff or superuser, provide a lightweight
+        # fallback role so admin accounts can use the management endpoints.
+        # We treat staff/superuser as 'bo' (ministry-level) for permission checks.
+        try:
+            from types import SimpleNamespace
+            if user and (getattr(user, 'is_superuser', False) or getattr(user, 'is_staff', False)):
+                return SimpleNamespace(role='bo', organization=None)
+        except Exception:
+            # If anything goes wrong constructing the fallback, just return None
+            return None
+
+        return None
     except Exception:
         return None
+
+
+@view_auth_classes(is_authenticated=True)
+@api_view(['GET'])
+def list_users(request):
+    """
+    Return a paginated list of users visible to the current requester.
+
+    Query params:
+      - page (int, default=1)
+      - per_page (int, default=50)
+
+    Response shape:
+      {
+        'success': True,
+        'users': [ { id, username, full_name, phone, email, organization, role }, ... ],
+        'total': <int>,
+        'page': <int>,
+        'per_page': <int>
+      }
+    """
+    try:
+        current_role = get_user_current_role(request.user)
+        if not current_role:
+            return Response({
+                'success': False,
+                'message': _('Không tìm thấy thông tin vai trò của bạn.')
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            page = int(request.GET.get('page', 1))
+        except Exception:
+            page = 1
+
+        try:
+            per_page = int(request.GET.get('per_page', 50))
+        except Exception:
+            per_page = 50
+
+        # Base queryset
+        users_qs = User.objects.select_related('profile').all().order_by('id')
+
+        # Optional search filter
+        q = request.GET.get('q', '').strip()
+        if q:
+            # filter username, email, or profile name (if available)
+            from django.db.models import Q
+            users_qs = users_qs.filter(
+                Q(username__icontains=q) | Q(email__icontains=q) | Q(profile__name__icontains=q)
+            )
+
+        # Restrict visible users based on current role
+        if current_role.role == 'co_quan':
+            user_org = getattr(current_role, 'organization', None)
+            if user_org:
+                org_ids = [user_org.id]
+                try:
+                    org_ids.extend(list(user_org.children.values_list('id', flat=True)))
+                except Exception:
+                    pass
+                role_qs = ChalixUserRole.objects.filter(organization__id__in=org_ids, is_active=True)
+                user_ids = role_qs.values_list('user_id', flat=True)
+                users_qs = users_qs.filter(id__in=user_ids)
+            else:
+                users_qs = users_qs.none()
+        elif current_role.role == 'bo':
+            # bo can see all users
+            pass
+        else:
+            # other roles not permitted to list accounts
+            users_qs = users_qs.none()
+
+        total = users_qs.count()
+
+        # Simple pagination
+        start = (page - 1) * per_page
+        end = start + per_page
+        users_page = list(users_qs[start:end])
+
+        # Prefetch roles for the selected users to avoid N+1
+        role_objs = ChalixUserRole.objects.filter(user__in=users_page, is_active=True).select_related('organization')
+        role_map = {r.user_id: r for r in role_objs}
+
+        users_data = []
+        for u in users_page:
+            profile = getattr(u, 'profile', None)
+            full_name = None
+            if profile and getattr(profile, 'name', None):
+                full_name = profile.name
+            else:
+                full_name = f"{u.first_name or ''} {u.last_name or ''}".strip() or u.username or u.email
+
+            phone = None
+            if profile and getattr(profile, 'phone_number', None):
+                phone = profile.phone_number
+
+            r = role_map.get(u.id)
+            org_display = None
+            role_display = None
+            if r:
+                org_display = r.organization.display_name if r.organization else None
+                try:
+                    role_display = r.get_role_display()
+                except Exception:
+                    role_display = getattr(r, 'role', None)
+
+            users_data.append({
+                'id': u.id,
+                'username': u.username,
+                'full_name': full_name,
+                'phone': phone,
+                'email': u.email,
+                'organization': org_display,
+                'role': role_display
+            })
+
+        return Response({
+            'success': True,
+            'users': users_data,
+            'total': total,
+            'page': page,
+            'per_page': per_page
+        })
+
+    except Exception as e:
+        log.error(f"Error listing users: {str(e)}", exc_info=True)
+        return Response({
+            'success': False,
+            'message': _('Lỗi hệ thống. Vui lòng thử lại sau.')
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 def can_create_user_accounts(current_role: Optional[ChalixUserRole]) -> bool:

@@ -14,14 +14,14 @@
             contentDescription: 'Xem các thống kê và báo cáo tổng quan về hệ thống học tập.'
         },
         'create-account': {
-            label: 'Tạo tài khoản cán bộ',
-            contentTitle: 'Tạo tài khoản cán bộ',
-            contentDescription: 'Tạo tài khoản mới cho cán bộ trong hệ thống.'
+            label: 'Quản lý tài khoản cán bộ',
+            contentTitle: 'Quản lý tài khoản cán bộ',
+            contentDescription: 'Tạo và quản lý tài khoản cán bộ trong hệ thống.'
         },
         'management': {
-            label: 'Quản lý',
-            contentTitle: 'Quản lý hệ thống',
-            contentDescription: 'Quản lý các chức năng và cài đặt hệ thống.'
+            label: 'Quản lý nền tảng',
+            contentTitle: 'Quản lý nền tảng',
+            contentDescription: 'Quản lý các chức năng và cài đặt nền tảng.'
         },
         'learning-management': {
             label: 'Quản lý học tập',

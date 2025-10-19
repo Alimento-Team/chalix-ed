@@ -58,7 +58,6 @@ function OrganizationManagement({ apiUrl, isAdmin }) {
 
   return (
     <div className="org-management">
-      <h2>Tạo cơ quan</h2>
       <form onSubmit={handleCreateOrg}>
         <input
           type="text"
