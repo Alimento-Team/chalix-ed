@@ -19,6 +19,7 @@ from .accounts.views import (
     NameChangeView,
     UsernameReplacementView, CancelAccountRetirementStatusView
 )
+from .accounts.user_popup_views import UserPopupView, UserPopupByUsernameView
 from . import views as user_api_views
 from .models import UserPreference
 from .preferences.views import PreferencesDetailView, PreferencesView
@@ -213,4 +214,14 @@ urlpatterns = [
     # Moved from user_api/legacy_urls.py
     path('v1/preferences/time_zones/', user_api_views.CountryTimeZoneListView.as_view(),
          ),
+    
+    # User popup API endpoints
+    path('v1/user_popup/', UserPopupView.as_view(),
+         name='user_popup_api'
+         ),
+    re_path(
+        fr'^v1/user_popup/{settings.USERNAME_PATTERN}/$',
+        UserPopupByUsernameView.as_view(),
+        name='user_popup_by_username_api'
+    ),
 ]

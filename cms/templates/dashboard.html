@@ -1,5 +1,7 @@
 <%page expression_filter="h" />
-<%! 
+<%!
+import json
+from urllib.parse import urljoin
 from django.utils.translation import gettext as _ 
 from django.urls import reverse 
 from openedx.core.djangolib.markup import HTML, Text 
@@ -8,6 +10,9 @@ from django.conf import settings
 
 # Resolve platform name programmatically; fall back to common settings or a sensible default
 platform_name = getattr(settings, 'PLATFORM_NAME', None) or getattr(settings, 'LMS_NAME', None) or 'Chalix Dev Platform'
+# Prefer an explicit LMS base URL from platform settings (MFE_CONFIG or LMS_ROOT_URL)
+_mfe_conf = getattr(settings, 'MFE_CONFIG', None) or {}
+lms_base_url = _mfe_conf.get('LMS_BASE_URL') or getattr(settings, 'LMS_ROOT_URL', '')
 %>
 
 <%inherit file="base.html" />
@@ -74,10 +79,9 @@ platform_name = getattr(settings, 'PLATFORM_NAME', None) or getattr(settings, 'L
         color: white;
     }
     .header-inner {
-        max-width: 1240px; /* match content-container */
         width: 100%;
         margin: 0 auto;
-        padding: 0 10px; /* keep the same horizontal padding as before */
+        padding: 0 2px 0 24px;
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -104,7 +108,8 @@ platform_name = getattr(settings, 'PLATFORM_NAME', None) or getattr(settings, 'L
     .header-user-section {
         display: flex;
         align-items: center;
-        gap: 20px;
+        gap: 8px;
+        margin-left: auto;
     }
     .user-org {
         font-family: 'Roboto', sans-serif;
@@ -114,14 +119,16 @@ platform_name = getattr(settings, 'PLATFORM_NAME', None) or getattr(settings, 'L
         letter-spacing: 0.5px;
     }
     .user-avatar {
-        width: 50px;
-        height: 50px;
+        width: 52px;
+        height: 52px;
         background: #99abc8;
-        border-radius: 30px;
+        border-radius: 50%;
         display: flex;
         align-items: center;
         justify-content: center;
         transition: opacity 0.2s ease;
+        /* small right margin to separate slightly from bell icon when gap is tightened */
+        margin-right: 4px;
     }
     .user-avatar-link {
         text-decoration: none;
@@ -133,6 +140,11 @@ platform_name = getattr(settings, 'PLATFORM_NAME', None) or getattr(settings, 'L
         background: none;
         border: none;
         cursor: pointer;
+        /* Slightly reduce the space to the left so it sits closer to avatar */
+        margin-left: 2px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
 
     /* Navigation styling */
@@ -332,6 +344,13 @@ platform_name = getattr(settings, 'PLATFORM_NAME', None) or getattr(settings, 'L
         color: #6c757d;
         border: 1px solid #dee2e6;
     }
+    /* Responsive: restore more comfortable spacing on narrow viewports */
+    @media (max-width: 800px) {
+        .header-inner { padding: 0 12px; }
+        .header-user-section { gap: 8px; }
+        .user-avatar { width: 46px; height: 46px; margin-right: 0; }
+        .notification-icon { margin-left: 8px; }
+    }
         </style>
 </%block>
 
@@ -353,13 +372,16 @@ platform_name = getattr(settings, 'PLATFORM_NAME', None) or getattr(settings, 'L
 
                 <div class="header-user-section">
                     % if user_info.get('username'):
-                        <a href="${account_url if user.is_authenticated else '/login'}" class="user-avatar-link" style="display:flex;align-items:center;color:white;text-decoration:none;">
-                            <div class="user-avatar">
+                        <!-- Use a button trigger so clicks open the in-page popup instead of navigating away -->
+                        <button id="user-avatar-popup-trigger" class="user-avatar-link" aria-expanded="false" style="display:flex;align-items:center;color:white;text-decoration:none;background:none;border:none;padding:0;">
+                            <div class="user-avatar" role="img" aria-label="${user_info.get('username')}">
                                 <svg width="30" height="30" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
                                     <path d="M15 15C18.315 15 21 12.315 21 9C21 5.685 18.315 3 15 3C11.685 3 9 5.685 9 9C9 12.315 11.685 15 15 15ZM15 18C11.01 18 3 19.995 3 24V27H27V24C27 19.995 18.99 18 15 18Z" fill="white"/>
                                 </svg>
                             </div>
-                        </a>
+                        </button>
+                        <!-- Mount node for the in-page user popup -->
+                        <div id="user-popup-root" style="position: relative;"></div>
                     % else:
                         <span style="display:flex;align-items:center;">
                             <div class="user-avatar">
@@ -463,7 +485,13 @@ platform_name = getattr(settings, 'PLATFORM_NAME', None) or getattr(settings, 'L
         // Pass role-based context to JavaScript
         window.CMS_ROLE_DATA = {
             user_role: '${user_role or ""}',
-            organization_name: '${organization_name or ""}'
+            user_name: '${user_info.get("username", "") if user_info else ""}',
+            organization_name: '${organization_name or ""}',
+            // Platform URLs for popup navigation (will be resolved in JS)
+            account_settings_url: '${settings.ACCOUNT_MICROFRONTEND_URL if hasattr(settings, "ACCOUNT_MICROFRONTEND_URL") else "/account/settings"}',
+            profile_base_url: '${settings.PROFILE_MICROFRONTEND_URL if hasattr(settings, "PROFILE_MICROFRONTEND_URL") else ""}',
+            // Server-provided LMS base URL: prefer explicit platform configuration (MFE_CONFIG['LMS_BASE_URL'] or LMS_ROOT_URL)
+            lms_base_url: '${lms_base_url}'
         };
     </script>
 
@@ -473,7 +501,11 @@ platform_name = getattr(settings, 'PLATFORM_NAME', None) or getattr(settings, 'L
     <script type="text/javascript" src="${static.url('js/tabs/statistics.js')}"></script>
     <script type="text/javascript" src="${static.url('js/chalix-dashboard.js')}"></script>
     <!-- Ensure our Chalix CMS interface script is loaded for the dashboard (cache-busted) -->
-        <script src="${static.url('js/chalix-cms-interface.js')}?v=2.3.1"></script>
+    <script src="${static.url('js/chalix-cms-interface.js')}?v=2.3.1"></script>
+    
+    <!-- User popup component -->
+    <script src="${static.url('js/user-popup-simple.js')}"></script>
+    <script src="${static.url('js/user-popup-init.js')}"></script>
 
     <!-- Diagnostic: log registered tab modules on page load -->
     <script type="text/javascript">
