@@ -28,6 +28,22 @@
                 .create-account-cta{flex-direction:column;} 
                 .single-account-form > div[style*="grid-template-columns"] { grid-template-columns: 1fr !important; }
             }
+
+            /* Users table styling */
+            #users-table-wrap { background: #fff; border: 1px solid #e6eef6; border-radius: 12px; padding: 18px; }
+            #users-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-family: 'Inter', sans-serif; font-size: 14px; }
+            #users-table thead th { padding: 18px 16px; font-weight:600; color:#374151; border-bottom: none; text-align: center; }
+            #users-table tbody td { padding: 18px 16px; color:#374151; vertical-align: middle; text-align: center; }
+            #users-table tbody tr { border-bottom: 1px solid #eef6fb; }
+            #users-table tbody tr:last-child { border-bottom: none; }
+            /* Make first column a bit narrower */
+            #users-table thead th:nth-child(1), #users-table tbody td:nth-child(1) { width:72px; }
+            /* Responsive adjustments */
+            @media (max-width:900px){
+                #users-table thead th, #users-table tbody td { padding:12px 8px; font-size:13px; }
+                #users-pagination { flex-direction: column; gap:8px; align-items: flex-start; }
+                #users-pagination-info { text-align: left; }
+            }
         `;
         const style = document.createElement('style');
         style.id = 'cms-create-account-styles';
@@ -125,11 +141,15 @@
                     
                     <!-- Users list -->
                     <div id="existing-users" style="margin-top: 28px;">
+                        <div style="display:flex; justify-content:center; margin-bottom:18px;">
+                            <h3 style="font-family: 'Inter', sans-serif; font-weight: 600; font-size: 18px; margin:0;">Danh sách tài khoản hiện có</h3>
+                        </div>
                         <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px;">
-                            <h3 style="font-family: 'Inter', sans-serif; font-weight: 600; font-size: 16px; margin:0;">Danh sách tài khoản hiện có</h3>
-                            <div style="display:flex; gap:8px; align-items:center;">
-                                <input id="users-search" type="search" placeholder="Tìm theo username, email hoặc họ tên" style="height:36px; padding:8px 12px; border:1px solid #d9d9d9; border-radius:6px; font-size:13px;" />
-                                <select id="users-per-page" style="height:36px; padding:6px 8px; border:1px solid #d9d9d9; border-radius:6px; font-size:13px;">
+                            <div style="flex:1;">
+                                <input id="users-search" type="search" placeholder="Tìm theo username, email hoặc họ tên" style="height:40px; padding:8px 12px; border:1px solid #d9d9d9; border-radius:8px; font-size:14px; width:100%; max-width:420px;" />
+                            </div>
+                            <div>
+                                <select id="users-per-page" style="height:40px; padding:8px 12px; border:1px solid #d9d9d9; border-radius:8px; font-size:14px;">
                                     <option value="10">10 / trang</option>
                                     <option value="25">25 / trang</option>
                                     <option value="50" selected>50 / trang</option>
@@ -137,20 +157,20 @@
                                 </select>
                             </div>
                         </div>
-                        <div id="users-table-wrap" style="overflow:auto; border:1px solid #e6eef6; border-radius:6px; padding:12px; background:#fff;">
-                            <table id="users-table" style="width:100%; border-collapse:collapse; font-family: 'Inter', sans-serif; font-size:13px;">
+                        <div id="users-table-wrap">
+                            <table id="users-table">
                                 <thead>
-                                    <tr style="text-align:left; border-bottom:1px solid #e9f2fb;">
-                                        <th style="padding:8px 12px; width:60px;">ID</th>
-                                        <th style="padding:8px 12px;">Username</th>
-                                        <th style="padding:8px 12px;">Họ và tên</th>
-                                        <th style="padding:8px 12px;">Số điện thoại</th>
-                                        <th style="padding:8px 12px;">Email</th>
-                                        <th style="padding:8px 12px;">Cơ quan</th>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Username</th>
+                                        <th>Họ và tên</th>
+                                        <th>Số điện thoại</th>
+                                        <th>Email</th>
+                                        <th>Cơ quan</th>
                                     </tr>
                                 </thead>
                                 <tbody id="users-table-body">
-                                    <tr><td colspan="6" style="padding:12px; color:#667085;">Đang tải...</td></tr>
+                                    <tr><td colspan="6" style="padding:18px; color:#667085; text-align:center;">Đang tải...</td></tr>
                                 </tbody>
                             </table>
                         </div>
