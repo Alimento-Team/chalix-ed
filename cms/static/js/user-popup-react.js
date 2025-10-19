@@ -59,6 +59,22 @@
                 candidates.push(base + '/static/js/user-popup-bundle.js');
             }
 
+            // If the platform injected CMS_ROLE_DATA with an account_settings_url, prefer that
+            // as a candidate to load the bundle from the account MFE host.
+            try {
+                if (window.CMS_ROLE_DATA && window.CMS_ROLE_DATA.account_settings_url) {
+                    const acct = String(window.CMS_ROLE_DATA.account_settings_url).replace(/\/$/, '');
+                    candidates.push(acct + '/user-popup-bundle.js');
+                    candidates.push(acct + '/static/js/user-popup-bundle.js');
+                }
+            } catch (e) {
+                // ignore any odd global values
+            }
+
+            // Also try loading the bundle from the common /account public path on this origin
+            candidates.push(location.origin + '/account/user-popup-bundle.js');
+            candidates.push(location.origin + '/account/static/js/user-popup-bundle.js');
+
             // Always include same-origin static bundle as a reliable fallback
             candidates.push(location.origin + '/static/js/user-popup-bundle.js');
 
@@ -137,13 +153,29 @@
             lmsBaseUrl = protocol + '//' + lmsHost + (lmsPort ? ':' + lmsPort : '');
         }
         
+        // Fallback to the current origin's account path when explicit URLs are not provided
+        const originAccountBase = location.origin + '/account/';
+
+        // Use CMS-provided URLs directly since they're authoritative from platform config
+        // Normalize trailing slashes so links are predictable.
+        let accountBase = roleData.account_settings_url || originAccountBase;
+        if (typeof accountBase === 'string' && !accountBase.endsWith('/')) {
+            accountBase = accountBase + '/';
+        }
+
+        let profileBase = roleData.profile_base_url || originAccountBase;
+        if (typeof profileBase === 'string' && profileBase.endsWith('/')) {
+            // remove trailing slash for consistent concatenation below
+            profileBase = profileBase.replace(/\/+$/, '');
+        }
+
         return {
             // LMS dashboard - navigate to LMS
             courses: lmsBaseUrl + '/dashboard',
-            // Account settings MFE
-            account: roleData.account_settings_url || 'http://localhost:1996/account/settings',
-            // Profile MFE
-            profile: (roleData.profile_base_url || 'http://localhost:1996') + '/u/' + username,
+            // Account settings MFE (point to account root by default, ensure trailing slash)
+            account: accountBase,
+            // Profile MFE (profileBase + /u/<username>)
+            profile: profileBase + '/u/' + username,
             // Logout - always use the CMS frontend logout URL so the logout flow runs on
             // the current site (LogoutView -> IDA iframe logout -> redirect).
             logout: '/logout/'

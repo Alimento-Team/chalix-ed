@@ -62,13 +62,31 @@
             lmsBaseUrl = protocol + '//' + lmsHost + (lmsPort ? ':' + lmsPort : '');
         }
         
+        // Use the current origin's account path as fallback when explicit URLs are not provided
+        const originAccountBase = location.origin + '/account/';
+
+        function sameOriginOrFallback(maybeUrl, fallback) {
+            if (!maybeUrl) return fallback;
+            try {
+                const parsed = new URL(maybeUrl, location.href);
+                if (parsed.origin === location.origin) return parsed.origin + parsed.pathname.replace(/\/$/, '');
+            } catch (e) {
+                // ignore invalid URLs
+            }
+            return fallback;
+        }
+
+        // Use CMS-provided URLs directly since they're authoritative from platform config
+        const accountBase = roleData.account_settings_url || originAccountBase;
+        const profileBase = roleData.profile_base_url || originAccountBase;
+
         return {
             // LMS dashboard - navigate to LMS
             courses: lmsBaseUrl + '/dashboard',
-            // Account settings MFE
-            account: roleData.account_settings_url || 'http://localhost:1996/account/settings',
+            // Account settings MFE (link to /account by default)
+            account: accountBase,
             // Profile MFE
-            profile: (roleData.profile_base_url || 'http://localhost:1996') + '/u/' + username,
+            profile: profileBase + '/u/' + username,
             // Logout - always use the CMS frontend logout URL so the logout flow runs on
             // the current site (LogoutView -> IDA iframe logout -> redirect).
             logout: '/logout/'
