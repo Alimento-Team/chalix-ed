@@ -31,6 +31,8 @@ ABOUT_ATTRIBUTES = [
     'entrance_exam_id',
     'entrance_exam_minimum_score_pct',
     'about_sidebar_html',
+    # Custom Chalix field for final project evaluation question
+    'final_evaluation_project_question',
 ]
 
 
@@ -78,6 +80,9 @@ class CourseDetails:
         self.self_paced = None
         self.learning_info = []
         self.instructor_info = []
+
+        # Chalix-specific about field for final project evaluation question
+        self.final_evaluation_project_question = ""
 
         # New fields
         self.estimated_hours = 0.0
@@ -183,6 +188,8 @@ class CourseDetails:
         Update the about item with the new data blob. If data is None,
         then delete the about item.
         """
+        logger = logging.getLogger(__name__)
+        logger.debug("update_about_item called for about_key=%s, user_id=%s, data_present=%s", about_key, user_id, data is not None)
         temploc = course.id.make_usage_key('about', about_key)
         store = store or modulestore()
         if data is None:
@@ -196,8 +203,11 @@ class CourseDetails:
                 about_item = store.get_item(temploc)
             except ItemNotFoundError:
                 about_item = store.create_xblock(course.runtime, course.id, 'about', about_key)
+            # Log details for debug - avoid logging full data for large blobs
+            logger.debug("Updating about_item %s (existing=%s) for course %s", temploc, hasattr(about_item, 'data'), course.id)
             about_item.data = data
             store.update_item(about_item, user_id, allow_not_found=True)
+            logger.info("Persisted about_item '%s' for course %s (user=%s)", about_key, course.id, user_id)
 
     @classmethod
     def update_about_video(cls, course, video_id, user_id):
@@ -335,6 +345,10 @@ class CourseDetails:
         if 'course_level' in jsondict and jsondict['course_level'] != getattr(block, 'course_level', ""):
             block.course_level = jsondict['course_level']
             dirty = True
+        # Persist final evaluation type if provided by the client
+        if 'final_evaluation_type' in jsondict and jsondict['final_evaluation_type'] != getattr(block, 'final_evaluation_type', ""):
+            block.final_evaluation_type = jsondict['final_evaluation_type']
+            dirty = True
 
         if dirty:
             module_store.update_item(block, user.id)
@@ -345,6 +359,8 @@ class CourseDetails:
         # fields changed.
         for attribute in ABOUT_ATTRIBUTES:
             if attribute in jsondict:
+                # Log when we attempt to persist about attributes
+                logging.getLogger(__name__).debug("Processing about attribute for update: %s (present_in_payload=%s)", attribute, attribute in jsondict)
                 cls.update_about_item(block, attribute, jsondict[attribute], user.id)
 
         # Be defensive: intro_video may not be present in jsondict when called from various APIs

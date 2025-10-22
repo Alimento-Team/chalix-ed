@@ -1245,7 +1245,8 @@ def course_detail_api_get(request, course_key):
                 'online_course_link': getattr(details, 'online_course_link', '') or getattr(course, 'online_course_link', ''),
                 'instructor': getattr(details, 'instructor', '') or getattr(course, 'instructor', ''),
                 'estimated_hours': getattr(details, 'estimated_hours', 0) or getattr(course, 'estimated_hours', 0),
-                'final_evaluation_type': getattr(details, 'final_evaluation_type', '') or getattr(course, 'final_evaluation_type', '')
+                'final_evaluation_type': getattr(details, 'final_evaluation_type', '') or getattr(course, 'final_evaluation_type', ''),
+                'final_evaluation_project_question': getattr(details, 'final_evaluation_project_question', '') or getattr(course, 'final_evaluation_project_question', '')
             })
             
             logger.info(f"Course details loaded: course_level='{course_data['course_level']}', course_type='{course_data['course_type']}', short_description='{course_data['short_description'][:50] if course_data['short_description'] else 'EMPTY'}...'")
@@ -1263,7 +1264,8 @@ def course_detail_api_get(request, course_key):
                 'online_course_link': getattr(course, 'online_course_link', ''),
                 'instructor': getattr(course, 'instructor', ''),
                 'estimated_hours': getattr(course, 'estimated_hours', 0),
-                'final_evaluation_type': getattr(course, 'final_evaluation_type', '')
+                'final_evaluation_type': getattr(course, 'final_evaluation_type', ''),
+                'final_evaluation_project_question': getattr(course, 'final_evaluation_project_question', '')
             })
 
         # Try to get creator information from LocalCourse record
