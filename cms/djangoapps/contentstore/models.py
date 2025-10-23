@@ -1204,10 +1204,12 @@ class FinalEvaluation(models.Model):
     """
     EVALUATION_TYPE_PRACTICAL = 'practical'
     EVALUATION_TYPE_QUIZ = 'quiz'
+    EVALUATION_TYPE_PROJECT = 'project'
 
     EVALUATION_TYPE_CHOICES = [
         (EVALUATION_TYPE_PRACTICAL, 'Nộp bài thu hoạch'),
         (EVALUATION_TYPE_QUIZ, 'Làm bài trắc nghiệm'),
+        (EVALUATION_TYPE_PROJECT, 'Nộp bài dự án'),
     ]
 
     course_key = CourseKeyField(

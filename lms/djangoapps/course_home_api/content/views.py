@@ -25,29 +25,37 @@ from django.core.exceptions import ObjectDoesNotExist
 from xmodule.modulestore.django import modulestore
 from xmodule.modulestore import ModuleStoreEnum  # for branch selection
 from xmodule.modulestore.exceptions import ItemNotFoundError
+from django.apps import apps as django_apps
 
 # Re-use CMS models for unit media files and Chalix quizzes; DB is shared across LMS/CMS
-try:  # Import defensively in case module path changes
-    from cms.djangoapps.contentstore.models import UnitMediaFile as CMSUnitMediaFile
-    from cms.djangoapps.contentstore.models import ChalixQuiz as CMSChalixQuiz
-    from cms.djangoapps.contentstore.models import ChalixQuizQuestion as CMSChalixQuizQuestion
-    from cms.djangoapps.contentstore.models import ChalixQuizChoice as CMSChalixQuizChoice
-except Exception:  # pragma: no cover - fail soft
+# But avoid importing CMS models into the LMS process unless the CMS app is installed
+CMSUnitMediaFile = None
+CMSChalixQuiz = None
+CMSChalixQuizQuestion = None
+CMSChalixQuizChoice = None
+try:
+    # Try to import from CMS first if available
+    if django_apps.is_installed('cms') or django_apps.is_installed('cms.djangoapps.contentstore'):
+        from cms.djangoapps.contentstore.models import (
+            UnitMediaFile as CMSUnitMediaFile,
+            ChalixQuiz as CMSChalixQuiz,
+            ChalixQuizQuestion as CMSChalixQuizQuestion,
+            ChalixQuizChoice as CMSChalixQuizChoice,
+        )
+    else:
+        # Fallback to unmanaged LMS mappings
+        from lms.djangoapps.course_home_api.models import (
+            UnitMediaFileLMS as CMSUnitMediaFile,
+            ChalixQuizLMS as CMSChalixQuiz,
+            ChalixQuizQuestionLMS as CMSChalixQuizQuestion,
+            ChalixQuizChoiceLMS as CMSChalixQuizChoice,
+        )
+except Exception:
+    # If imports fail for any reason, proceed without DB-backed media
     CMSUnitMediaFile = None
     CMSChalixQuiz = None
     CMSChalixQuizQuestion = None
     CMSChalixQuizChoice = None
-    try:
-        # Fallback to unmanaged LMS mapping to the same DB table
-        from lms.djangoapps.course_home_api.models import UnitMediaFileLMS as CMSUnitMediaFile  # type: ignore
-        from lms.djangoapps.course_home_api.models import ChalixQuizLMS as CMSChalixQuiz  # type: ignore
-        from lms.djangoapps.course_home_api.models import ChalixQuizQuestionLMS as CMSChalixQuizQuestion  # type: ignore
-        from lms.djangoapps.course_home_api.models import ChalixQuizChoiceLMS as CMSChalixQuizChoice  # type: ignore
-    except Exception:  # pragma: no cover - if both unavailable, proceed without DB media
-        CMSUnitMediaFile = None
-        CMSChalixQuiz = None
-        CMSChalixQuizQuestion = None
-        CMSChalixQuizChoice = None
 
 LOGGER = logging.getLogger(__name__)
 
@@ -126,20 +134,13 @@ class CMSProxyMixin:
     def _get_cms_data(self, cms_path, request_method='GET', data=None):
         """
         Fetch data from CMS contentstore API.
-        
-        Args:
-            cms_path (str): The CMS API path (e.g., 'api/contentstore/v1/units/...')
-            request_method (str): HTTP method (GET, POST, etc.)
-            data (dict): Request data for POST requests
-            
-        Returns:
-            tuple: (success, data_or_error_message, status_code)
         """
+        # Determine the Studio/Studio API base and return early if missing.
         studio_base = self._studio_base_url()
         if not studio_base:
             LOGGER.error('Studio base URL not configured (set STUDIO_BASE_URL or CMS_BASE)')
             return False, 'CMS not configured', 500
-            
+
         url = f"{studio_base.rstrip('/')}/{cms_path.lstrip('/')}"
         LOGGER.info(f'Fetching from CMS: {request_method} {url}')
         
@@ -362,6 +363,40 @@ class UnitMediaListView(DeveloperErrorViewMixin, APIView, CMSProxyMixin):
             if not has_access(request.user, 'load', course_overview):
                 return Response({'error': 'Access denied'}, status=status.HTTP_403_FORBIDDEN)
 
+            # Check if this is a final evaluation unit - do this BEFORE fetching media
+            is_final_evaluation = False
+            try:
+                store = modulestore()
+                is_staff_view = bool(has_access(request.user, 'staff', course_overview)) or \
+                                bool(has_access(request.user, 'instructor', course_overview))
+                branch = ModuleStoreEnum.Branch.draft_preferred if is_staff_view else ModuleStoreEnum.Branch.published_only
+                with store.branch_setting(branch):
+                    vertical = store.get_item(usage_key)
+                    display_name = getattr(vertical, 'display_name', '').strip().lower()
+                    # Check if the display name matches final evaluation variants
+                    final_eval_variants = ['kiểm tra cuối khoá', 'kiểm tra cuối khóa', 'kiem tra cuoi khoa']
+                    if any(variant in display_name for variant in final_eval_variants):
+                        LOGGER.info(f"Detected final evaluation vertical in media list: {getattr(vertical, 'display_name', '')}")
+                        # Check if course has final evaluation configured
+                        try:
+                            # Use the modulestore-backed CourseDetails to avoid importing CMS models
+                            from openedx.core.djangoapps.models.course_details import CourseDetails as ModulestoreCourseDetails
+                            course_details = ModulestoreCourseDetails.fetch(course_key)
+                            evaluation_type = getattr(course_details, 'final_evaluation_type', None)
+                            if evaluation_type:
+                                is_final_evaluation = True
+                                LOGGER.info(f"Final evaluation type in media list: {evaluation_type}")
+                        except Exception as e:
+                            LOGGER.warning(f"Could not check final evaluation type via modulestore CourseDetails: {e}")
+                            is_final_evaluation = False
+            except Exception as e:
+                LOGGER.warning(f"Could not check if unit is final evaluation: {e}")
+                is_final_evaluation = False
+
+            # If this is a final evaluation and media_type is videos or slides, return empty list immediately
+            if is_final_evaluation and media_type in ['videos', 'slides']:
+                LOGGER.info(f"Returning empty {media_type} list for final evaluation unit {unit_id}")
+                return Response({media_type: []})
 
             # Start with DB-backed media (UnitMediaFile) if available
             db_items = []
@@ -542,11 +577,13 @@ class UnitMediaListView(DeveloperErrorViewMixin, APIView, CMSProxyMixin):
                                 pass
 
                             # Query active quizzes for this course under any of the candidate parent locators
+                            LOGGER.info(f"Querying quizzes for course_key={course_key}, parent_locator__in={list(candidate_locators)}")
                             qs = CMSChalixQuiz.objects.filter(
                                 course_key=course_key,
                                 is_active=True,
                                 parent_locator__in=list(candidate_locators),
                             ).order_by('-created_at')
+                            LOGGER.info(f"Found {qs.count()} quizzes")
 
                             for q in qs:
                                 try:
@@ -970,6 +1007,33 @@ class ContainerHandlerView(DeveloperErrorViewMixin, APIView, CMSProxyMixin):
             except Exception:
                 debug_enabled = False
 
+            # Check if this is a final evaluation vertical - if so, filter out videos and slides
+            is_final_evaluation = False
+            if hasattr(container, 'display_name'):
+                display_name_lower = container.display_name.lower().strip()
+                final_eval_variants = [
+                    "kiểm tra cuối khoá",
+                    "kiểm tra cuối khóa", 
+                    "kiem tra cuoi khoa",
+                ]
+                is_final_evaluation = any(variant in display_name_lower for variant in final_eval_variants)
+                
+                if is_final_evaluation:
+                    LOGGER.info(f"Detected final evaluation vertical: {container.display_name}")
+                    # Check if there's a final evaluation configured
+                    try:
+                        # Use modulestore-backed CourseDetails to avoid importing CMS models into LMS process
+                        from openedx.core.djangoapps.models.course_details import CourseDetails
+                        course_details = CourseDetails.fetch(course_key)
+                        evaluation_type = getattr(course_details, 'final_evaluation_type', None)
+                        LOGGER.info(f"Final evaluation type: {evaluation_type}")
+                        # Only filter if there's an actual evaluation configured
+                        if not evaluation_type:
+                            is_final_evaluation = False
+                    except Exception as e:
+                        LOGGER.warning(f"Could not check final evaluation type via CourseDetails.fetch: {e}")
+                        is_final_evaluation = False
+
             with store.branch_setting(branch):
                 for ck in getattr(container, 'children', []) or []:
                     try:
@@ -980,6 +1044,13 @@ class ContainerHandlerView(DeveloperErrorViewMixin, APIView, CMSProxyMixin):
                         LOGGER.warning(f"Failed to load container child {ck}: {child_err}")
                         continue
                     try:
+                        child_category = _get_child_category(ch)
+                        
+                        # Skip video and slide (including HTML-based slides) children if this is a final evaluation
+                        if is_final_evaluation and child_category in ('video', 'slide', 'html'):
+                            LOGGER.info(f"Filtering out {child_category} from final evaluation: {getattr(ch, 'display_name', '')}")
+                            continue
+                        
                         children.append(child_info(ch))
                         if debug_enabled:
                             # Provide extra diagnostics about the child to help map categories
@@ -988,7 +1059,7 @@ class ContainerHandlerView(DeveloperErrorViewMixin, APIView, CMSProxyMixin):
                             block_type = getattr(loc, 'block_type', None) if loc is not None else None
                             debug_children.append({
                                 'id': str(loc) if loc is not None else str(getattr(ch, 'id', '')),
-                                'category': _get_child_category(ch),
+                                'category': child_category,
                                 'class': type(ch).__name__,
                                 'block_type': block_type,
                                 'display_name': getattr(ch, 'display_name', ''),
@@ -1003,9 +1074,9 @@ class ContainerHandlerView(DeveloperErrorViewMixin, APIView, CMSProxyMixin):
                             })
                         continue
 
-            # Also add ChalixQuiz objects as virtual children
+            # Also add ChalixQuiz objects as virtual children (skip for final evaluation units)
             try:
-                if CMSChalixQuiz:
+                if CMSChalixQuiz and not is_final_evaluation:
                     # Look for quizzes attached to this unit or its parent
                     parent_locators = [str(usage_key)]
                     try:
@@ -1039,6 +1110,8 @@ class ContainerHandlerView(DeveloperErrorViewMixin, APIView, CMSProxyMixin):
                                 'display_name': quiz.title,
                                 'metadata_keys': ['course_key', 'parent_locator', 'title', 'description'],
                             })
+                elif is_final_evaluation:
+                    LOGGER.info(f"Skipping ChalixQuiz objects for final evaluation unit {decoded_unit_id}")
                             
             except Exception as quiz_err:
                 LOGGER.warning(f"Failed to load ChalixQuiz objects for unit {decoded_unit_id}: {quiz_err}")
@@ -1379,17 +1452,24 @@ class QuizDetailView(DeveloperErrorViewMixin, APIView):
     Read-only view for individual quiz details backed by ChalixQuiz DB model.
     """
 
-    def get(self, request: Request, quiz_id: str):
+    def get(self, request: Request, quiz_id: str, **kwargs):
+        unit_id = kwargs.get('unit_id')
         self.request = request
+        LOGGER.info(f"QuizDetailView: Fetching quiz_id={quiz_id}, unit_id={unit_id}, CMSChalixQuiz available: {CMSChalixQuiz is not None}")
+        
         if not CMSChalixQuiz:
+            LOGGER.error("QuizDetailView: CMSChalixQuiz model is None")
             return Response({'error': 'Quiz model unavailable'}, status=status.HTTP_404_NOT_FOUND)
 
         try:
+            LOGGER.info(f"QuizDetailView: Querying CMSChalixQuiz.objects.get(id={quiz_id}, is_active=True)")
             quiz = CMSChalixQuiz.objects.get(id=quiz_id, is_active=True)
+            LOGGER.info(f"QuizDetailView: Found quiz: {quiz.title if hasattr(quiz, 'title') else 'N/A'}")
         except ObjectDoesNotExist:
+            LOGGER.error(f"QuizDetailView: Quiz not found for id={quiz_id}")
             return Response({'error': 'Quiz not found'}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
-            LOGGER.exception(f"Error retrieving quiz object: {str(e)}")
+            LOGGER.exception(f"QuizDetailView: Error retrieving quiz object: {str(e)}")
             return Response({'error': 'Failed to retrieve quiz'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         # Load questions and choices defensively: related attributes may be managers or plain iterables

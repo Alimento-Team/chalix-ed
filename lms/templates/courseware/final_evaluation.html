@@ -62,6 +62,52 @@
         </div>
     </div>
     
+    <!-- Template for project evaluation -->
+    <div id="project-evaluation-template" style="display: none;">
+        <div class="evaluation-type-section project-section">
+            <div class="evaluation-type-info">
+                <h3>📁 Nộp bài dự án</h3>
+                <p>Nộp file bài dự án cuối khóa của bạn</p>
+            </div>
+            
+            <div class="project-question">
+                <h4>Yêu cầu dự án:</h4>
+                <div class="question-content" id="project-question-content"></div>
+            </div>
+            
+            <div class="submission-area">
+                <div class="file-upload-section">
+                    <h4>Nộp file dự án:</h4>
+                    <div class="upload-zone" id="project-upload-zone">
+                        <div class="upload-info">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                            <p>Kéo thả file vào đây hoặc <button type="button" class="upload-btn">chọn file</button></p>
+                            <p class="file-types">Hỗ trợ: DOCX, PDF (tối đa 10MB)</p>
+                        </div>
+                        <input type="file" id="project-file-input" accept=".docx,.pdf" style="display: none;">
+                    </div>
+                    <button id="submit-project-btn" class="submit-btn" style="display: none;">Nộp bài</button>
+                </div>
+                
+                <div class="submission-status" id="project-status" style="display: none;">
+                    <div class="status-card">
+                        <h4>Trạng thái nộp bài</h4>
+                        <div class="status-details">
+                            <p><strong>File đã nộp:</strong> <span id="project-file-name"></span></p>
+                            <p><strong>Thời gian nộp:</strong> <span id="project-submission-time"></span></p>
+                            <div id="project-grade-section" style="display: none;">
+                                <p><strong>Điểm số:</strong> <span id="project-grade"></span></p>
+                                <p><strong>Nhận xét:</strong></p>
+                                <div id="project-feedback"></div>
+                            </div>
+                        </div>
+                        <button id="resubmit-project-btn" class="resubmit-btn">Nộp lại</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
     <!-- Template for quiz evaluation -->
     <div id="quiz-evaluation-template" style="display: none;">
         <div class="evaluation-type-section quiz-section">
@@ -800,6 +846,13 @@ class FinalEvaluationManager {
             }
         }
         
+        if (data.has_project) {
+            totalCount++;
+            if (data.project_evaluation.has_submission) {
+                completedCount++;
+            }
+        }
+        
         if (data.has_quiz) {
             totalCount++;
             if (data.quiz_evaluation.quiz_completed) {
@@ -823,13 +876,18 @@ class FinalEvaluationManager {
             this.renderPracticalAssignment(data.practical_evaluation, container);
         }
         
+        // Render project evaluation if available
+        if (data.has_project) {
+            this.renderProjectAssignment(data.project_evaluation, container);
+        }
+        
         // Render quiz evaluation if available
         if (data.has_quiz) {
             this.renderQuizEvaluation(data.quiz_evaluation, container);
         }
         
         // If no evaluations available
-        if (!data.has_practical && !data.has_quiz) {
+        if (!data.has_practical && !data.has_project && !data.has_quiz) {
             container.innerHTML = '<div class="no-evaluation"><p>Không có hình thức kiểm tra cuối khóa nào được thiết lập.</p></div>';
         }
     }
@@ -853,6 +911,27 @@ class FinalEvaluationManager {
         }
         
         container.appendChild(practicalSection);
+    }
+    
+    renderProjectAssignment(evaluation, container) {
+        // Clone the template
+        const template = document.getElementById('project-evaluation-template');
+        const projectSection = template.cloneNode(true);
+        projectSection.style.display = 'block';
+        projectSection.id = 'project-evaluation-active';
+        
+        // Fill in the question content
+        const questionContent = projectSection.querySelector('#project-question-content');
+        questionContent.textContent = evaluation.project_question || 'Hãy nộp file bài dự án của bạn (DOCX/PDF)';
+        
+        // Set up submission area based on current state
+        if (evaluation.has_submission) {
+            this.showProjectSubmissionStatus(projectSection, evaluation);
+        } else {
+            this.setupProjectFileUpload(projectSection);
+        }
+        
+        container.appendChild(projectSection);
     }
     
     renderSubmittedAssignment(evaluation) {
@@ -1060,6 +1139,138 @@ class FinalEvaluationManager {
         } catch (error) {
             console.error('Error submitting assignment:', error);
             alert('Lỗi khi nộp bài. Vui lòng thử lại.');
+        }
+    }
+    
+    showProjectSubmissionStatus(projectSection, evaluation) {
+        const uploadZone = projectSection.querySelector('#project-upload-zone');
+        const submitBtn = projectSection.querySelector('#submit-project-btn');
+        const statusDiv = projectSection.querySelector('#project-status');
+        
+        // Hide upload zone and submit button
+        uploadZone.style.display = 'none';
+        submitBtn.style.display = 'none';
+        
+        // Show status
+        statusDiv.style.display = 'block';
+        statusDiv.querySelector('#project-file-name').textContent = evaluation.submission_file_name || 'Xem file đã nộp';
+        
+        if (evaluation.submitted_at) {
+            const submittedDate = new Date(evaluation.submitted_at);
+            statusDiv.querySelector('#project-submission-time').textContent = submittedDate.toLocaleString('vi-VN');
+        }
+        
+        // Add grade information if available
+        if (evaluation.submission_grade !== null) {
+            const gradeSection = statusDiv.querySelector('#project-grade-section');
+            gradeSection.style.display = 'block';
+            gradeSection.querySelector('#project-grade').textContent = evaluation.submission_grade + '/100';
+            gradeSection.querySelector('#project-feedback').textContent = evaluation.teacher_feedback || 'Không có nhận xét';
+        }
+        
+        // Set up resubmit button (project allows resubmission)
+        const resubmitBtn = statusDiv.querySelector('#resubmit-project-btn');
+        resubmitBtn.addEventListener('click', () => {
+            statusDiv.style.display = 'none';
+            uploadZone.style.display = 'block';
+            this.setupProjectFileUpload(projectSection);
+        });
+    }
+    
+    setupProjectFileUpload(projectSection) {
+        const uploadZone = projectSection.querySelector('#project-upload-zone');
+        const fileInput = projectSection.querySelector('#project-file-input');
+        const submitBtn = projectSection.querySelector('#submit-project-btn');
+        const uploadBtn = uploadZone.querySelector('.upload-btn');
+        
+        let selectedFile = null;
+        
+        // Handle file selection
+        uploadBtn.addEventListener('click', () => fileInput.click());
+        
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                selectedFile = e.target.files[0];
+                this.validateAndShowProjectFile(selectedFile, uploadZone, submitBtn);
+            }
+        });
+        
+        // Handle drag and drop
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('dragover');
+        });
+        
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('dragover');
+        });
+        
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('dragover');
+            
+            if (e.dataTransfer.files.length > 0) {
+                selectedFile = e.dataTransfer.files[0];
+                this.validateAndShowProjectFile(selectedFile, uploadZone, submitBtn);
+            }
+        });
+        
+        // Handle submit
+        submitBtn.addEventListener('click', () => {
+            if (selectedFile) {
+                this.submitProjectAssignment(selectedFile);
+            }
+        });
+    }
+    
+    validateAndShowProjectFile(file, uploadZone, submitBtn) {
+        // Project type only accepts DOCX and PDF (not PPTX)
+        const allowedTypes = ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 
+                             'application/pdf'];
+        const maxSize = 10 * 1024 * 1024; // 10MB
+        
+        if (!allowedTypes.includes(file.type)) {
+            alert('Định dạng file không hỗ trợ. Vui lòng chọn file DOCX hoặc PDF.');
+            return;
+        }
+        
+        if (file.size > maxSize) {
+            alert('File quá lớn. Kích thước tối đa cho phép là 10MB.');
+            return;
+        }
+        
+        // Show file info
+        const uploadInfo = uploadZone.querySelector('.upload-info');
+        uploadInfo.innerHTML = `
+            <i class="fas fa-file-alt"></i>
+            <p><strong>File đã chọn:</strong> ${file.name}</p>
+            <p class="file-types">Kích thước: ${(file.size / 1024 / 1024).toFixed(2)}MB</p>
+        `;
+        
+        submitBtn.style.display = 'block';
+    }
+    
+    async submitProjectAssignment(file) {
+        const formData = new FormData();
+        formData.append('submission_file', file);
+        
+        try {
+            const response = await fetch(`/courseware/evaluation/${this.courseId}/submit/`, {
+                method: 'POST',
+                body: formData,
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                alert('Nộp bài dự án thành công!');
+                this.loadEvaluationData(); // Reload to show updated status
+            } else {
+                alert('Lỗi: ' + data.error);
+            }
+        } catch (error) {
+            console.error('Error submitting project:', error);
+            alert('Lỗi khi nộp bài dự án. Vui lòng thử lại.');
         }
     }
     

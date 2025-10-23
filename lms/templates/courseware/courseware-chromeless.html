@@ -92,21 +92,47 @@ ${HTML(fragment.foot_html())}
       <main id="main" aria-label="Content">
         <%
           # Check if this is the final evaluation vertical
-          is_final_evaluation = (
-              hasattr(block, 'display_name') and 
-              block.display_name == "Kiểm tra cuối khoá" and
-              block.location.block_type == 'vertical'
-          )
+          # Accept multiple variations of the name to handle encoding differences
+          is_final_evaluation = False
+          if hasattr(block, 'display_name') and block.location.block_type == 'vertical':
+              display_name_lower = block.display_name.lower().strip()
+              # Debug: log the display name
+              import logging
+              logger = logging.getLogger(__name__)
+              logger.info(f"Checking vertical: '{block.display_name}' (type: {block.location.block_type})")
+              
+              # Check for various forms of "Kiểm tra cuối khóa/khoá"
+              final_eval_variants = [
+                  "kiểm tra cuối khoá",
+                  "kiểm tra cuối khóa", 
+                  "kiem tra cuoi khoa",
+                  "kiểm tra cuối khoá - bài kiểm tra",
+                  "kiểm tra cuối khóa - bài kiểm tra"
+              ]
+              is_final_evaluation = any(variant in display_name_lower for variant in final_eval_variants)
+              logger.info(f"Is final evaluation: {is_final_evaluation}")
           
           # If it's the final evaluation vertical, check if there's an evaluation record
           final_evaluation_data = None
+          evaluation_type = None
           if is_final_evaluation:
               try:
                   from cms.djangoapps.contentstore.models import FinalEvaluation
+                  from openedx.core.djangoapps.models.course_details import CourseDetails
+                  
                   final_evaluations = FinalEvaluation.objects.filter(course_id=course.id)
+                  
+                  # Get the evaluation type from course details
+                  course_details = CourseDetails.fetch(course.id)
+                  evaluation_type = getattr(course_details, 'final_evaluation_type', None)
+                  
+                  logger.info(f"Evaluation type from course details: {evaluation_type}")
+                  
                   final_evaluation_data = {
                       'practical': final_evaluations.filter(evaluation_type='practical').first(),
                       'quiz': final_evaluations.filter(evaluation_type='quiz').first(),
+                      'project': final_evaluations.filter(evaluation_type='project').first(),
+                      'evaluation_type': evaluation_type,
                   }
               except ImportError:
                   # In case we can't import the model, fall back to normal rendering
@@ -114,6 +140,7 @@ ${HTML(fragment.foot_html())}
         %>
         
         % if is_final_evaluation and final_evaluation_data:
+          ## For final evaluation units, hide videos and slides - only show evaluation interface
           <%include file="final_evaluation_mako.html" args="course=course, final_evaluation_data=final_evaluation_data"/>
         % else:
           ${HTML(fragment.body_html())}

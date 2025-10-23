@@ -8,7 +8,8 @@ from .views import (
     FinalEvaluationConfigView,
     FinalEvaluationQuizView,
     FinalEvaluationQuizSubmitView,
-    FinalEvaluationResultView
+    FinalEvaluationResultView,
+    FinalEvaluationProjectSubmitView
 )
 
 app_name = 'final_evaluation'
@@ -40,5 +41,12 @@ urlpatterns = [
         fr'^{settings.COURSE_KEY_PATTERN}/result$',
         FinalEvaluationResultView.as_view(),
         name='result'
+    ),
+    
+    # Submit final evaluation project
+    re_path(
+        fr'^{settings.COURSE_KEY_PATTERN}/project/submit$',
+        FinalEvaluationProjectSubmitView.as_view(),
+        name='project_submit'
     ),
 ]

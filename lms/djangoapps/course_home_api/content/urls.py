@@ -36,6 +36,12 @@ urlpatterns = [
         UnitMediaDetailView.as_view(),
         name="unit_media_detail"
     ),
+    # Quiz detail with unit context (for Chalix quizzes)
+    re_path(
+        r'^units/(?P<unit_id>[^/]+)/quizzes/(?P<quiz_id>\d+)/$',
+        QuizDetailView.as_view(),
+        name='unit_quiz_detail'
+    ),
     re_path(
         r'^units/(?P<unit_id>[^/]+)/media/stats/$',
         UnitMediaStatsView.as_view(),

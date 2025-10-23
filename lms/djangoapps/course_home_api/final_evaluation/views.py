@@ -10,12 +10,23 @@ from django.http import JsonResponse
 from django.utils.decorators import method_decorator
 from django.views import View
 from datetime import datetime
+from decimal import Decimal
 
 from opaque_keys.edx.keys import CourseKey
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+
+# Import unmanaged models from local models
+from lms.djangoapps.course_home_api.models import (
+    FinalEvaluationLMS as FinalEvaluation,
+    LearnerSubmissionLMS as LearnerSubmission,
+    QuizAttemptLMS as QuizAttempt,
+    QuizAnswerLMS as QuizAnswer,
+    ChalixQuizQuestionLMS as ChalixQuizQuestion,
+    ChalixQuizChoiceLMS as ChalixQuizChoice,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -30,53 +41,79 @@ class FinalEvaluationConfigView(APIView):
         """
         Get final evaluation configuration for a course.
         """
+        # Parse course key
         try:
-            from cms.djangoapps.contentstore.models import FinalEvaluation
-            
             course_key = CourseKey.from_string(course_key_string)
+        except Exception:
+            logger.exception(f"Invalid course key: {course_key_string}")
+            return Response({'error': 'Invalid course key'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Priority 1: Read final evaluation config from Studio (CourseDetails)
+        try:
+            from openedx.core.djangoapps.models.course_details import CourseDetails
+            course_details = CourseDetails.fetch(course_key)
+            eval_type = getattr(course_details, 'final_evaluation_type', None)
             
-            try:
-                # Check for quiz evaluation
-                quiz_evaluation = FinalEvaluation.objects.get(
-                    course_key=course_key, 
-                    evaluation_type=FinalEvaluation.EVALUATION_TYPE_QUIZ,
-                    is_active=True
-                )
+            if eval_type == 'quiz':
                 return Response({
                     'evaluation_type': 'quiz',
-                    'id': quiz_evaluation.id,
                     'title': 'Kiểm tra cuối khóa',
                     'description': 'Bài kiểm tra đánh giá kiến thức toàn khóa học'
                 })
-            except FinalEvaluation.DoesNotExist:
-                pass
-                
-            try:
-                # Check for practical evaluation
-                practical_evaluation = FinalEvaluation.objects.get(
-                    course_key=course_key, 
-                    evaluation_type=FinalEvaluation.EVALUATION_TYPE_PRACTICAL,
-                    is_active=True
-                )
+            elif eval_type == 'project':
+                question = getattr(course_details, 'final_evaluation_project_question', '')
                 return Response({
-                    'evaluation_type': 'practical', 
-                    'id': practical_evaluation.id,
+                    'evaluation_type': 'project',
                     'title': 'Nộp bài thu hoạch',
-                    'description': practical_evaluation.practical_question
+                    'description': question or 'Nộp bài thu hoạch của bạn'
                 })
-            except FinalEvaluation.DoesNotExist:
-                pass
+            else:
+                # If no type configured in Studio, check database as fallback
+                logger.info(f"No final_evaluation_type in CourseDetails for {course_key}, checking database")
+        except Exception as e:
+            logger.warning(f"Error reading CourseDetails for {course_key}: {e}, checking database")
+
+        # Priority 2 (Fallback): Try to get evaluation from database
+        try:
+            quiz_evaluation = FinalEvaluation.objects.get(
+                course_key=course_key,
+                evaluation_type=FinalEvaluation.EVALUATION_TYPE_QUIZ,
+                is_active=True,
+            )
+            return Response({
+                'evaluation_type': 'quiz',
+                'id': quiz_evaluation.id,
+                'title': 'Kiểm tra cuối khóa',
+                'description': 'Bài kiểm tra đánh giá kiến thức toàn khóa học'
+            })
+        except (FinalEvaluation.DoesNotExist, RuntimeError, AttributeError):
+            pass
+
+        try:
+            practical_evaluation = FinalEvaluation.objects.get(
+                course_key=course_key,
+                evaluation_type=FinalEvaluation.EVALUATION_TYPE_PRACTICAL,
+                is_active=True,
+            )
+            # Get the question from practical_question field
+            question = getattr(practical_evaluation, 'practical_question', '') or getattr(practical_evaluation, 'description', '')
+            logger.info(f"Practical evaluation question for {course_key}: {question}")
             
             return Response({
-                'evaluation_type': None,
-                'message': 'No final evaluation configured for this course'
-            }, status=status.HTTP_404_NOT_FOUND)
-                
-        except Exception as e:
-            logger.error(f"Error getting final evaluation config for {course_key_string}: {e}")
-            return Response({
-                'error': str(e)
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                'evaluation_type': 'project',
+                'id': practical_evaluation.id,
+                'title': 'Nộp bài thu hoạch',
+                'description': question,
+            })
+        except (FinalEvaluation.DoesNotExist, RuntimeError, AttributeError) as e:
+            logger.warning(f"No practical evaluation found for {course_key}: {e}")
+            pass
+
+        # No configuration found anywhere
+        return Response({
+            'evaluation_type': None, 
+            'message': 'No final evaluation configured for this course'
+        }, status=status.HTTP_404_NOT_FOUND)
 
 
 class FinalEvaluationQuizView(APIView):
@@ -90,15 +127,18 @@ class FinalEvaluationQuizView(APIView):
         Get final evaluation quiz questions.
         """
         try:
-            from cms.djangoapps.contentstore.models import FinalEvaluation, ChalixQuizQuestion, QuizAttempt
-            
             course_key = CourseKey.from_string(course_key_string)
             
-            evaluation = FinalEvaluation.objects.get(
-                course_key=course_key,
-                evaluation_type=FinalEvaluation.EVALUATION_TYPE_QUIZ,
-                is_active=True
-            )
+            try:
+                evaluation = FinalEvaluation.objects.get(
+                    course_key=course_key,
+                    evaluation_type=FinalEvaluation.EVALUATION_TYPE_QUIZ,
+                    is_active=True
+                )
+            except (FinalEvaluation.DoesNotExist, RuntimeError, AttributeError):
+                return Response({
+                    'error': 'No quiz evaluation found for this course'
+                }, status=status.HTTP_404_NOT_FOUND)
             
             # Check if user already has a completed attempt
             try:
@@ -126,7 +166,12 @@ class FinalEvaluationQuizView(APIView):
             
             for question in questions:
                 choices_data = []
-                for choice in question.choices.filter(is_active=True).order_by('order_index'):
+                # Query choices manually since these are unmanaged models
+                choices = ChalixQuizChoice.objects.filter(
+                    question_id=question.id,
+                    is_active=True
+                ).order_by('order_index')
+                for choice in choices:
                     choices_data.append({
                         'id': choice.id,
                         'choice_text': choice.choice_text
@@ -142,10 +187,6 @@ class FinalEvaluationQuizView(APIView):
             
             return Response(quiz_data)
             
-        except FinalEvaluation.DoesNotExist:
-            return Response({
-                'error': 'No quiz evaluation found for this course'
-            }, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             logger.error(f"Error getting final evaluation quiz for {course_key_string}: {e}")
             return Response({
@@ -164,18 +205,19 @@ class FinalEvaluationQuizSubmitView(APIView):
         Submit final evaluation quiz answers.
         """
         try:
-            from cms.djangoapps.contentstore.models import (
-                FinalEvaluation, ChalixQuizQuestion, ChalixQuizChoice, QuizAttempt, QuizAnswer
-            )
-            
             course_key = CourseKey.from_string(course_key_string)
             answers = request.data.get('answers', {})
             
-            evaluation = FinalEvaluation.objects.get(
-                course_key=course_key,
-                evaluation_type=FinalEvaluation.EVALUATION_TYPE_QUIZ,
-                is_active=True
-            )
+            try:
+                evaluation = FinalEvaluation.objects.get(
+                    course_key=course_key,
+                    evaluation_type=FinalEvaluation.EVALUATION_TYPE_QUIZ,
+                    is_active=True
+                )
+            except (FinalEvaluation.DoesNotExist, RuntimeError, AttributeError):
+                return Response({
+                    'error': 'No quiz evaluation found for this course'
+                }, status=status.HTTP_404_NOT_FOUND)
             
             # Get or create attempt
             attempt, created = QuizAttempt.objects.get_or_create(
@@ -205,7 +247,11 @@ class FinalEvaluationQuizSubmitView(APIView):
                     # Handle multiple choice questions
                     if question.question_type == 'multiple_choice_multiple_answer':
                         # For multiple choice, all selected answers must be correct
-                        correct_choices = set(question.choices.filter(is_correct=True).values_list('id', flat=True))
+                        # Query choices manually since these are unmanaged models
+                        correct_choices = set(ChalixQuizChoice.objects.filter(
+                            question_id=question.id,
+                            is_correct=True
+                        ).values_list('id', flat=True))
                         selected_choices = set(int(cid) for cid in choice_ids if cid)
                         is_correct = correct_choices == selected_choices
                         
@@ -243,7 +289,8 @@ class FinalEvaluationQuizSubmitView(APIView):
                     continue
             
             # Calculate score
-            score = (correct_count / total_questions * 100) if total_questions > 0 else 0
+            from decimal import Decimal
+            score = Decimal(str((correct_count / total_questions * 100) if total_questions > 0 else 0))
             
             # Update attempt
             attempt.correct_answers = correct_count
@@ -254,16 +301,12 @@ class FinalEvaluationQuizSubmitView(APIView):
             attempt.save()
             
             return Response({
-                'score': score,
+                'score': float(score),
                 'correct_answers': correct_count,
                 'total_questions': total_questions,
                 'completed': True
             })
             
-        except FinalEvaluation.DoesNotExist:
-            return Response({
-                'error': 'No quiz evaluation found for this course'
-            }, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             logger.error(f"Error submitting final evaluation quiz for {course_key_string}: {e}")
             return Response({
@@ -282,21 +325,29 @@ class FinalEvaluationResultView(APIView):
         Get final evaluation quiz result.
         """
         try:
-            from cms.djangoapps.contentstore.models import FinalEvaluation, QuizAttempt
-            
             course_key = CourseKey.from_string(course_key_string)
             
-            evaluation = FinalEvaluation.objects.get(
-                course_key=course_key,
-                evaluation_type=FinalEvaluation.EVALUATION_TYPE_QUIZ,
-                is_active=True
-            )
+            try:
+                evaluation = FinalEvaluation.objects.get(
+                    course_key=course_key,
+                    evaluation_type=FinalEvaluation.EVALUATION_TYPE_QUIZ,
+                    is_active=True
+                )
+            except (FinalEvaluation.DoesNotExist, RuntimeError, AttributeError):
+                return Response({
+                    'completed': False
+                }, status=status.HTTP_404_NOT_FOUND)
             
-            attempt = QuizAttempt.objects.get(
-                evaluation=evaluation,
-                learner=request.user,
-                is_completed=True
-            )
+            try:
+                attempt = QuizAttempt.objects.get(
+                    evaluation=evaluation,
+                    learner=request.user,
+                    is_completed=True
+                )
+            except QuizAttempt.DoesNotExist:
+                return Response({
+                    'completed': False
+                }, status=status.HTTP_404_NOT_FOUND)
             
             return Response({
                 'completed': True,
@@ -306,12 +357,92 @@ class FinalEvaluationResultView(APIView):
                 'completed_at': attempt.completed_at.isoformat() if attempt.completed_at else None
             })
             
-        except (FinalEvaluation.DoesNotExist, QuizAttempt.DoesNotExist):
-            return Response({
-                'completed': False
-            }, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             logger.error(f"Error getting final evaluation result for {course_key_string}: {e}")
+            return Response({
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class FinalEvaluationProjectSubmitView(APIView):
+    """
+    API view to submit final evaluation project (upload DOCX/PDF file).
+    Works for courses configured in Studio (CourseDetails) without database evaluation records.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, course_key_string):
+        """
+        Submit final evaluation project by uploading a file.
+        """
+        try:
+            course_key = CourseKey.from_string(course_key_string)
+        except Exception:
+            logger.exception(f"Invalid course key: {course_key_string}")
+            return Response({'error': 'Invalid course key'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Get the file from request
+        if 'file' not in request.FILES:
+            return Response({
+                'error': 'No file provided'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        uploaded_file = request.FILES['file']
+        
+        # Validate file type
+        allowed_extensions = ['pdf', 'docx', 'pptx']
+        file_extension = uploaded_file.name.lower().split('.')[-1]
+        if file_extension not in allowed_extensions:
+            return Response({
+                'error': f'Invalid file type. Only PDF, DOCX, and PPTX files are allowed.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate file size (max 50MB)
+        max_size = 50 * 1024 * 1024  # 50MB in bytes
+        if uploaded_file.size > max_size:
+            return Response({
+                'error': 'File size exceeds 50MB limit'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Import the managed model for project submissions
+        from lms.djangoapps.course_home_api.models import FinalEvaluationProjectSubmission
+        
+        # Check if user already submitted
+        existing_submission = FinalEvaluationProjectSubmission.objects.filter(
+            course_key=str(course_key),
+            learner=request.user
+        ).first()
+        
+        if existing_submission:
+            return Response({
+                'error': 'You have already submitted your project',
+                'submission': {
+                    'file_name': existing_submission.file_name,
+                    'submitted_at': existing_submission.submitted_at.isoformat()
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Create submission
+        try:
+            submission = FinalEvaluationProjectSubmission.objects.create(
+                course_key=str(course_key),
+                learner=request.user,
+                submission_file=uploaded_file,
+                file_name=uploaded_file.name,
+                file_size=uploaded_file.size
+            )
+            
+            logger.info(f"Project submission created: {submission.id} for user {request.user.username} in course {course_key}")
+            
+            return Response({
+                'success': True,
+                'submission_id': submission.id,
+                'file_name': submission.file_name,
+                'submitted_at': submission.submitted_at.isoformat()
+            })
+            
+        except Exception as e:
+            logger.error(f"Error submitting final evaluation project for {course_key_string}: {e}")
             return Response({
                 'error': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

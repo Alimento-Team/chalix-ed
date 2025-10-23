@@ -78,70 +78,158 @@ class UnitMediaFileLMS(models.Model):
         return qs.order_by('created_at')
 
 
-class ChalixQuizLMS(models.Model):
-    """
-    Unmanaged model mapping to CMS contentstore ChalixQuiz table so LMS can
-    read quizzes created via authoring without depending on the CMS app being
-    installed in this Django site.
+# Unmanaged models for Final Evaluation - mirror CMS contentstore tables
 
-    NOTE: Do not create migrations for this model.
-    """
+class FinalEvaluationLMS(models.Model):
+    """Unmanaged model for FinalEvaluation"""
+    # Evaluation type constants
+    EVALUATION_TYPE_PRACTICAL = 'practical'
+    EVALUATION_TYPE_QUIZ = 'quiz'
+    EVALUATION_TYPE_PROJECT = 'project'
     
-    id = models.AutoField(primary_key=True)
+    id = models.BigAutoField(primary_key=True)
     course_key = models.CharField(max_length=255, db_index=True)
-    parent_locator = models.CharField(max_length=255, db_index=True)
+    program_id = models.IntegerField(db_index=True)
+    evaluation_type = models.CharField(max_length=20)
+    practical_question = models.TextField(blank=True)
+    quiz_file = models.FileField(blank=True)
+    is_active = models.BooleanField(default=True)
+    created_by_id = models.IntegerField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        managed = False
+        db_table = 'contentstore_finalevaluation'
+    
+    class DoesNotExist(Exception):
+        pass
+
+
+class LearnerSubmissionLMS(models.Model):
+    """Unmanaged model for LearnerSubmission"""
+    id = models.BigAutoField(primary_key=True)
+    evaluation_id = models.BigIntegerField()
+    learner_id = models.IntegerField()
+    submission_file = models.FileField()
+    submitted_at = models.DateTimeField(auto_now_add=True)
+    grade = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    feedback = models.TextField(blank=True)
+    graded_by_id = models.IntegerField(null=True, blank=True)
+    graded_at = models.DateTimeField(null=True, blank=True)
+    
+    class Meta:
+        managed = False
+        db_table = 'contentstore_learnersubmission'
+
+
+class QuizAttemptLMS(models.Model):
+    """Unmanaged model for QuizAttempt"""
+    id = models.BigAutoField(primary_key=True)
+    evaluation_id = models.BigIntegerField()
+    learner_id = models.IntegerField()
+    started_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    score = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    total_questions = models.PositiveIntegerField(default=0)
+    correct_answers = models.PositiveIntegerField(default=0)
+    is_completed = models.BooleanField(default=False)
+    
+    class Meta:
+        managed = False
+        db_table = 'contentstore_quizattempt'
+
+
+class QuizAnswerLMS(models.Model):
+    """Unmanaged model for QuizAnswer"""
+    id = models.BigAutoField(primary_key=True)
+    attempt_id = models.BigIntegerField()
+    question_id = models.BigIntegerField()
+    selected_choice_id = models.BigIntegerField(null=True, blank=True)
+    is_correct = models.BooleanField(default=False)
+    answered_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        managed = False
+        db_table = 'contentstore_quizanswer'
+
+
+class ChalixQuizLMS(models.Model):
+    """Unmanaged model for ChalixQuiz"""
+    id = models.BigAutoField(primary_key=True)
+    course_key = models.CharField(max_length=255)
+    parent_locator = models.CharField(max_length=255)
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     is_active = models.BooleanField(default=True)
     created_by_id = models.IntegerField(null=True, blank=True)
-    created_at = models.DateTimeField()
-    updated_at = models.DateTimeField()
-
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
     class Meta:
         managed = False
         db_table = 'contentstore_chalixquiz'
-        indexes = [
-            models.Index(fields=['course_key', 'is_active']),
-            models.Index(fields=['parent_locator', 'is_active']),
-        ]
-
-    def __str__(self):
-        return f"{self.title} ({self.course_key})"
 
 
 class ChalixQuizQuestionLMS(models.Model):
-    """
-    Unmanaged model mapping to CMS ChalixQuizQuestion
-    """
-    id = models.AutoField(primary_key=True)
-    quiz_id = models.IntegerField(db_index=True)
+    """Unmanaged model for ChalixQuizQuestion"""
+    id = models.BigAutoField(primary_key=True)
+    quiz_id = models.BigIntegerField()
     question_text = models.TextField()
     question_type = models.CharField(max_length=20)
     order_index = models.PositiveIntegerField(default=0)
     is_active = models.BooleanField(default=True)
-    created_at = models.DateTimeField()
-    updated_at = models.DateTimeField()
-
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
     class Meta:
         managed = False
         db_table = 'contentstore_chalixquizquestion'
-        ordering = ['quiz_id', 'order_index']
 
 
 class ChalixQuizChoiceLMS(models.Model):
-    """
-    Unmanaged model mapping to CMS ChalixQuizChoice
-    """
-    id = models.AutoField(primary_key=True)
-    question_id = models.IntegerField(db_index=True)
+    """Unmanaged model for ChalixQuizChoice"""
+    id = models.BigAutoField(primary_key=True)
+    question_id = models.BigIntegerField()
     choice_text = models.TextField()
     is_correct = models.BooleanField(default=False)
     order_index = models.PositiveIntegerField(default=0)
     is_active = models.BooleanField(default=True)
-    created_at = models.DateTimeField()
-    updated_at = models.DateTimeField()
-
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
     class Meta:
         managed = False
         db_table = 'contentstore_chalixquizchoice'
-        ordering = ['question_id', 'order_index']
+
+
+class FinalEvaluationProjectSubmission(models.Model):
+    """
+    Managed LMS model for storing learner project submissions for final evaluations
+    configured in Studio (CourseDetails) that don't have a database evaluation record.
+    
+    This stores the uploaded file and submission metadata for each learner per course.
+    """
+    course_key = models.CharField(max_length=255, db_index=True, help_text="Course identifier")
+    learner = models.ForeignKey('auth.User', on_delete=models.CASCADE, help_text="The learner who submitted")
+    submission_file = models.FileField(upload_to='final_evaluation_projects/', help_text="Uploaded project file")
+    file_name = models.CharField(max_length=255, help_text="Original filename")
+    file_size = models.BigIntegerField(help_text="File size in bytes")
+    submitted_at = models.DateTimeField(auto_now_add=True, help_text="Submission timestamp")
+    grade = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True, help_text="Score (0-100)")
+    feedback = models.TextField(blank=True, help_text="Instructor feedback")
+    graded_by = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True, 
+                                   related_name='graded_submissions', help_text="Instructor who graded")
+    graded_at = models.DateTimeField(null=True, blank=True, help_text="Grading timestamp")
+    
+    class Meta:
+        managed = True
+        db_table = 'course_home_api_final_eval_project_submission'
+        unique_together = [['course_key', 'learner']]  # One submission per learner per course
+        indexes = [
+            models.Index(fields=['course_key', 'learner']),
+            models.Index(fields=['submitted_at']),
+        ]
+    
+    def __str__(self):
+        return f"{self.learner.username} - {self.course_key} - {self.submitted_at}"

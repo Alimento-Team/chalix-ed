@@ -41,9 +41,25 @@ def get_final_evaluation_config(request, course_id):
             })
         except FinalEvaluation.DoesNotExist:
             pass
+        
+        try:
+            # Check for project evaluation
+            project_evaluation = FinalEvaluation.objects.get(
+                course_key=course_key, 
+                evaluation_type=FinalEvaluation.EVALUATION_TYPE_PROJECT,
+                is_active=True
+            )
+            return JsonResponse({
+                'evaluation_type': 'project', 
+                'id': project_evaluation.id,
+                'title': 'Nộp bài dự án',
+                'description': project_evaluation.practical_question or 'Hãy nộp file bài dự án của bạn (DOCX/PDF)'
+            })
+        except FinalEvaluation.DoesNotExist:
+            pass
             
         try:
-            # Check for practical evaluation
+            # Check for practical evaluation (legacy support)
             practical_evaluation = FinalEvaluation.objects.get(
                 course_key=course_key, 
                 evaluation_type=FinalEvaluation.EVALUATION_TYPE_PRACTICAL,
@@ -90,8 +106,9 @@ def get_course_evaluation(request, course_id):
                 'error': 'No evaluation found for this course'
             })
             
-        # Process both practical and quiz evaluations
+        # Process both practical, project, and quiz evaluations
         practical_data = None
+        project_data = None
         quiz_data = None
         
         for evaluation in evaluations:
@@ -112,6 +129,25 @@ def get_course_evaluation(request, course_id):
                     'can_submit': submission is None
                 }
                 
+            elif evaluation.evaluation_type == FinalEvaluation.EVALUATION_TYPE_PROJECT:
+                submission = None
+                try:
+                    submission = LearnerSubmission.objects.get(evaluation=evaluation, learner=request.user)
+                except LearnerSubmission.DoesNotExist:
+                    pass
+                
+                project_data = {
+                    'id': evaluation.id,
+                    'project_question': evaluation.practical_question or 'Hãy nộp file bài dự án của bạn (DOCX/PDF)',
+                    'has_submission': submission is not None,
+                    'submission_file': submission.submission_file.url if submission and submission.submission_file else None,
+                    'submission_file_name': submission.submission_file.name.split('/')[-1] if submission and submission.submission_file else None,
+                    'submitted_at': submission.submitted_at.isoformat() if submission else None,
+                    'submission_grade': float(submission.grade) if submission and submission.grade else None,
+                    'teacher_feedback': submission.feedback if submission else None,
+                    'can_submit': True  # Always allow resubmission for projects
+                }
+                
             elif evaluation.evaluation_type == FinalEvaluation.EVALUATION_TYPE_QUIZ:
                 attempt = None
                 try:
@@ -130,8 +166,10 @@ def get_course_evaluation(request, course_id):
         return JsonResponse({
             'success': True,
             'practical_evaluation': practical_data,
+            'project_evaluation': project_data,
             'quiz_evaluation': quiz_data,
             'has_practical': practical_data is not None,
+            'has_project': project_data is not None,
             'has_quiz': quiz_data is not None
         })
             
@@ -148,7 +186,8 @@ def get_course_evaluation(request, course_id):
 @require_POST
 def submit_practical_assignment(request, course_id):
     """
-    Submit practical assignment file.
+    Submit practical assignment or project file.
+    Supports both practical and project evaluation types.
     """
     try:
         from opaque_keys.edx.keys import CourseKey
@@ -164,8 +203,37 @@ def submit_practical_assignment(request, course_id):
         
         submission_file = request.FILES['submission_file']
         
+        # Try to find evaluation (first project, then practical for backward compatibility)
+        evaluation = None
+        evaluation_type_name = None
+        
+        try:
+            evaluation = FinalEvaluation.objects.get(
+                course_key=course_key, 
+                evaluation_type=FinalEvaluation.EVALUATION_TYPE_PROJECT,
+                is_active=True
+            )
+            evaluation_type_name = 'project'
+            # For project type, only allow DOCX and PDF
+            allowed_extensions = ['docx', 'pdf']
+        except FinalEvaluation.DoesNotExist:
+            # Fall back to practical type
+            try:
+                evaluation = FinalEvaluation.objects.get(
+                    course_key=course_key, 
+                    evaluation_type=FinalEvaluation.EVALUATION_TYPE_PRACTICAL,
+                    is_active=True
+                )
+                evaluation_type_name = 'practical'
+                # For practical type, allow DOCX, PPTX, and PDF
+                allowed_extensions = ['docx', 'pptx', 'pdf']
+            except FinalEvaluation.DoesNotExist:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'No evaluation found for this course'
+                })
+        
         # Validate file extension
-        allowed_extensions = ['docx', 'pptx', 'pdf']
         file_extension = submission_file.name.lower().split('.')[-1]
         
         if file_extension not in allowed_extensions:
@@ -173,12 +241,6 @@ def submit_practical_assignment(request, course_id):
                 'success': False,
                 'error': f'Invalid file type. Allowed types: {", ".join(allowed_extensions)}'
             })
-        
-        evaluation = FinalEvaluation.objects.get(
-            course_key=course_key, 
-            evaluation_type=FinalEvaluation.EVALUATION_TYPE_PRACTICAL,
-            is_active=True
-        )
         
         # Check if user already submitted
         submission, created = LearnerSubmission.objects.get_or_create(
@@ -194,23 +256,20 @@ def submit_practical_assignment(request, course_id):
             submission.grade = None  # Reset grade
             submission.feedback = ''  # Reset feedback
             submission.save()
-            message = 'Assignment resubmitted successfully'
+            message = f'{evaluation_type_name.capitalize()} resubmitted successfully'
         else:
-            message = 'Assignment submitted successfully'
+            message = f'{evaluation_type_name.capitalize()} submitted successfully'
         
         return JsonResponse({
             'success': True,
             'message': message,
-            'submission_file': submission.submission_file.url
+            'submission_file': submission.submission_file.url,
+            'submission_file_name': submission_file.name,
+            'evaluation_type': evaluation_type_name
         })
         
-    except FinalEvaluation.DoesNotExist:
-        return JsonResponse({
-            'success': False,
-            'error': 'No practical evaluation found for this course'
-        })
     except Exception as e:
-        logger.error(f"Error submitting practical assignment for {course_id}: {e}")
+        logger.error(f"Error submitting assignment for {course_id}: {e}")
         return JsonResponse({
             'success': False,
             'error': str(e)

@@ -96,6 +96,53 @@ import json
         </div>
     </div>
     
+    <!-- Template for project evaluation -->
+    <div id="project-evaluation-template" style="display: none;">
+        <div class="evaluation-type-section project-section">
+            <div class="evaluation-type-info">
+                <h3>📁 Nộp bài dự án</h3>
+                <p>Nộp file bài dự án cuối khóa của bạn</p>
+            </div>
+            
+            <div class="project-question">
+                <h4>Yêu cầu dự án:</h4>
+                <div class="question-content" id="project-question-content"></div>
+            </div>
+            
+            <div class="submission-area">
+                <div class="file-upload-section">
+                    <h4>Nộp file dự án:</h4>
+                    <div class="upload-zone" id="project-upload-zone">
+                        <div class="upload-info">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                            <p>Kéo thả file vào đây hoặc <button type="button" class="upload-btn">chọn file</button></p>
+                            <p class="file-types">Hỗ trợ: DOCX, PDF (tối đa 10MB)</p>
+                        </div>
+                        <input type="file" id="project-file-input" accept=".docx,.pdf" style="display: none;">
+                    </div>
+                    <button id="submit-project-btn" class="submit-btn" style="display: none;">Nộp bài</button>
+                </div>
+                
+                <div class="submission-status" id="project-status" style="display: none;">
+                    <div class="status-card">
+                        <h4>Trạng thái nộp bài</h4>
+                        <div class="status-details">
+                            <p><strong>File đã nộp:</strong> <span id="project-file-name"></span></p>
+                            <p><strong>Thời gian nộp:</strong> <span id="project-submission-time"></span></p>
+                            <p><strong>Trạng thái:</strong> <span id="project-grading-status" class="status-pending">Chờ chấm điểm</span></p>
+                            <div class="grade-section" id="project-grade-section" style="display: none;">
+                                <p><strong>Điểm số:</strong> <span id="project-grade-value"></span></p>
+                                <p><strong>Nhận xét:</strong></p>
+                                <div id="project-feedback-content" class="feedback-content"></div>
+                            </div>
+                        </div>
+                        <button id="resubmit-project-btn" class="submit-btn" style="margin-top: 15px;">Nộp lại</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
     <!-- Template for quiz evaluation -->
     <div id="quiz-evaluation-template" style="display: none;">
         <div class="evaluation-type-section quiz-section">
