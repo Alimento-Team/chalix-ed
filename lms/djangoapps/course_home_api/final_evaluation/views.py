@@ -140,17 +140,39 @@ class FinalEvaluationQuizView(APIView):
                     'error': 'No quiz evaluation found for this course'
                 }, status=status.HTTP_404_NOT_FOUND)
             
-            # Check if user already has a completed attempt
-            try:
-                attempt = QuizAttempt.objects.get(evaluation=evaluation, learner=request.user)
-                if attempt.is_completed:
+            # Check number of attempts for this user
+            user_attempts = QuizAttempt.objects.filter(
+                evaluation=evaluation, 
+                learner=request.user
+            ).order_by('-started_at')
+            
+            attempts_count = user_attempts.count()
+            max_attempts = evaluation.quiz_max_attempts or 0  # 0 means unlimited
+            
+            # Check if user has exceeded max attempts
+            if max_attempts > 0 and attempts_count >= max_attempts:
+                last_attempt = user_attempts.first()
+                return Response({
+                    'error': f'Bạn đã sử dụng hết số lần làm bài ({max_attempts} lần)',
+                    'completed': True,
+                    'attempts_used': attempts_count,
+                    'max_attempts': max_attempts,
+                    'score': float(last_attempt.score) if last_attempt and last_attempt.score else 0,
+                    'passed': last_attempt.passed if last_attempt else False
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Check if user already has a completed attempt (and can't retake)
+            if max_attempts == 1 and attempts_count > 0:
+                last_attempt = user_attempts.first()
+                if last_attempt.is_completed:
                     return Response({
-                        'error': 'You have already completed this quiz',
+                        'error': 'Bạn đã hoàn thành bài kiểm tra này',
                         'completed': True,
-                        'score': float(attempt.score) if attempt.score else 0
+                        'attempts_used': attempts_count,
+                        'max_attempts': max_attempts,
+                        'score': float(last_attempt.score) if last_attempt.score else 0,
+                        'passed': last_attempt.passed
                     }, status=status.HTTP_400_BAD_REQUEST)
-            except QuizAttempt.DoesNotExist:
-                pass
             
             # Get questions for this course
             questions = ChalixQuizQuestion.objects.filter(
@@ -161,6 +183,11 @@ class FinalEvaluationQuizView(APIView):
             quiz_data = {
                 'title': 'Kiểm tra cuối khóa',
                 'description': 'Bài kiểm tra đánh giá kiến thức toàn khóa học',
+                'time_limit': evaluation.quiz_time_limit,  # in minutes, None means no limit
+                'passing_score': float(evaluation.quiz_passing_score) if evaluation.quiz_passing_score else None,
+                'max_attempts': max_attempts,
+                'attempts_used': attempts_count,
+                'attempts_remaining': (max_attempts - attempts_count) if max_attempts > 0 else None,
                 'questions': []
             }
             
@@ -219,20 +246,30 @@ class FinalEvaluationQuizSubmitView(APIView):
                     'error': 'No quiz evaluation found for this course'
                 }, status=status.HTTP_404_NOT_FOUND)
             
-            # Get or create attempt
-            attempt, created = QuizAttempt.objects.get_or_create(
+            # Check attempt limits
+            existing_attempts = QuizAttempt.objects.filter(
                 evaluation=evaluation,
-                learner=request.user,
-                defaults={'is_completed': False}
-            )
+                learner=request.user
+            ).order_by('-started_at')
             
-            if attempt.is_completed:
+            attempts_count = existing_attempts.count()
+            max_attempts = evaluation.quiz_max_attempts or 0
+            
+            # Check if user has exceeded max attempts
+            if max_attempts > 0 and attempts_count >= max_attempts:
                 return Response({
-                    'error': 'You have already completed this quiz'
+                    'error': f'Bạn đã sử dụng hết số lần làm bài ({max_attempts} lần)',
+                    'attempts_used': attempts_count,
+                    'max_attempts': max_attempts
                 }, status=status.HTTP_400_BAD_REQUEST)
             
-            # Clear existing answers for this attempt
-            QuizAnswer.objects.filter(attempt=attempt).delete()
+            # Create new attempt with proper attempt number
+            attempt = QuizAttempt.objects.create(
+                evaluation=evaluation,
+                learner=request.user,
+                attempt_number=attempts_count + 1,
+                is_completed=False
+            )
             
             # Process submitted answers
             correct_count = 0
@@ -292,20 +329,42 @@ class FinalEvaluationQuizSubmitView(APIView):
             from decimal import Decimal
             score = Decimal(str((correct_count / total_questions * 100) if total_questions > 0 else 0))
             
+            # Check if passed based on minimum passing score
+            passing_score = evaluation.quiz_passing_score
+            passed = True  # Default to True if no passing score is set
+            if passing_score is not None:
+                passed = score >= passing_score
+            
             # Update attempt
             attempt.correct_answers = correct_count
             attempt.total_questions = total_questions
             attempt.score = score
+            attempt.passed = passed
             attempt.is_completed = True
             attempt.completed_at = datetime.now()
             attempt.save()
             
-            return Response({
+            response_data = {
                 'score': float(score),
                 'correct_answers': correct_count,
                 'total_questions': total_questions,
-                'completed': True
-            })
+                'completed': True,
+                'passed': passed,
+                'attempt_number': attempt.attempt_number,
+                'attempts_used': attempts_count + 1,
+            }
+            
+            # Include passing score info if configured
+            if passing_score is not None:
+                response_data['passing_score'] = float(passing_score)
+                response_data['message'] = f'{"Chúc mừng! Bạn đã đạt" if passed else "Bạn chưa đạt"} điểm tối thiểu ({float(passing_score)}%)'
+            
+            # Include attempts remaining if limited
+            if max_attempts > 0:
+                response_data['max_attempts'] = max_attempts
+                response_data['attempts_remaining'] = max(0, max_attempts - (attempts_count + 1))
+            
+            return Response(response_data)
             
         except Exception as e:
             logger.error(f"Error submitting final evaluation quiz for {course_key_string}: {e}")

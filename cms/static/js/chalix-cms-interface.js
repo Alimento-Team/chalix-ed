@@ -1004,7 +1004,47 @@
                         ${evaluationData.has_quiz ? `
                             <div class="quiz-section evaluation-section">
                                 <h3>📊 Quản lý bài trắc nghiệm</h3>
+                                
+                                <!-- Quiz Configuration Section -->
+                                <div class="quiz-config-section">
+                                    <h4>Cấu hình bài trắc nghiệm</h4>
+                                    
+                                    <div class="config-row">
+                                        <label for="quizTimeLimit">⏱️ Thời gian làm bài (phút):</label>
+                                        <input type="number" id="quizTimeLimit" class="config-input" 
+                                               placeholder="Để trống nếu không giới hạn" 
+                                               min="1" max="300"
+                                               value="${quiz.quiz_time_limit || ''}">
+                                        <span class="config-hint">Để trống nếu không muốn giới hạn thời gian</span>
+                                    </div>
+                                    
+                                    <div class="config-row">
+                                        <label for="quizPassingScore">✅ Điểm tối thiểu để đạt (%):</label>
+                                        <input type="number" id="quizPassingScore" class="config-input" 
+                                               placeholder="Ví dụ: 70" 
+                                               min="0" max="100" step="0.01"
+                                               value="${quiz.quiz_passing_score || ''}">
+                                        <span class="config-hint">Điểm phần trăm tối thiểu để vượt qua bài kiểm tra (0-100)</span>
+                                    </div>
+                                    
+                                    <div class="config-row">
+                                        <label for="quizMaxAttempts">🔄 Số lần làm bài:</label>
+                                        <select id="quizMaxAttempts" class="config-select">
+                                            <option value="1" ${quiz.quiz_max_attempts === 1 ? 'selected' : ''}>1 lần</option>
+                                            <option value="3" ${quiz.quiz_max_attempts === 3 ? 'selected' : ''}>3 lần</option>
+                                            <option value="0" ${quiz.quiz_max_attempts === 0 || !quiz.quiz_max_attempts ? 'selected' : ''}>Không giới hạn</option>
+                                        </select>
+                                        <span class="config-hint">Số lần học viên được phép làm bài</span>
+                                    </div>
+                                    
+                                    <button id="saveQuizConfig" class="save-config-btn">💾 Lưu cấu hình</button>
+                                </div>
+                                
+                                <hr class="section-divider">
+                                
+                                <!-- Quiz File Upload Section -->
                                 <div class="quiz-upload-area">
+                                    <h4>Tải lên câu hỏi trắc nghiệm</h4>
                                     <input type="file" id="quizFileInput" accept=".xlsx,.xls" style="display: none;">
                                     <button id="uploadQuizBtn" class="upload-quiz-btn">Tải lên file Excel</button>
                                     <p class="upload-hint">Định dạng yêu cầu: Question, Choice_A, Choice_B, Choice_C, Choice_D, Correct_Answer</p>
@@ -1057,6 +1097,14 @@
         
         // Quiz evaluation events
         if (evaluationData.has_quiz) {
+            // Save quiz configuration
+            const saveConfigBtn = modal.querySelector('#saveQuizConfig');
+            if (saveConfigBtn) {
+                saveConfigBtn.addEventListener('click', function() {
+                    saveQuizConfiguration(courseKey);
+                });
+            }
+            
             const uploadBtn = modal.querySelector('#uploadQuizBtn');
             const fileInput = modal.querySelector('#quizFileInput');
             
@@ -1084,6 +1132,39 @@
         if (modal) {
             modal.remove();
         }
+    }
+
+    function saveQuizConfiguration(courseKey) {
+        const timeLimit = document.getElementById('quizTimeLimit').value;
+        const passingScore = document.getElementById('quizPassingScore').value;
+        const maxAttempts = document.getElementById('quizMaxAttempts').value;
+        
+        const configData = {
+            quiz_time_limit: timeLimit ? parseInt(timeLimit) : null,
+            quiz_passing_score: passingScore ? parseFloat(passingScore) : null,
+            quiz_max_attempts: parseInt(maxAttempts)
+        };
+        
+        fetch(`/api/chalix/evaluation/update/${courseKey}/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCSRFToken()
+            },
+            body: JSON.stringify(configData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('✅ Đã lưu cấu hình bài trắc nghiệm thành công!');
+            } else {
+                alert('❌ Lỗi: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error saving quiz configuration:', error);
+            alert('❌ Lỗi khi lưu cấu hình');
+        });
     }
 
     function savePracticalQuestion(courseKey) {
@@ -1319,7 +1400,7 @@
                 resize: vertical;
             }
             
-            .save-practical-btn, .upload-quiz-btn, .preview-quiz-btn {
+            .save-practical-btn, .upload-quiz-btn, .preview-quiz-btn, .save-config-btn {
                 background: #007cba;
                 color: white;
                 border: none;
@@ -1329,8 +1410,70 @@
                 margin-top: 12px;
             }
             
-            .save-practical-btn:hover, .upload-quiz-btn:hover, .preview-quiz-btn:hover {
+            .save-practical-btn:hover, .upload-quiz-btn:hover, .preview-quiz-btn:hover, .save-config-btn:hover {
                 background: #005a8b;
+            }
+            
+            .quiz-config-section {
+                background: #f8f9fa;
+                padding: 20px;
+                border-radius: 8px;
+                margin-bottom: 20px;
+            }
+            
+            .quiz-config-section h4 {
+                margin: 0 0 16px 0;
+                color: #333;
+                font-size: 15px;
+                font-weight: 600;
+            }
+            
+            .config-row {
+                margin-bottom: 20px;
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+            }
+            
+            .config-row label {
+                font-weight: 500;
+                color: #333;
+                font-size: 14px;
+            }
+            
+            .config-input, .config-select {
+                padding: 10px 12px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                font-size: 14px;
+                max-width: 300px;
+            }
+            
+            .config-input:focus, .config-select:focus {
+                outline: none;
+                border-color: #007cba;
+                box-shadow: 0 0 0 3px rgba(0, 124, 186, 0.1);
+            }
+            
+            .config-hint {
+                font-size: 12px;
+                color: #666;
+                font-style: italic;
+            }
+            
+            .section-divider {
+                border: none;
+                border-top: 1px solid #ddd;
+                margin: 20px 0;
+            }
+            
+            .save-config-btn {
+                background: #28a745;
+                font-weight: 500;
+            }
+            
+            .save-config-btn:hover {
+                background: #218838;
             }
             
             .upload-hint {

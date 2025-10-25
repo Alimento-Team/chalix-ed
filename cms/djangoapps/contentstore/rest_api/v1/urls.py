@@ -50,6 +50,12 @@ from ...views.user_template import (
     get_upload_instructions,
 )
 
+# Import Excel user import views
+from ...views.chalix_dashboard import (
+    download_user_template_api,
+    import_users_from_excel_api,
+)
+
 
 app_name = 'v1'
 
@@ -203,6 +209,10 @@ urlpatterns = [
     # Template and instructions
     path('users/template/download', download_user_template, name='download_user_template'),
     path('users/template/instructions', get_upload_instructions, name='get_upload_instructions'),
+    
+    # Excel user import endpoints (for 'bo' role)
+    path('users/excel/template', download_user_template_api, name='download_user_excel_template'),
+    path('users/excel/import', import_users_from_excel_api, name='import_users_from_excel'),
 
     # Authoring API
     # Do not use under v1 yet (Nov. 23). The Authoring API is still experimental and the v0 versions should be used

@@ -93,6 +93,12 @@ class FinalEvaluationLMS(models.Model):
     evaluation_type = models.CharField(max_length=20)
     practical_question = models.TextField(blank=True)
     quiz_file = models.FileField(blank=True)
+    
+    # Quiz configuration fields
+    quiz_time_limit = models.PositiveIntegerField(null=True, blank=True)
+    quiz_passing_score = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    quiz_max_attempts = models.PositiveIntegerField(default=0)
+    
     is_active = models.BooleanField(default=True)
     created_by_id = models.IntegerField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -128,12 +134,14 @@ class QuizAttemptLMS(models.Model):
     id = models.BigAutoField(primary_key=True)
     evaluation_id = models.BigIntegerField()
     learner_id = models.IntegerField()
+    attempt_number = models.PositiveIntegerField(default=1)
     started_at = models.DateTimeField(auto_now_add=True)
     completed_at = models.DateTimeField(null=True, blank=True)
     score = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     total_questions = models.PositiveIntegerField(default=0)
     correct_answers = models.PositiveIntegerField(default=0)
     is_completed = models.BooleanField(default=False)
+    passed = models.BooleanField(default=False)
     
     class Meta:
         managed = False

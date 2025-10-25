@@ -280,6 +280,13 @@ class ChalixUserRoleForm(forms.ModelForm):
             role_choices.append((role, help_text))
 
         self.fields['role'].help_text = "Select the role type. Note: Only one 'bo' (Department) account is allowed."
+    
+    def clean_user(self):
+        """Validate user field"""
+        user = self.cleaned_data.get('user')
+        if not user:
+            raise forms.ValidationError("User is required.")
+        return user
 
     def clean(self):
         cleaned_data = super().clean()
@@ -287,11 +294,15 @@ class ChalixUserRoleForm(forms.ModelForm):
         role = cleaned_data.get('role')
         organization = cleaned_data.get('organization')
 
+        # Only validate if we have both user and role
+        if not user or not role:
+            return cleaned_data
+
         # Check bo constraint only for new instances or role changes
         if role == 'bo':
             if not self.instance.pk or (self.instance.pk and self.instance.role != 'bo'):
                 try:
-                    enforce_single_bo_account(user, role, organization)
+                    enforce_single_bo_account(user, role, organization, exclude_instance=self.instance)
                 except PermissionDenied as e:
                     raise forms.ValidationError(str(e))
 
@@ -309,7 +320,8 @@ class ChalixUserRoleAdmin(admin.ModelAdmin):
     search_fields = ('user__username', 'user__email', 'user__first_name', 'user__last_name', 'organization__display_name')
     list_editable = ('is_active',)
     ordering = ('-created_at',)
-    raw_id_fields = ('user', 'created_by')
+    # Use raw_id_fields for created_by (admin user), but keep user as regular select for easier assignment
+    raw_id_fields = ('created_by',)
     autocomplete_fields = ('organization',)
 
     fieldsets = (

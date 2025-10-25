@@ -4,54 +4,125 @@
 {% block extrahead %}
     {{ block.super }}
     <style>
+        /* Main role statistics container */
         .role-statistics {
-            background: #f8f9fa;
-            border: 1px solid #dee2e6;
-            border-radius: 5px;
-            padding: 15px;
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            border: 1px solid #455a64;
+            border-radius: 8px;
+            padding: 20px;
             margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
         }
+        
+        .role-statistics h3 {
+            color: #ecf0f1;
+            margin-top: 0;
+            margin-bottom: 15px;
+            font-size: 16px;
+            font-weight: 600;
+            border-bottom: 2px solid #455a64;
+            padding-bottom: 10px;
+        }
+        
+        /* Individual role stat cards */
         .role-stat {
             display: inline-block;
-            margin-right: 20px;
-            padding: 8px 12px;
-            background: white;
-            border-radius: 3px;
-            border-left: 4px solid #007cba;
+            margin-right: 15px;
+            margin-bottom: 10px;
+            padding: 12px 16px;
+            background: #1e2a35;
+            border-radius: 6px;
+            border-left: 4px solid #3498db;
+            min-width: 200px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+            transition: transform 0.2s ease;
         }
+        
+        .role-stat:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
+        }
+        
         .role-stat.at-limit {
-            border-left-color: #dc3545;
-            background-color: #fff5f5;
+            border-left-color: #e74c3c;
+            background: linear-gradient(135deg, #3d2020 0%, #4a2525 100%);
+            animation: pulse-red 2s ease-in-out infinite;
         }
+        
+        @keyframes pulse-red {
+            0%, 100% { box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2); }
+            50% { box-shadow: 0 1px 8px rgba(231, 76, 60, 0.4); }
+        }
+        
         .role-stat h4 {
-            margin: 0 0 5px 0;
+            margin: 0 0 8px 0;
             font-size: 14px;
-            font-weight: bold;
+            font-weight: 600;
+            color: #ecf0f1;
         }
+        
         .role-stat p {
             margin: 0;
-            font-size: 12px;
-            color: #666;
+            font-size: 13px;
+            color: #bdc3c7;
         }
+        
+        .role-stat p strong {
+            color: #e74c3c;
+            font-weight: 700;
+        }
+        
+        /* Constraints info box */
         .constraints-info {
-            background: #e3f2fd;
-            border: 1px solid #bbdefb;
-            border-radius: 5px;
-            padding: 15px;
+            background: linear-gradient(135deg, #d4e9f7 0%, #e8f4fc 100%);
+            border: 2px solid #90caf9;
+            border-radius: 8px;
+            padding: 20px;
             margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(33, 150, 243, 0.1);
         }
+        
         .constraints-info h3 {
             margin-top: 0;
-            color: #1976d2;
+            margin-bottom: 12px;
+            color: #1565c0;
+            font-size: 16px;
+            font-weight: 600;
         }
+        
         .constraints-info ul {
             margin-bottom: 0;
+            padding-left: 20px;
         }
+        
         .constraints-info li {
-            margin-bottom: 5px;
+            margin-bottom: 8px;
+            color: #37474f;
+            font-size: 14px;
+            line-height: 1.6;
         }
-        .constraint-bo { font-weight: bold; color: #d32f2f; }
-        .constraint-multiple { color: #388e3c; }
+        
+        .constraint-bo { 
+            font-weight: bold; 
+            color: #c62828;
+            background: #ffebee;
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+        
+        .constraint-multiple { 
+            font-weight: 600;
+            color: #2e7d32;
+            background: #e8f5e9;
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+        
+        /* Page title styling */
+        h1 {
+            color: #263238;
+            font-weight: 600;
+        }
     </style>
 {% endblock %}
 
@@ -68,27 +139,29 @@
         </ul>
     </div>
 
-    {% if role_statistics %}
     <div class="role-statistics">
         <h3>{% trans 'Current Role Distribution' %}</h3>
-        {% for role, stats in role_statistics.items %}
-            <div class="role-stat {% if stats.at_limit %}at-limit{% endif %}">
-                <h4>{{ stats.label }}</h4>
-                <p>
-                    Active: {{ stats.active_count }}
-                    {% if stats.max_allowed != 'Unlimited' %}
-                        / {{ stats.max_allowed }}
-                        {% if stats.at_limit %}
-                            <strong style="color: #dc3545;">(LIMIT REACHED)</strong>
+        {% if role_statistics %}
+            {% for role, stats in role_statistics.items %}
+                <div class="role-stat {% if stats.at_limit %}at-limit{% endif %}">
+                    <h4>{{ stats.label }}</h4>
+                    <p>
+                        Active: {{ stats.active_count }}
+                        {% if stats.max_allowed != 'Unlimited' %}
+                            / {{ stats.max_allowed }}
+                            {% if stats.at_limit %}
+                                <strong>(LIMIT REACHED)</strong>
+                            {% endif %}
+                        {% else %}
+                            / None
                         {% endif %}
-                    {% else %}
-                        (Unlimited)
-                    {% endif %}
-                </p>
-            </div>
-        {% endfor %}
+                    </p>
+                </div>
+            {% endfor %}
+        {% else %}
+            <p style="color: #bdc3c7; margin: 0;">No role statistics available.</p>
+        {% endif %}
     </div>
-    {% endif %}
 {% endblock %}
 
 {% block content %}

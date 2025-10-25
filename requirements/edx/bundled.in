@@ -44,3 +44,6 @@ xblocks-contrib                     # Package having multiple core XBlocks, http
 
 ## Integrated Channels
 enterprise-integrated-channels      # Integrated Channels to transmit content metadata and learner data.
+
+# Used by the Chalix dashboard to generate Excel workbooks for video reports
+openpyxl                           # Excel read/write library

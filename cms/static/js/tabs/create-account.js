@@ -55,25 +55,47 @@
         if (!container) return;
         ensureStyles();
 
+        // Check if Excel import is enabled from config
+        // Debug: log the config to see what we're getting
+        console.log('[Create Account] Config received:', config);
+        const excelImportEnabled = config && config.excel_import_enabled === true;
+        console.log('[Create Account] Excel import enabled:', excelImportEnabled);
+
+        // Check user role - use role_code if available (e.g. 'bo', 'co_quan', etc.)
+        const roleData = window.CMS_ROLE_DATA || {};
+        const userRoleCode = roleData.user_role_code || '';
+        console.log('[Create Account] User role code:', userRoleCode);
+        
+        // Show buttons if API says enabled OR if user has 'bo' role
+        const forceShowButtons = excelImportEnabled || userRoleCode === 'bo';
+        console.log('[Create Account] Force show buttons:', forceShowButtons);
+
         container.innerHTML = `
             <div class="create-account-wrap">
                 <div class="create-account-card">
                     <!-- Excel Upload Button - Top Right -->
+                    ${forceShowButtons ? `
                     <div style="position: relative;">
                         <div style="position: absolute; top: -10px; right: 0; display: flex; gap: 12px; align-items: center;">
                             <button type="button" class="excel-upload-btn" id="excel-upload-btn" style="background: #3494c8; color: white; border: none; padding: 12px 16px; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: 500; display: flex; align-items: center; gap: 8px; font-family: 'Inter', sans-serif;">
                                 <i class="fa fa-upload"></i>
                                 Nhập danh sách người dùng bằng file excel
                             </button>
+                            <button type="button" class="upload-template-btn" id="upload-template-btn" style="background: #28a745; color: white; border: none; padding: 12px 16px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500; display: flex; align-items: center; gap: 8px; font-family: 'Inter', sans-serif;">
+                                <i class="fa fa-upload"></i>
+                                Tải template mẫu lên
+                            </button>
                             <button type="button" class="download-template-btn" id="download-template-btn" style="background: #6c757d; color: white; border: none; padding: 12px 16px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500; display: flex; align-items: center; gap: 8px; font-family: 'Inter', sans-serif;">
                                 <i class="fa fa-download"></i>
                                 Tải file mẫu
                             </button>
                             <input type="file" id="excel-file-input" accept=".xlsx,.xls,.csv" style="display: none;">
+                            <input type="file" id="template-file-input" accept=".xlsx,.xls" style="display: none;">
                         </div>
                     </div>
+                    ` : ''}
                     
-                    <h2 class="create-account-title" style="font-family: 'Inter', sans-serif; font-weight: 600; font-size: 18px; color: #1e1e1e; margin: 60px 0 30px 0;">NHẬP THÔNG TIN THÊM MỚI NGƯỜI DÙNG</h2>
+                    <h2 class="create-account-title" style="font-family: 'Inter', sans-serif; font-weight: 600; font-size: 18px; color: #1e1e1e; margin: ${forceShowButtons ? '60' : '0'}px 0 30px 0;">NHẬP THÔNG TIN THÊM MỚI NGƯỜI DÙNG</h2>
                     
                     <form class="chalix-form" id="user-creation-form" style="max-width: none;">
                         <div style="display: flex; gap: 20px; margin-bottom: 20px;">
@@ -198,8 +220,10 @@
         // Handle form submission
         const form = wrap.querySelector('#user-creation-form');
         const excelUploadBtn = wrap.querySelector('#excel-upload-btn');
+        const uploadTemplateBtn = wrap.querySelector('#upload-template-btn');
         const downloadTemplateBtn = wrap.querySelector('#download-template-btn');
         const excelFileInput = wrap.querySelector('#excel-file-input');
+        const templateFileInput = wrap.querySelector('#template-file-input');
         const messagesContainer = wrap.querySelector('#user-creation-messages');
         const successMessage = wrap.querySelector('#success-message');
         const errorMessage = wrap.querySelector('#error-message');
@@ -258,23 +282,29 @@
             });
         }
         
-        // Excel upload button handler
-        if (excelUploadBtn) {
+        // Excel upload button handler (only if enabled)
+        if (excelUploadBtn && excelFileInput) {
             excelUploadBtn.addEventListener('click', () => {
-                if (excelFileInput) {
-                    excelFileInput.click();
-                }
+                excelFileInput.click();
             });
+            
+            // File input change handler
+            excelFileInput.addEventListener('change', handleFileUpload);
         }
         
-        // Download template button handler
+        // Upload template button handler (for bo role to upload custom template)
+        if (uploadTemplateBtn && templateFileInput) {
+            uploadTemplateBtn.addEventListener('click', () => {
+                templateFileInput.click();
+            });
+            
+            // Template file input change handler
+            templateFileInput.addEventListener('change', handleTemplateUpload);
+        }
+        
+        // Download template button handler (only if enabled)
         if (downloadTemplateBtn) {
             downloadTemplateBtn.addEventListener('click', handleTemplateDownload);
-        }
-        
-        // File input change handler
-        if (excelFileInput) {
-            excelFileInput.addEventListener('change', handleFileUpload);
         }
         
         // Load initial data (roles)
@@ -630,12 +660,12 @@
         
         function handleTemplateDownload() {
             // Create download link
-            const downloadUrl = '/api/contentstore/v1/users/template/download';
+            const downloadUrl = '/api/contentstore/v1/users/excel/template';
             
             // Create a temporary anchor element to trigger download
             const link = document.createElement('a');
             link.href = downloadUrl;
-            link.download = 'chalix_user_template.csv';
+            link.download = 'user_import_template.xlsx';
             link.style.display = 'none';
             
             document.body.appendChild(link);
@@ -644,6 +674,52 @@
             
             // Show success message
             showSuccess('File mẫu đã được tải xuống. Vui lòng kiểm tra thư mục Downloads của bạn.');
+        }
+        
+        function handleTemplateUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            // Validate file type
+            const validTypes = ['.xlsx', '.xls'];
+            const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
+            
+            if (!validTypes.includes(fileExtension)) {
+                showError('File template phải có định dạng Excel (.xlsx, .xls)');
+                event.target.value = '';
+                return;
+            }
+            
+            // Upload template file
+            uploadTemplateFile(file);
+        }
+        
+        async function uploadTemplateFile(file) {
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                const response = await fetch('/api/contentstore/v1/users/excel/template', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCSRFToken()
+                    },
+                    credentials: 'include',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showSuccess('Template đã được cập nhật thành công. File mẫu mới sẽ được sử dụng cho tất cả người dùng.');
+                } else {
+                    showError(result.message || 'Lỗi tải template lên');
+                }
+                
+            } catch (error) {
+                console.error('Error uploading template:', error);
+                showError('Lỗi tải template lên. Vui lòng thử lại.');
+            }
         }
         
         function handleFileUpload(event) {

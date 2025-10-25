@@ -168,15 +168,21 @@
             if (!this.contentElement) {
                 return;
             }
-            // Render tab-specific content
+            
+            // Fetch tab-specific data from API first
+            this.fetchTabData(tabId).then(tabData => {
+                // Render tab-specific content
                 // Prefer module-based tab renderers when present
                 const moduleKey = tabId;
                 const tabModule = window.CMS_TABS && window.CMS_TABS[moduleKey];
                 if (tabModule && typeof tabModule.render === 'function') {
-                    tabModule.render(this.contentElement, {
+                    // Merge config with API data
+                    const renderConfig = Object.assign({}, {
                         contentTitle: config.contentTitle,
                         contentDescription: config.contentDescription
-                    });
+                    }, tabData || {});
+                    
+                    tabModule.render(this.contentElement, renderConfig);
                 } else {
                     // Default placeholder for other tabs
                     this.contentElement.innerHTML = `
@@ -191,6 +197,40 @@
                         </div>
                     `;
                 }
+            }).catch(error => {
+                console.error('Error fetching tab data:', error);
+                // Render without API data on error
+                const moduleKey = tabId;
+                const tabModule = window.CMS_TABS && window.CMS_TABS[moduleKey];
+                if (tabModule && typeof tabModule.render === 'function') {
+                    tabModule.render(this.contentElement, {
+                        contentTitle: config.contentTitle,
+                        contentDescription: config.contentDescription
+                    });
+                }
+            });
+        }
+
+        async fetchTabData(tabId) {
+            try {
+                const response = await fetch(`/dashboard_api?tab=${tabId}`, {
+                    method: 'GET',
+                    credentials: 'include',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    return data;
+                }
+                
+                return null;
+            } catch (error) {
+                console.error('Error fetching tab data:', error);
+                return null;
+            }
         }
 
         handleKeyboardNavigation(e) {

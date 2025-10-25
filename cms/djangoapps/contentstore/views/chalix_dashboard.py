@@ -3,8 +3,8 @@ Dashboard views for Vietnamese CMS interface with role-based access control
 """
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
-from django.http import JsonResponse
-from django.views.decorators.http import require_POST, require_http_methods
+from django.http import JsonResponse, HttpResponse
+from django.views.decorators.http import require_POST, require_http_methods, require_GET
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
 import json
@@ -202,6 +202,7 @@ def cms_dashboard(request):
         'is_staff': is_staff,
         'is_global_staff': is_global_staff,
         'user_role': user_role,
+        'user_role_code': user_role.role if user_role else '',  # Add role code for JavaScript
         'organization_name': organization_name,
         'available_tabs': available_tabs,
         'courses_count': len(courses_list),
@@ -255,9 +256,22 @@ def _get_statistics_data(request):
 
 def _get_create_account_data(request):
     """Get data for creating staff accounts"""
+    from cms.djangoapps.contentstore.chalix_roles import can_import_users, get_user_primary_role
+    
+    # Check if user has permission to import users via Excel
+    excel_import_enabled = can_import_users(request.user)
+    
+    # Debug logging
+    primary_role = get_user_primary_role(request.user)
+    logger.info(f"[Create Account Data] User: {request.user.username}, Primary role: {primary_role}, Excel import enabled: {excel_import_enabled}")
+    if primary_role:
+        logger.info(f"[Create Account Data] Role details - role: {primary_role.role}, is_active: {primary_role.is_active}")
+    
     return {
         'pending_requests': 0,  # Will be implemented later
         'total_accounts': 0,    # Will be implemented later
+        'excel_import_enabled': excel_import_enabled,
+        'template_download_url': '/api/contentstore/v1/users/excel/template' if excel_import_enabled else None,
     }
 
 
@@ -2055,6 +2069,8 @@ def get_final_evaluation_api(request, course_key_string):
         
         # Get final evaluation type from course details
         try:
+            from cms.djangoapps.contentstore.models import FinalEvaluation
+            
             details = CourseDetails.fetch(course_key)
             final_evaluation_type = getattr(details, 'final_evaluation_type', '')
             logger.info(f"Course {course_key} has final_evaluation_type: {final_evaluation_type}")
@@ -2070,7 +2086,7 @@ def get_final_evaluation_api(request, course_key_string):
                     'has_evaluation': False
                 })
             
-            # Return evaluation based on type
+            # Return evaluation based on type with database values
             evaluation_data = {
                 'evaluation_type': final_evaluation_type,
                 'practical_question': 'Hãy nộp bài thu hoạch của bạn theo yêu cầu của giảng viên.',
@@ -2079,9 +2095,37 @@ def get_final_evaluation_api(request, course_key_string):
             
             if final_evaluation_type == 'project':
                 evaluation_data['evaluation_type'] = 'practical'
+                # Try to get practical question from database
+                try:
+                    practical_eval = FinalEvaluation.objects.get(
+                        course_key=course_key,
+                        evaluation_type=FinalEvaluation.EVALUATION_TYPE_PRACTICAL,
+                        is_active=True
+                    )
+                    evaluation_data['practical_question'] = practical_eval.practical_question or evaluation_data['practical_question']
+                except FinalEvaluation.DoesNotExist:
+                    pass
+                    
             elif final_evaluation_type == 'quiz':
                 evaluation_data['evaluation_type'] = 'quiz'
                 evaluation_data['has_quiz_file'] = True
+                
+                # Try to get quiz configuration from database
+                try:
+                    quiz_eval = FinalEvaluation.objects.get(
+                        course_key=course_key,
+                        evaluation_type=FinalEvaluation.EVALUATION_TYPE_QUIZ,
+                        is_active=True
+                    )
+                    evaluation_data['quiz_time_limit'] = quiz_eval.quiz_time_limit
+                    evaluation_data['quiz_passing_score'] = float(quiz_eval.quiz_passing_score) if quiz_eval.quiz_passing_score else None
+                    evaluation_data['quiz_max_attempts'] = quiz_eval.quiz_max_attempts or 0
+                    evaluation_data['quiz_file_name'] = quiz_eval.quiz_file.name.split('/')[-1] if quiz_eval.quiz_file else None
+                except FinalEvaluation.DoesNotExist:
+                    # Set default values
+                    evaluation_data['quiz_time_limit'] = None
+                    evaluation_data['quiz_passing_score'] = None
+                    evaluation_data['quiz_max_attempts'] = 0
             
             return JsonResponse({
                 'success': True,
@@ -2108,7 +2152,7 @@ def get_final_evaluation_api(request, course_key_string):
 @require_http_methods(["POST"])
 def update_final_evaluation_api(request, course_key_string):
     """
-    Update final evaluation content (practical question).
+    Update final evaluation content (practical question or quiz configuration).
     """
     try:
         from opaque_keys.edx.keys import CourseKey
@@ -2116,26 +2160,75 @@ def update_final_evaluation_api(request, course_key_string):
         
         course_key = CourseKey.from_string(course_key_string)
         data = json.loads(request.body.decode('utf-8'))
-        practical_question = data.get('practical_question', '')
         
-        # Get the practical evaluation specifically
-        evaluation = FinalEvaluation.objects.get(
-            course_key=course_key, 
-            evaluation_type=FinalEvaluation.EVALUATION_TYPE_PRACTICAL,
-            is_active=True
-        )
-        evaluation.practical_question = practical_question
-        evaluation.save()
+        # Check if updating practical question
+        if 'practical_question' in data:
+            practical_question = data.get('practical_question', '')
+            
+            # Get the practical evaluation specifically
+            evaluation = FinalEvaluation.objects.get(
+                course_key=course_key, 
+                evaluation_type=FinalEvaluation.EVALUATION_TYPE_PRACTICAL,
+                is_active=True
+            )
+            evaluation.practical_question = practical_question
+            evaluation.save()
+            
+            return JsonResponse({
+                'success': True,
+                'message': 'Practical question updated successfully'
+            })
+        
+        # Check if updating quiz configuration
+        elif any(key in data for key in ['quiz_time_limit', 'quiz_passing_score', 'quiz_max_attempts']):
+            # Get the quiz evaluation specifically
+            evaluation = FinalEvaluation.objects.get(
+                course_key=course_key, 
+                evaluation_type=FinalEvaluation.EVALUATION_TYPE_QUIZ,
+                is_active=True
+            )
+            
+            # Update quiz configuration fields
+            if 'quiz_time_limit' in data:
+                evaluation.quiz_time_limit = data['quiz_time_limit']
+            
+            if 'quiz_passing_score' in data:
+                passing_score = data['quiz_passing_score']
+                # Validate passing score is between 0 and 100
+                if passing_score is not None:
+                    if passing_score < 0 or passing_score > 100:
+                        return JsonResponse({
+                            'success': False,
+                            'error': 'Passing score must be between 0 and 100'
+                        })
+                evaluation.quiz_passing_score = passing_score
+            
+            if 'quiz_max_attempts' in data:
+                max_attempts = int(data['quiz_max_attempts'])
+                # Validate max attempts is one of the allowed values
+                if max_attempts not in [0, 1, 3]:
+                    return JsonResponse({
+                        'success': False,
+                        'error': 'Max attempts must be 0 (unlimited), 1, or 3'
+                    })
+                evaluation.quiz_max_attempts = max_attempts
+            
+            evaluation.save()
+            
+            return JsonResponse({
+                'success': True,
+                'message': 'Quiz configuration updated successfully'
+            })
         
         return JsonResponse({
-            'success': True,
-            'message': 'Practical question updated successfully'
+            'success': False,
+            'error': 'No valid update data provided'
         })
         
     except FinalEvaluation.DoesNotExist:
         return JsonResponse({
             'success': False,
-            'error': 'Practical evaluation not found for this course'
+            'error': 'Evaluation not found for this course'
         })
     except Exception as e:
         logger.error(f"Error updating final evaluation for course {course_key_string}: {e}")
@@ -2311,3 +2404,212 @@ def preview_evaluation_quiz_api(request, course_key_string):
             'success': False,
             'error': str(e)
         })
+
+
+# ===========================
+# Excel User Import Endpoints
+# ===========================
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def download_user_template_api(request):
+    """
+    GET: Download Excel template for bulk user import (custom or default).
+    POST: Upload custom Excel template (bo role only).
+    
+    Only users with 'bo' role can access this.
+    
+    Returns an Excel file with Vietnamese column headers for GET.
+    Returns JSON response for POST.
+    """
+    from cms.djangoapps.contentstore.chalix_roles import can_import_users
+    from cms.djangoapps.contentstore.excel_import import generate_excel_template
+    import os
+    from django.conf import settings
+    
+    # Check permission
+    if not can_import_users(request.user):
+        return JsonResponse({
+            'error': 'Bạn không có quyền tải template import người dùng.'
+        }, status=403)
+    
+    # Define custom template path
+    custom_template_dir = os.path.join(settings.MEDIA_ROOT, 'chalix', 'templates')
+    custom_template_path = os.path.join(custom_template_dir, 'custom_user_import_template.xlsx')
+    
+    if request.method == 'GET':
+        # Download template (custom if exists, otherwise default)
+        try:
+            # Check if custom template exists
+            if os.path.exists(custom_template_path):
+                # Serve custom template
+                with open(custom_template_path, 'rb') as f:
+                    excel_content = f.read()
+                logger.info(f"[CHALIX] User {request.user.username} downloaded custom user import template")
+            else:
+                # Generate default Excel template
+                excel_content = generate_excel_template()
+                logger.info(f"[CHALIX] User {request.user.username} downloaded default user import template")
+            
+            # Create HTTP response with Excel file
+            response = HttpResponse(
+                excel_content,
+                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            )
+            response['Content-Disposition'] = 'attachment; filename="template_import_nguoi_dung.xlsx"'
+            
+            return response
+            
+        except Exception as e:
+            logger.error(f"[CHALIX] Error downloading user import template: {str(e)}")
+            return JsonResponse({
+                'error': 'Có lỗi xảy ra khi tải file template. Vui lòng thử lại.'
+            }, status=500)
+    
+    elif request.method == 'POST':
+        # Upload custom template (bo role only)
+        try:
+            # Check if file was uploaded
+            if 'file' not in request.FILES:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'Vui lòng chọn file Excel để tải lên.'
+                }, status=400)
+            
+            template_file = request.FILES['file']
+            
+            # Validate file extension
+            if not template_file.name.endswith(('.xlsx', '.xls')):
+                return JsonResponse({
+                    'success': False,
+                    'message': 'File phải có định dạng Excel (.xlsx hoặc .xls).'
+                }, status=400)
+            
+            # Validate file size (max 5MB for template)
+            max_size = 5 * 1024 * 1024  # 5MB
+            if template_file.size > max_size:
+                return JsonResponse({
+                    'success': False,
+                    'message': f'File quá lớn. Kích thước tối đa là {max_size / 1024 / 1024}MB.'
+                }, status=400)
+            
+            # Validate it's a valid Excel file by trying to open it
+            try:
+                import openpyxl
+                from io import BytesIO
+                
+                # Try to load the workbook
+                wb = openpyxl.load_workbook(BytesIO(template_file.read()))
+                template_file.seek(0)  # Reset file pointer
+                
+                # Basic validation: check if it has at least one sheet
+                if len(wb.sheetnames) == 0:
+                    return JsonResponse({
+                        'success': False,
+                        'message': 'File Excel không hợp lệ (không có sheet nào).'
+                    }, status=400)
+                
+            except Exception as e:
+                logger.error(f"[CHALIX] Error validating template file: {str(e)}")
+                return JsonResponse({
+                    'success': False,
+                    'message': 'File Excel không hợp lệ hoặc bị hỏng. Vui lòng kiểm tra lại file.'
+                }, status=400)
+            
+            # Create directory if it doesn't exist
+            os.makedirs(custom_template_dir, exist_ok=True)
+            
+            # Save the custom template
+            with open(custom_template_path, 'wb') as f:
+                for chunk in template_file.chunks():
+                    f.write(chunk)
+            
+            logger.info(f"[CHALIX] User {request.user.username} uploaded custom user import template")
+            
+            return JsonResponse({
+                'success': True,
+                'message': 'Template đã được cập nhật thành công.'
+            })
+            
+        except Exception as e:
+            logger.error(f"[CHALIX] Error uploading custom template: {str(e)}")
+            return JsonResponse({
+                'success': False,
+                'message': 'Có lỗi xảy ra khi tải template lên. Vui lòng thử lại.'
+            }, status=500)
+
+
+@login_required
+@require_POST
+@csrf_exempt
+def import_users_from_excel_api(request):
+    """
+    Import users from uploaded Excel file.
+    Only users with 'bo' role can access this.
+    
+    Expects multipart/form-data with 'excel_file' field.
+    
+    Returns JSON with import results:
+    {
+        "success": true/false,
+        "total_rows": 10,
+        "successful_imports": 8,
+        "failed_imports": 2,
+        "errors": ["Error message 1", ...],
+        "warnings": ["Warning message 1", ...],
+        "created_users": [{"username": "...", "email": "...", "name": "..."}, ...]
+    }
+    """
+    from cms.djangoapps.contentstore.chalix_roles import can_import_users
+    from cms.djangoapps.contentstore.excel_import import import_users_from_excel
+    
+    # Check permission
+    if not can_import_users(request.user):
+        return JsonResponse({
+            'error': 'Bạn không có quyền import người dùng từ Excel.'
+        }, status=403)
+    
+    # Check if file was uploaded
+    if 'excel_file' not in request.FILES:
+        return JsonResponse({
+            'error': 'Vui lòng chọn file Excel để tải lên.'
+        }, status=400)
+    
+    excel_file = request.FILES['excel_file']
+    
+    # Validate file extension
+    if not excel_file.name.endswith(('.xlsx', '.xls')):
+        return JsonResponse({
+            'error': 'File phải có định dạng Excel (.xlsx hoặc .xls).'
+        }, status=400)
+    
+    # Validate file size (max 10MB)
+    max_size = 10 * 1024 * 1024  # 10MB
+    if excel_file.size > max_size:
+        return JsonResponse({
+            'error': f'File quá lớn. Kích thước tối đa là {max_size / 1024 / 1024}MB.'
+        }, status=400)
+    
+    try:
+        # Read file content
+        file_content = excel_file.read()
+        
+        # Import users
+        result = import_users_from_excel(file_content, request.user)
+        
+        # Log the import operation
+        logger.info(
+            f"[CHALIX] User {request.user.username} imported users from Excel. "
+            f"Success: {result['successful_imports']}, Failed: {result['failed_imports']}"
+        )
+        
+        # Return result
+        status_code = 200 if result['success'] else 400
+        return JsonResponse(result, status=status_code)
+        
+    except Exception as e:
+        logger.error(f"[CHALIX] Error importing users from Excel: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': f'Có lỗi xảy ra khi import người dùng: {str(e)}'
+        }, status=500)

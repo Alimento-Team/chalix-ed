@@ -142,6 +142,18 @@ def can_create_accounts(user: User) -> bool:
     return primary_role is not None and primary_role.role in ['bo', 'co_quan']
 
 
+def can_import_users(user: User) -> bool:
+    """Check if user can import users via Excel (only bo role)"""
+    if not user.is_authenticated:
+        return False
+        
+    if GlobalStaff().has_user(user):
+        return True
+    
+    primary_role = get_user_primary_role(user)
+    return primary_role is not None and primary_role.role == 'bo'
+
+
 def can_manage_courses(user: User) -> bool:
     """Check if user can manage courses (giang_vien, co_quan, bo roles)"""
     if not user.is_authenticated:
@@ -154,10 +166,23 @@ def can_manage_courses(user: User) -> bool:
     return primary_role is not None and primary_role.role in ['giang_vien', 'co_quan', 'bo']
 
 
-def enforce_single_bo_account(user: User, role: str, organization: ChalixOrganization = None):
-    """Enforce that only one 'bo' (department) account can exist"""
+def enforce_single_bo_account(user: User, role: str, organization: ChalixOrganization = None, exclude_instance=None):
+    """Enforce that only one 'bo' (department) account can exist
+    
+    Args:
+        user: The user being assigned the role
+        role: The role being assigned
+        organization: Optional organization
+        exclude_instance: Optional ChalixUserRole instance to exclude from the check (for edits)
+    """
     if role == 'bo':
-        existing_bo = ChalixUserRole.objects.filter(role='bo', is_active=True).first()
+        queryset = ChalixUserRole.objects.filter(role='bo', is_active=True)
+        
+        # Exclude the current instance if editing
+        if exclude_instance and exclude_instance.pk:
+            queryset = queryset.exclude(pk=exclude_instance.pk)
+        
+        existing_bo = queryset.first()
         if existing_bo and existing_bo.user != user:
             raise PermissionDenied("Only one department account (bo) is allowed in the system")
 

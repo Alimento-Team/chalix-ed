@@ -1248,6 +1248,36 @@ class FinalEvaluation(models.Model):
         help_text=_("Excel file containing quiz questions and answers")
     )
 
+    # Quiz configuration fields
+    quiz_time_limit = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        verbose_name=_("Quiz Time Limit (minutes)"),
+        help_text=_("Time limit for completing the quiz in minutes. Leave blank for no time limit.")
+    )
+
+    quiz_passing_score = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name=_("Minimum Passing Score (%)"),
+        help_text=_("Minimum score percentage required to pass the quiz (0-100)")
+    )
+
+    QUIZ_ATTEMPTS_CHOICES = [
+        (1, '1 lần'),
+        (3, '3 lần'),
+        (0, 'Không giới hạn'),
+    ]
+
+    quiz_max_attempts = models.PositiveIntegerField(
+        choices=QUIZ_ATTEMPTS_CHOICES,
+        default=0,
+        verbose_name=_("Maximum Quiz Attempts"),
+        help_text=_("Number of times a learner can attempt the quiz. 0 means unlimited.")
+    )
+
     is_active = models.BooleanField(
         default=True,
         verbose_name=_("Is Active")
@@ -1346,6 +1376,12 @@ class QuizAttempt(models.Model):
         related_name='quiz_attempts'
     )
 
+    attempt_number = models.PositiveIntegerField(
+        default=1,
+        verbose_name=_("Attempt Number"),
+        help_text=_("The sequential attempt number for this learner")
+    )
+
     started_at = models.DateTimeField(auto_now_add=True)
     completed_at = models.DateTimeField(null=True, blank=True)
 
@@ -1361,14 +1397,20 @@ class QuizAttempt(models.Model):
     correct_answers = models.PositiveIntegerField(default=0)
 
     is_completed = models.BooleanField(default=False)
+    passed = models.BooleanField(
+        default=False,
+        verbose_name=_("Passed"),
+        help_text=_("Whether the learner passed based on the minimum score requirement")
+    )
 
     class Meta:
         verbose_name = _("Quiz Attempt")
         verbose_name_plural = _("Quiz Attempts")
-        unique_together = ['evaluation', 'learner']
+        # Remove unique_together to allow multiple attempts
+        ordering = ['-started_at']
 
     def __str__(self):
-        return f"{self.learner.username} - {self.evaluation.course_key} - {self.score or 'In Progress'}"
+        return f"{self.learner.username} - {self.evaluation.course_key} - Attempt {self.attempt_number} - {self.score or 'In Progress'}"
 
 
 class QuizAnswer(models.Model):

@@ -485,6 +485,7 @@ lms_base_url = _mfe_conf.get('LMS_BASE_URL') or getattr(settings, 'LMS_ROOT_URL'
         // Pass role-based context to JavaScript
         window.CMS_ROLE_DATA = {
             user_role: '${user_role or ""}',
+            user_role_code: '${user_role_code or ""}',
             user_name: '${user_info.get("username", "") if user_info else ""}',
             organization_name: '${organization_name or ""}',
             is_staff: ${str(is_staff).lower() if is_staff else 'false'},
