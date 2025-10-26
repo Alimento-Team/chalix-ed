@@ -24,6 +24,7 @@ from lms.djangoapps.course_home_api.models import (
     LearnerSubmissionLMS as LearnerSubmission,
     QuizAttemptLMS as QuizAttempt,
     QuizAnswerLMS as QuizAnswer,
+    ChalixQuizLMS as ChalixQuiz,
     ChalixQuizQuestionLMS as ChalixQuizQuestion,
     ChalixQuizChoiceLMS as ChalixQuizChoice,
 )
@@ -137,14 +138,14 @@ class FinalEvaluationQuizView(APIView):
                 )
             except (FinalEvaluation.DoesNotExist, RuntimeError, AttributeError):
                 return Response({
-                    'error': 'No quiz evaluation found for this course'
+                    'error': 'Chưa cấu hình bài kiểm tra cuối khóa'
                 }, status=status.HTTP_404_NOT_FOUND)
             
             # Check number of attempts for this user
             user_attempts = QuizAttempt.objects.filter(
-                evaluation=evaluation, 
-                learner=request.user
-            ).order_by('-started_at')
+                evaluation_id=evaluation.id, 
+                learner_id=request.user.id
+            ).order_by('-attempt_number')
             
             attempts_count = user_attempts.count()
             max_attempts = evaluation.quiz_max_attempts or 0  # 0 means unlimited
@@ -174,11 +175,28 @@ class FinalEvaluationQuizView(APIView):
                         'passed': last_attempt.passed
                     }, status=status.HTTP_400_BAD_REQUEST)
             
-            # Get questions for this course
+            # Get ChalixQuiz for this course's final evaluation
+            # Empty parent_locator indicates it's a final evaluation quiz
+            try:
+                chalix_quiz = ChalixQuiz.objects.get(
+                    course_key=course_key,
+                    parent_locator='',
+                    is_active=True
+                )
+            except ChalixQuiz.DoesNotExist:
+                logger.warning(f"ChalixQuiz not found for course {course_key} with parent_locator=''")
+                return Response({
+                    'error': 'Chưa tạo câu hỏi cho bài kiểm tra cuối khóa. Vui lòng tải lên file Excel câu hỏi trong Studio.',
+                    'configured': True,
+                    'questions_exist': False,
+                    'questions_created': False  # Match frontend check
+                }, status=status.HTTP_404_NOT_FOUND)
+            
+            # Get questions for this quiz
             questions = ChalixQuizQuestion.objects.filter(
-                course_key=course_key,
+                quiz_id=chalix_quiz.id,
                 is_active=True
-            ).order_by('order_index').prefetch_related('choices')
+            ).order_by('order_index')
             
             quiz_data = {
                 'title': 'Kiểm tra cuối khóa',
@@ -248,9 +266,9 @@ class FinalEvaluationQuizSubmitView(APIView):
             
             # Check attempt limits
             existing_attempts = QuizAttempt.objects.filter(
-                evaluation=evaluation,
-                learner=request.user
-            ).order_by('-started_at')
+                evaluation_id=evaluation.id,
+                learner_id=request.user.id
+            ).order_by('-attempt_number')
             
             attempts_count = existing_attempts.count()
             max_attempts = evaluation.quiz_max_attempts or 0
@@ -265,8 +283,8 @@ class FinalEvaluationQuizSubmitView(APIView):
             
             # Create new attempt with proper attempt number
             attempt = QuizAttempt.objects.create(
-                evaluation=evaluation,
-                learner=request.user,
+                evaluation_id=evaluation.id,
+                learner_id=request.user.id,
                 attempt_number=attempts_count + 1,
                 is_completed=False
             )
@@ -278,7 +296,7 @@ class FinalEvaluationQuizSubmitView(APIView):
             for question_id_str, choice_ids in answers.items():
                 try:
                     question_id = int(question_id_str)
-                    question = ChalixQuizQuestion.objects.get(id=question_id, course_key=course_key)
+                    question = ChalixQuizQuestion.objects.get(id=question_id)
                     total_questions += 1
                     
                     # Handle multiple choice questions
@@ -297,9 +315,9 @@ class FinalEvaluationQuizSubmitView(APIView):
                             if choice_id:
                                 choice = ChalixQuizChoice.objects.get(id=int(choice_id))
                                 QuizAnswer.objects.create(
-                                    attempt=attempt,
-                                    question=question,
-                                    selected_choice=choice,
+                                    attempt_id=attempt.id,
+                                    question_id=question.id,
+                                    selected_choice_id=choice.id,
                                     is_correct=is_correct
                                 )
                         
@@ -313,9 +331,9 @@ class FinalEvaluationQuizSubmitView(APIView):
                             is_correct = choice.is_correct
                             
                             QuizAnswer.objects.create(
-                                attempt=attempt,
-                                question=question,
-                                selected_choice=choice,
+                                attempt_id=attempt.id,
+                                question_id=question.id,
+                                selected_choice_id=choice.id,
                                 is_correct=is_correct
                             )
                             
@@ -399,8 +417,8 @@ class FinalEvaluationResultView(APIView):
             
             try:
                 attempt = QuizAttempt.objects.get(
-                    evaluation=evaluation,
-                    learner=request.user,
+                    evaluation_id=evaluation.id,
+                    learner_id=request.user.id,
                     is_completed=True
                 )
             except QuizAttempt.DoesNotExist:

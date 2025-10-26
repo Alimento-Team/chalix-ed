@@ -2247,7 +2247,7 @@ def upload_evaluation_quiz_api(request, course_key_string):
     try:
         import pandas as pd
         from opaque_keys.edx.keys import CourseKey
-        from cms.djangoapps.contentstore.models import FinalEvaluation, ChalixQuizQuestion, ChalixQuizChoice
+        from cms.djangoapps.contentstore.models import FinalEvaluation, ChalixQuiz, ChalixQuizQuestion, ChalixQuizChoice
         
         course_key = CourseKey.from_string(course_key_string)
         
@@ -2287,8 +2287,19 @@ def upload_evaluation_quiz_api(request, course_key_string):
                 is_active=True
             )
             
-            # Clear existing questions for this evaluation
-            ChalixQuizQuestion.objects.filter(course_key=course_key).delete()
+            # Get or create ChalixQuiz with empty parent_locator for final evaluation
+            chalix_quiz, created = ChalixQuiz.objects.get_or_create(
+                course_key=course_key,
+                parent_locator='',  # Empty string indicates final evaluation quiz
+                defaults={
+                    'title': f'Final Evaluation Quiz for {course_key}',
+                    'description': 'Final evaluation quiz questions',
+                    'created_by': request.user
+                }
+            )
+            
+            # Clear existing questions for this quiz
+            ChalixQuizQuestion.objects.filter(quiz=chalix_quiz).delete()
             
             # Process each row and create questions
             questions_created = 0
@@ -2298,11 +2309,10 @@ def upload_evaluation_quiz_api(request, course_key_string):
                         continue
                         
                     question = ChalixQuizQuestion.objects.create(
-                        course_key=course_key,
+                        quiz=chalix_quiz,
                         question_text=str(row['Question']).strip(),
                         question_type='multiple_choice',
-                        order_index=index + 1,
-                        created_by=request.user
+                        order_index=index + 1
                     )
                     
                     # Create choices
@@ -2366,12 +2376,27 @@ def preview_evaluation_quiz_api(request, course_key_string):
     """
     try:
         from opaque_keys.edx.keys import CourseKey
-        from cms.djangoapps.contentstore.models import ChalixQuizQuestion
+        from cms.djangoapps.contentstore.models import ChalixQuiz, ChalixQuizQuestion
         
         course_key = CourseKey.from_string(course_key_string)
         
+        # Get ChalixQuiz with empty parent_locator for final evaluation
+        try:
+            chalix_quiz = ChalixQuiz.objects.get(
+                course_key=course_key,
+                parent_locator='',
+                is_active=True
+            )
+        except ChalixQuiz.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'No quiz found for this course. Please upload quiz questions first.',
+                'questions': [],
+                'total_questions': 0
+            })
+        
         questions = ChalixQuizQuestion.objects.filter(
-            course_key=course_key,
+            quiz=chalix_quiz,
             is_active=True
         ).order_by('order_index').prefetch_related('choices')
         
