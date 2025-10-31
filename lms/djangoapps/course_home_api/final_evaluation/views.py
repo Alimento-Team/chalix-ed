@@ -391,6 +391,148 @@ class FinalEvaluationQuizSubmitView(APIView):
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+class FinalEvaluationAttemptStatusView(APIView):
+    """
+    API view to manage final evaluation quiz attempt status.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, course_key_string):
+        """
+        Get current attempt status for the user.
+        """
+        try:
+            course_key = CourseKey.from_string(course_key_string)
+            
+            try:
+                evaluation = FinalEvaluation.objects.get(
+                    course_key=course_key,
+                    evaluation_type=FinalEvaluation.EVALUATION_TYPE_QUIZ,
+                    is_active=True
+                )
+            except (FinalEvaluation.DoesNotExist, RuntimeError, AttributeError):
+                return Response({
+                    'error': 'No quiz evaluation found for this course'
+                }, status=status.HTTP_404_NOT_FOUND)
+            
+            # Get all attempts for this user
+            user_attempts = QuizAttempt.objects.filter(
+                evaluation_id=evaluation.id,
+                learner_id=request.user.id
+            ).order_by('-attempt_number')
+            
+            attempts_count = user_attempts.count()
+            max_attempts = evaluation.quiz_max_attempts or 0
+            
+            # Check for current incomplete attempt
+            current_attempt = user_attempts.filter(is_completed=False).first()
+            
+            # Get latest completed attempt
+            latest_completed = user_attempts.filter(is_completed=True).first()
+            
+            response_data = {
+                'max_attempts': max_attempts,
+                'attempts_used': user_attempts.filter(is_completed=True).count(),
+                'attempts_remaining': (max_attempts - user_attempts.filter(is_completed=True).count()) if max_attempts > 0 else None,
+                'has_current_attempt': current_attempt is not None,
+                'current_attempt_id': current_attempt.id if current_attempt else None,
+                'current_attempt_number': current_attempt.attempt_number if current_attempt else None,
+                'can_start_new_attempt': True,
+                'latest_score': float(latest_completed.score) if latest_completed and latest_completed.score else None,
+                'latest_passed': latest_completed.passed if latest_completed else None
+            }
+            
+            # Check if user can start new attempt
+            completed_attempts = user_attempts.filter(is_completed=True).count()
+            if max_attempts > 0 and completed_attempts >= max_attempts:
+                response_data['can_start_new_attempt'] = False
+                response_data['reason'] = f'Maximum attempts ({max_attempts}) reached'
+            elif current_attempt:
+                response_data['can_start_new_attempt'] = False
+                response_data['reason'] = 'Current attempt in progress'
+            
+            return Response(response_data)
+            
+        except Exception as e:
+            logger.error(f"Error getting attempt status for {course_key_string}: {e}")
+            return Response({
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def post(self, request, course_key_string):
+        """
+        Start a new attempt (record attempt start).
+        """
+        try:
+            course_key = CourseKey.from_string(course_key_string)
+            
+            try:
+                evaluation = FinalEvaluation.objects.get(
+                    course_key=course_key,
+                    evaluation_type=FinalEvaluation.EVALUATION_TYPE_QUIZ,
+                    is_active=True
+                )
+            except (FinalEvaluation.DoesNotExist, RuntimeError, AttributeError):
+                return Response({
+                    'error': 'No quiz evaluation found for this course'
+                }, status=status.HTTP_404_NOT_FOUND)
+            
+            # Check existing attempts
+            user_attempts = QuizAttempt.objects.filter(
+                evaluation_id=evaluation.id,
+                learner_id=request.user.id
+            ).order_by('-attempt_number')
+            
+            completed_attempts = user_attempts.filter(is_completed=True).count()
+            max_attempts = evaluation.quiz_max_attempts or 0
+            
+            # Check if user has exceeded max attempts
+            if max_attempts > 0 and completed_attempts >= max_attempts:
+                return Response({
+                    'error': f'Maximum attempts ({max_attempts}) reached',
+                    'attempts_used': completed_attempts,
+                    'max_attempts': max_attempts,
+                    'can_start_new_attempt': False
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Check if there's already an incomplete attempt
+            current_attempt = user_attempts.filter(is_completed=False).first()
+            if current_attempt:
+                return Response({
+                    'error': 'You already have an attempt in progress',
+                    'current_attempt_id': current_attempt.id,
+                    'current_attempt_number': current_attempt.attempt_number,
+                    'can_start_new_attempt': False
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Create new attempt
+            attempt = QuizAttempt.objects.create(
+                evaluation_id=evaluation.id,
+                learner_id=request.user.id,
+                attempt_number=user_attempts.count() + 1,
+                is_completed=False,
+                started_at=datetime.now()
+            )
+            
+            logger.info(f"New quiz attempt started: {attempt.id} for user {request.user.username} in course {course_key}")
+            
+            return Response({
+                'success': True,
+                'attempt_id': attempt.id,
+                'attempt_number': attempt.attempt_number,
+                'started_at': attempt.started_at.isoformat(),
+                'attempts_used': completed_attempts,
+                'attempts_remaining': (max_attempts - completed_attempts) if max_attempts > 0 else None,
+                'max_attempts': max_attempts
+            })
+            
+        except Exception as e:
+            logger.error(f"Error starting new attempt for {course_key_string}: {e}")
+            return Response({
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 class FinalEvaluationResultView(APIView):
     """
     API view to get final evaluation quiz result.

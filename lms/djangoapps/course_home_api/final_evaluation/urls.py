@@ -8,6 +8,7 @@ from .views import (
     FinalEvaluationConfigView,
     FinalEvaluationQuizView,
     FinalEvaluationQuizSubmitView,
+    FinalEvaluationAttemptStatusView,
     FinalEvaluationResultView,
     FinalEvaluationProjectSubmitView
 )
@@ -34,6 +35,13 @@ urlpatterns = [
         fr'^{settings.COURSE_KEY_PATTERN}/quiz/submit$',
         FinalEvaluationQuizSubmitView.as_view(),
         name='quiz_submit'
+    ),
+    
+    # Get/manage attempt status
+    re_path(
+        fr'^{settings.COURSE_KEY_PATTERN}/attempt-status$',
+        FinalEvaluationAttemptStatusView.as_view(),
+        name='attempt_status'
     ),
     
     # Get final evaluation result
