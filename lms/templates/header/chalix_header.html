@@ -1,0 +1,230 @@
+<%page expression_filter="h" />
+<%namespace name='static' file='../static_content.html' />
+<%!
+from django.conf import settings
+from django.urls import reverse
+from django.utils.translation import gettext as _
+from urllib.parse import quote_plus
+from openedx.core.djangoapps.site_configuration import helpers as configuration_helpers
+%>
+
+<%
+  # Get user information
+  username = user.username if user and user.is_authenticated else None
+  user_name = user.get_full_name() if user and user.is_authenticated else None
+  display_name = user_name if user_name else username if username else 'User'
+  
+  # Get platform name
+  platform_name = configuration_helpers.get_value('PLATFORM_NAME', settings.PLATFORM_NAME)
+  site_name = configuration_helpers.get_value('SITE_NAME', settings.SITE_NAME)
+  
+  # Get URLs
+  lms_base_url = settings.LMS_ROOT_URL
+  account_profile_url = settings.ACCOUNT_MICROFRONTEND_URL if hasattr(settings, 'ACCOUNT_MICROFRONTEND_URL') else lms_base_url
+  dashboard_url = reverse('dashboard')
+  courses_url = reverse('courses')
+  logout_url = reverse('logout')
+  login_url = reverse('signin_user')
+  
+  # Organization info
+  org_name = configuration_helpers.get_value('ORG_NAME', 'PHẦN MỀM HỌC TẬP THÔNG MINH DÀNH CHO CÔNG CHỨC, VIÊN CHỨC')
+  org_department = configuration_helpers.get_value('ORG_DEPARTMENT', '')
+  org_label = configuration_helpers.get_value('ORG_LABEL', 'Cơ Quan 1')
+%>
+
+<!-- Chalix Header Module -->
+<div class="chalix-header-wrapper" id="chalix-header">
+  <header class="chalix-header" role="banner">
+    
+    <!-- Top Blue Header -->
+    <div class="chalix-header-top">
+      <div class="chalix-header-container">
+        <div class="chalix-header-title">
+          <h1 class="organization-title">${org_name}</h1>
+          % if org_department:
+            <h2 class="department-name">${org_department}</h2>
+          % endif
+        </div>
+        
+        % if user and user.is_authenticated:
+        <div class="chalix-header-user-section">
+          <span class="org-label">${org_label}</span>
+          <span class="user-name">${display_name}</span>
+          
+          <!-- User Avatar with Dropdown -->
+          <div class="user-avatar-wrapper">
+            <button class="user-avatar" 
+                    id="chalix-user-avatar" 
+                    aria-label="${_('User menu')}"
+                    aria-expanded="false"
+                    aria-haspopup="true">
+              % if user.profile and user.profile.profile_image_uploaded_at:
+                <img src="${user.profile.profile_image_url}" 
+                     alt="${display_name}" 
+                     class="user-avatar-img">
+              % else:
+                <svg width="30" height="30" viewBox="0 0 24 24" fill="white">
+                  <path d="M12 2C13.1 2 14 2.9 14 4C14 5.1 13.1 6 12 6C10.9 6 10 5.1 10 4C10 2.9 10.9 2 12 2ZM21 9V7L15 3.5L9 7V9C9 10.1 9.9 11 11 11V22H13V11C14.1 11 15 10.1 15 9Z"/>
+                </svg>
+              % endif
+            </button>
+            
+            <!-- User Dropdown Menu -->
+            <div class="chalix-user-dropdown-menu" id="chalix-user-dropdown" hidden>
+              <div class="dropdown-header">
+                <div class="dropdown-user-info">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                  </svg>
+                  <span class="dropdown-user-name">${display_name}</span>
+                </div>
+              </div>
+              <div class="dropdown-divider"></div>
+              
+              <a href="${courses_url}" class="dropdown-menu-item">
+                <span class="dropdown-item-label">${_("Khóa học")}</span>
+              </a>
+              <div class="dropdown-divider"></div>
+              
+              <a href="${account_profile_url}/u/${username}" class="dropdown-menu-item">
+                <span class="dropdown-item-label">${_("Cập nhật thông tin")}</span>
+              </a>
+              <div class="dropdown-divider"></div>
+              
+              <a href="/personalization" class="dropdown-menu-item">
+                <span class="dropdown-item-label">${_("Cá nhân hóa")}</span>
+              </a>
+              <div class="dropdown-divider"></div>
+              
+              <a href="${dashboard_url}?tab=requests" class="dropdown-menu-item">
+                <span class="dropdown-item-label">${_("Danh sách yêu cầu")}</span>
+              </a>
+              <div class="dropdown-divider"></div>
+              
+              <a href="${dashboard_url}?tab=progress" class="dropdown-menu-item">
+                <span class="dropdown-item-label">${_("Kết quả học tập")}</span>
+              </a>
+              <div class="dropdown-divider"></div>
+              
+              <a href="${dashboard_url}?tab=learning-plan" class="dropdown-menu-item">
+                <span class="dropdown-item-label">${_("Lập kế hoạch cá nhân")}</span>
+              </a>
+              <div class="dropdown-divider"></div>
+              
+              <a href="${dashboard_url}?tab=teaching" class="dropdown-menu-item">
+                <span class="dropdown-item-label">${_("Đăng ký giảng dạy")}</span>
+              </a>
+              <div class="dropdown-divider"></div>
+              
+              <a href="${reverse('help')}" class="dropdown-menu-item">
+                <span class="dropdown-item-label">${_("Trợ giúp")}</span>
+              </a>
+              <div class="dropdown-divider"></div>
+              
+              <a href="${logout_url}" class="dropdown-menu-item">
+                <span class="dropdown-item-label">${_("Đăng xuất")}</span>
+              </a>
+            </div>
+          </div>
+          
+          <!-- Notification Icon -->
+          <div class="notification-icon-wrapper">
+            <button class="notification-icon" 
+                    id="chalix-notification-icon"
+                    aria-label="${_('Notifications')}"
+                    aria-expanded="false"
+                    aria-haspopup="true">
+              <svg width="35" height="35" viewBox="0 0 24 24" fill="white">
+                <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>
+              </svg>
+              <span class="notification-badge" id="chalix-notification-count" hidden>0</span>
+            </button>
+            
+            <!-- Notification Dropdown -->
+            <div class="chalix-notification-dropdown" id="chalix-notification-dropdown" hidden>
+              <div class="notification-header">
+                <h3 class="notification-title">${_("THÔNG BÁO")}</h3>
+                <button class="mark-all-read-btn" 
+                        id="chalix-mark-all-read"
+                        type="button">
+                  ${_("Đánh dấu tất cả đã đọc")}
+                </button>
+              </div>
+              <div class="notification-divider"></div>
+              <div class="notification-list" id="chalix-notification-list">
+                <div class="no-notifications">
+                  <p>${_("Không có thông báo mới")}</p>
+                </div>
+              </div>
+              <div class="notification-footer">
+                <button class="view-all-btn" 
+                        onclick="window.location.href='${lms_base_url}/notifications'"
+                        type="button">
+                  ${_("Xem tất cả thông báo")}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        % endif
+      </div>
+    </div>
+    
+    <!-- Bottom Navigation -->
+    <div class="chalix-header-bottom">
+      <div class="chalix-header-container">
+        <nav class="chalix-nav" role="navigation" aria-label="${_('Main navigation')}">
+          <a href="${dashboard_url}" class="nav-item active">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+            </svg>
+            <span>${_("Trang chủ")}</span>
+          </a>
+          
+          <a href="${courses_url}" class="nav-item">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/>
+            </svg>
+            <span>${_("Danh mục")}</span>
+          </a>
+          
+          <a href="${dashboard_url}" class="nav-item">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 3L1 9l11 6 9-4.91V17h2V9L12 3zM5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82z"/>
+            </svg>
+            <span>${_("Học tập")}</span>
+          </a>
+          
+          % if user and user.is_authenticated:
+          <a href="/personalization" class="nav-item">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+            </svg>
+            <span>${_("Cá nhân hóa")}</span>
+          </a>
+          % endif
+        </nav>
+        
+        <!-- Search Bar -->
+        <form class="chalix-search-bar" method="get" action="${courses_url}">
+          <input type="text" 
+                 name="search_query"
+                 placeholder="${_('Nhập từ khóa tìm kiếm')}" 
+                 class="search-input"
+                 aria-label="${_('Search courses')}">
+          <button type="submit" class="search-button" aria-label="${_('Search')}">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+            </svg>
+          </button>
+        </form>
+      </div>
+    </div>
+  </header>
+</div>
+
+<%block name="chalix_header_js">
+  <script type="text/javascript">
+    // Chalix Header JavaScript will be loaded separately
+  </script>
+</%block>

@@ -1,0 +1,708 @@
+// Chalix Header Module Styles
+// This stylesheet provides the styling for the Chalix header component
+// that is used across both LMS and CMS
+
+// Color Variables
+$chalix-primary-blue: #3385ff;
+$chalix-dark-blue: #2563EB;
+$chalix-light-gray: #f5f5f5;
+$chalix-border-gray: #e0e0e0;
+$chalix-text-dark: #333;
+$chalix-text-light: #666;
+$chalix-white: #ffffff;
+$chalix-notification-red: #ff4444;
+$chalix-hover-blue: rgba(51, 133, 255, 0.1);
+
+// Spacing Variables
+$header-top-height: 80px;
+$header-bottom-height: 70px;
+$container-padding: 0 2rem;
+$dropdown-width: 280px;
+$notification-width: 380px;
+
+// Typography
+$font-family-base: 'Inter', 'Roboto', 'Open Sans', sans-serif;
+
+// Z-index
+$z-header: 1000;
+$z-dropdown: 1010;
+
+// Chalix Header Wrapper
+.chalix-header-wrapper {
+    width: 100%;
+    position: sticky;
+    top: 0;
+    z-index: $z-header;
+    background: $chalix-white;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+// Main Header Container
+.chalix-header {
+    font-family: $font-family-base;
+
+    // Common container styling
+    .chalix-header-container {
+        max-width: 1440px;
+        margin: 0 auto;
+        padding: $container-padding;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+}
+
+// Top Header (Blue Section)
+.chalix-header-top {
+    background: $chalix-primary-blue;
+    color: $chalix-white;
+    min-height: $header-top-height;
+    padding: 1rem 0;
+
+    .chalix-header-title {
+        flex: 1;
+
+        .organization-title {
+            margin: 0;
+            font-size: 1.25rem;
+            font-weight: 700;
+            line-height: 1.4;
+            text-transform: uppercase;
+            letter-spacing: 0.02em;
+        }
+
+        .department-name {
+            margin: 0.25rem 0 0;
+            font-size: 0.95rem;
+            font-weight: 500;
+            opacity: 0.95;
+        }
+    }
+
+    .chalix-header-user-section {
+        display: flex;
+        align-items: center;
+        gap: 1.5rem;
+
+        .org-label {
+            font-size: 0.95rem;
+            font-weight: 500;
+            padding: 0.5rem 1rem;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 4px;
+        }
+
+        .user-name {
+            font-size: 1rem;
+            font-weight: 500;
+        }
+    }
+}
+
+// User Avatar with Dropdown
+.user-avatar-wrapper {
+    position: relative;
+
+    .user-avatar {
+        width: 45px;
+        height: 45px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.2);
+        border: 2px solid $chalix-white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        padding: 0;
+
+        &:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(1.05);
+        }
+
+        &:focus {
+            outline: 2px solid $chalix-white;
+            outline-offset: 2px;
+        }
+
+        .user-avatar-img {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+
+        svg {
+            width: 24px;
+            height: 24px;
+        }
+    }
+}
+
+// User Dropdown Menu
+.chalix-user-dropdown-menu {
+    position: absolute;
+    top: calc(100% + 0.75rem);
+    right: 0;
+    width: $dropdown-width;
+    background: $chalix-white;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    z-index: $z-dropdown;
+    overflow: hidden;
+    animation: dropdown-fade-in 0.2s ease;
+
+    &[hidden] {
+        display: none;
+    }
+
+    .dropdown-header {
+        padding: 1rem 1.25rem;
+        background: $chalix-light-gray;
+
+        .dropdown-user-info {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+
+            svg {
+                width: 24px;
+                height: 24px;
+                color: $chalix-primary-blue;
+            }
+
+            .dropdown-user-name {
+                font-weight: 600;
+                color: $chalix-text-dark;
+                font-size: 1rem;
+            }
+        }
+    }
+
+    .dropdown-divider {
+        height: 1px;
+        background: $chalix-border-gray;
+        margin: 0;
+    }
+
+    .dropdown-menu-item {
+        display: block;
+        padding: 1rem 1.25rem;
+        color: $chalix-text-dark;
+        text-decoration: none;
+        transition: background 0.2s ease;
+        cursor: pointer;
+
+        &:hover {
+            background: $chalix-hover-blue;
+
+            .dropdown-item-label {
+                color: $chalix-primary-blue;
+            }
+        }
+
+        &:focus {
+            outline: 2px solid $chalix-primary-blue;
+            outline-offset: -2px;
+        }
+
+        .dropdown-item-label {
+            font-size: 0.95rem;
+            font-weight: 500;
+            transition: color 0.2s ease;
+        }
+    }
+}
+
+// Notification Icon
+.notification-icon-wrapper {
+    position: relative;
+
+    .notification-icon {
+        width: 45px;
+        height: 45px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.2);
+        border: 2px solid $chalix-white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        position: relative;
+        padding: 0;
+
+        &:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(1.05);
+        }
+
+        &:focus {
+            outline: 2px solid $chalix-white;
+            outline-offset: 2px;
+        }
+
+        svg {
+            width: 24px;
+            height: 24px;
+        }
+    }
+
+    .notification-badge {
+        position: absolute;
+        top: -4px;
+        right: -4px;
+        background: $chalix-notification-red;
+        color: $chalix-white;
+        border-radius: 10px;
+        padding: 0.125rem 0.4rem;
+        font-size: 0.7rem;
+        font-weight: 700;
+        min-width: 20px;
+        text-align: center;
+        line-height: 1.2;
+        border: 2px solid $chalix-primary-blue;
+
+        &[hidden] {
+            display: none;
+        }
+    }
+}
+
+// Notification Dropdown
+.chalix-notification-dropdown {
+    position: absolute;
+    top: calc(100% + 0.75rem);
+    right: 0;
+    width: $notification-width;
+    background: $chalix-white;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    z-index: $z-dropdown;
+    overflow: hidden;
+    animation: dropdown-fade-in 0.2s ease;
+    max-height: 500px;
+    display: flex;
+    flex-direction: column;
+
+    &[hidden] {
+        display: none;
+    }
+
+    .notification-header {
+        padding: 1rem 1.25rem;
+        background: $chalix-light-gray;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+
+        .notification-title {
+            margin: 0;
+            font-size: 1rem;
+            font-weight: 700;
+            color: $chalix-text-dark;
+        }
+
+        .mark-all-read-btn {
+            background: none;
+            border: none;
+            color: $chalix-primary-blue;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            transition: background 0.2s ease;
+
+            &:hover {
+                background: $chalix-hover-blue;
+            }
+
+            &:focus {
+                outline: 2px solid $chalix-primary-blue;
+                outline-offset: 2px;
+            }
+        }
+    }
+
+    .notification-divider {
+        height: 1px;
+        background: $chalix-border-gray;
+        margin: 0;
+    }
+
+    .notification-list {
+        overflow-y: auto;
+        max-height: 350px;
+
+        .no-notifications {
+            padding: 2rem 1.25rem;
+            text-align: center;
+            color: $chalix-text-light;
+
+            p {
+                margin: 0;
+                font-size: 0.95rem;
+            }
+        }
+
+        .notification-item {
+            padding: 1rem 1.25rem;
+            border-bottom: 1px solid $chalix-border-gray;
+            cursor: pointer;
+            transition: background 0.2s ease;
+
+            &:last-child {
+                border-bottom: none;
+            }
+
+            &:hover {
+                background: $chalix-hover-blue;
+            }
+
+            &.unread {
+                background: rgba(51, 133, 255, 0.05);
+                border-left: 3px solid $chalix-primary-blue;
+            }
+
+            .notification-content {
+                .notification-message {
+                    font-size: 0.9rem;
+                    color: $chalix-text-dark;
+                    margin-bottom: 0.25rem;
+                    font-weight: 500;
+                }
+
+                .notification-time {
+                    font-size: 0.8rem;
+                    color: $chalix-text-light;
+                }
+            }
+        }
+    }
+
+    .notification-footer {
+        padding: 0.75rem 1.25rem;
+        background: $chalix-light-gray;
+        border-top: 1px solid $chalix-border-gray;
+
+        .view-all-btn {
+            width: 100%;
+            padding: 0.75rem;
+            background: $chalix-primary-blue;
+            color: $chalix-white;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: background 0.2s ease;
+
+            &:hover {
+                background: $chalix-dark-blue;
+            }
+
+            &:focus {
+                outline: 2px solid $chalix-dark-blue;
+                outline-offset: 2px;
+            }
+        }
+    }
+}
+
+// Bottom Header (Navigation)
+.chalix-header-bottom {
+    background: $chalix-white;
+    border-top: 1px solid $chalix-border-gray;
+    min-height: $header-bottom-height;
+    padding: 0.75rem 0;
+
+    .chalix-header-container {
+        gap: 2rem;
+    }
+}
+
+// Navigation
+.chalix-nav {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex: 1;
+
+    .nav-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.5rem 1rem;
+        color: $chalix-text-dark;
+        text-decoration: none;
+        border-radius: 8px;
+        transition: all 0.2s ease;
+        cursor: pointer;
+        min-width: 90px;
+
+        svg {
+            width: 28px;
+            height: 28px;
+            color: $chalix-text-light;
+            transition: color 0.2s ease;
+        }
+
+        span {
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: color 0.2s ease;
+        }
+
+        &:hover {
+            background: $chalix-hover-blue;
+
+            svg,
+            span {
+                color: $chalix-primary-blue;
+            }
+        }
+
+        &:focus {
+            outline: 2px solid $chalix-primary-blue;
+            outline-offset: 2px;
+        }
+
+        &.active {
+            background: $chalix-primary-blue;
+
+            svg,
+            span {
+                color: $chalix-white;
+            }
+
+            &:hover {
+                background: $chalix-dark-blue;
+            }
+        }
+    }
+}
+
+// Search Bar
+.chalix-search-bar {
+    display: flex;
+    align-items: center;
+    background: $chalix-light-gray;
+    border-radius: 25px;
+    overflow: hidden;
+    width: 380px;
+    transition: box-shadow 0.2s ease;
+
+    &:focus-within {
+        box-shadow: 0 0 0 2px $chalix-primary-blue;
+    }
+
+    .search-input {
+        flex: 1;
+        padding: 0.75rem 1.25rem;
+        border: none;
+        background: transparent;
+        font-size: 0.95rem;
+        color: $chalix-text-dark;
+        outline: none;
+
+        &::placeholder {
+            color: $chalix-text-light;
+        }
+    }
+
+    .search-button {
+        padding: 0.5rem 1rem;
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.2s ease;
+
+        svg {
+            width: 22px;
+            height: 22px;
+            color: $chalix-text-light;
+            transition: color 0.2s ease;
+        }
+
+        &:hover {
+            background: rgba(51, 133, 255, 0.1);
+
+            svg {
+                color: $chalix-primary-blue;
+            }
+        }
+
+        &:focus {
+            outline: 2px solid $chalix-primary-blue;
+            outline-offset: -2px;
+        }
+    }
+}
+
+// Animations
+@keyframes dropdown-fade-in {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+// Responsive Design
+@media (max-width: 1200px) {
+    .chalix-header-container {
+        padding: 0 1.5rem;
+    }
+
+    .chalix-search-bar {
+        width: 300px;
+    }
+}
+
+@media (max-width: 992px) {
+    .chalix-header-top {
+        min-height: auto;
+
+        .chalix-header-title {
+            .organization-title {
+                font-size: 1.1rem;
+            }
+
+            .department-name {
+                font-size: 0.85rem;
+            }
+        }
+
+        .chalix-header-user-section {
+            gap: 1rem;
+
+            .org-label {
+                display: none;
+            }
+        }
+    }
+
+    .chalix-nav {
+        gap: 0.25rem;
+
+        .nav-item {
+            min-width: 75px;
+            padding: 0.5rem 0.75rem;
+
+            svg {
+                width: 24px;
+                height: 24px;
+            }
+
+            span {
+                font-size: 0.8rem;
+            }
+        }
+    }
+
+    .chalix-search-bar {
+        width: 250px;
+    }
+}
+
+@media (max-width: 768px) {
+    .chalix-header-container {
+        padding: 0 1rem;
+    }
+
+    .chalix-header-top {
+        .chalix-header-container {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 1rem;
+        }
+
+        .chalix-header-user-section {
+            width: 100%;
+            justify-content: space-between;
+
+            .user-name {
+                font-size: 0.9rem;
+            }
+        }
+    }
+
+    .chalix-header-bottom {
+        .chalix-header-container {
+            flex-direction: column;
+            gap: 1rem;
+        }
+    }
+
+    .chalix-nav {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .chalix-search-bar {
+        width: 100%;
+    }
+
+    .chalix-user-dropdown-menu,
+    .chalix-notification-dropdown {
+        right: -1rem;
+        width: calc(100vw - 2rem);
+        max-width: $dropdown-width;
+    }
+}
+
+@media (max-width: 576px) {
+    .chalix-header-top {
+        .chalix-header-title {
+            .organization-title {
+                font-size: 0.95rem;
+            }
+
+            .department-name {
+                font-size: 0.75rem;
+            }
+        }
+    }
+
+    .chalix-nav {
+        flex-wrap: wrap;
+
+        .nav-item {
+            min-width: calc(50% - 0.25rem);
+
+            span {
+                font-size: 0.75rem;
+            }
+        }
+    }
+
+    .user-avatar-wrapper .user-avatar,
+    .notification-icon-wrapper .notification-icon {
+        width: 40px;
+        height: 40px;
+    }
+}
+
+// Print Styles
+@media print {
+    .chalix-header-wrapper {
+        position: static;
+        box-shadow: none;
+    }
+
+    .chalix-header-user-section,
+    .notification-icon-wrapper,
+    .chalix-search-bar {
+        display: none !important;
+    }
+}

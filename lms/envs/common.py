@@ -3142,6 +3142,9 @@ INSTALLED_APPS = [
     # Chalix user menu
     'lms.djangoapps.chalix_user_menu',
 
+    # Personalization Dashboard
+    'lms.djangoapps.personalization',
+
     # New (Learning-Core-based) XBlock runtime
     'openedx.core.djangoapps.xblock.apps.LmsXBlockAppConfig',
 

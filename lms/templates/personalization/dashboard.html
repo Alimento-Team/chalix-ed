@@ -1,0 +1,269 @@
+<%page expression_filter="h"/>
+<%namespace name='static' file='/static_content.html'/>
+<%!
+from django.utils.translation import gettext as _
+from django.urls import reverse
+from django.conf import settings
+%>
+
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${_("Cá Nhân Hóa")} - ${settings.PLATFORM_NAME}</title>
+    
+    <%static:css group='style-personalization'/>
+    <link rel="stylesheet" href="${static.url('css/personalization_dashboard.css')}">
+</head>
+<body class="personalization-page">
+    
+    <!-- Include main header -->
+    <%include file="../header/chalix_header.html" />
+    
+    <div class="personalization-container">
+        <!-- Top Blue Header -->
+        <header class="personalization-header">
+            <h1 class="page-title">${_("Cá Nhân Hóa")}</h1>
+        </header>
+        
+        <!-- Main Content Area -->
+        <div class="personalization-content">
+            
+            <!-- Tab Navigation -->
+            <nav class="personalization-tabs">
+                <button class="tab-button active" data-tab="overview">${_("Tổng Quan")}</button>
+                <button class="tab-button" data-tab="detail">${_("Chi Tiết Khóa Học")}</button>
+                <button class="tab-button" data-tab="assessment">${_("Nhận Diện Cảm Xúc")}</button>
+            </nav>
+            
+            <!-- Tab Content -->
+            <div class="tab-content-wrapper">
+                
+                <!-- Overview Tab (Tổng Quan) -->
+                <div class="tab-content active" id="tab-overview">
+                    <div class="overview-section">
+                        
+                        <!-- Learning Statistics Summary -->
+                        <div class="stats-summary-card">
+                            <h2 class="section-title">${_("QUÁ TRÌNH HỌC TẬP")}</h2>
+                            
+                            <div class="stats-grid">
+                                <div class="stat-item">
+                                    <span class="stat-label">${_("Số khóa học đã tham gia:")}</span>
+                                    <span class="stat-value">${yearly_stats.total_courses_assigned} ${_("khóa")}</span>
+                                </div>
+                                
+                                <div class="stat-item">
+                                    <span class="stat-label">${_("Số bài kiểm tra đã hoàn thành:")}</span>
+                                    <span class="stat-value">${yearly_stats.total_certificates_earned} ${_("chứng chỉ")}</span>
+                                </div>
+                                
+                                <div class="stat-item">
+                                    <span class="stat-label">${_("Số khóa học đã hoàn thành:")}</span>
+                                    <span class="stat-value">${yearly_stats.total_courses_completed} ${_("khóa")}</span>
+                                </div>
+                                
+                                <div class="stat-item">
+                                    <span class="stat-label">${_("Số chứng chỉ đã hoàn thành:")}</span>
+                                    <span class="stat-value">${yearly_stats.total_certificates_earned} ${_("chứng chỉ")}</span>
+                                </div>
+                                
+                                <div class="stat-item">
+                                    <span class="stat-label">${_("Thời gian trung bình hoàn thành khóa học:")}</span>
+                                    <span class="stat-value">${yearly_stats.average_time_per_course:.0f}h/${_("khóa")}</span>
+                                </div>
+                            </div>
+                            
+                            <!-- Year Selector -->
+                            <div class="year-selector">
+                                <label for="year-filter">${_("Lọc theo trạng thái")}</label>
+                                <select id="year-filter" class="form-select">
+                                    <option value="all">${_("Tất cả")}</option>
+                                </select>
+                                
+                                <label for="year-select" class="ml-4">${_("Lọc theo năm")}</label>
+                                <select id="year-select" class="form-select">
+                                    <option value="${year}" selected>${_("Năm")} ${year}</option>
+                                </select>
+                            </div>
+                            
+                            <!-- Course Progress Table -->
+                            <div class="course-table-section">
+                                <h3 class="table-title">${_("THỐNG KÊ SỐ GIỜ HỌC CÁ NHÂN NĂM")} ${year}</h3>
+                                
+                                <table class="course-progress-table">
+                                    <thead>
+                                        <tr>
+                                            <th>ID</th>
+                                            <th>${_("Họ và tên")}</th>
+                                            <th>${_("Số tiết")}</th>
+                                            <th>${_("Trạng thái")}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        % for idx, course in enumerate(active_courses, 1):
+                                        <tr>
+                                            <td>${idx}</td>
+                                            <td>
+                                                <% 
+                                                    from xmodule.modulestore.django import modulestore
+                                                    try:
+                                                        course_obj = modulestore().get_course(course.course_id)
+                                                        course_name = course_obj.display_name if course_obj else str(course.course_id)
+                                                    except:
+                                                        course_name = str(course.course_id)
+                                                %>
+                                                ${course_name}
+                                            </td>
+                                            <td>${course.get_lesson_progress_ratio()}</td>
+                                            <td>
+                                                <span class="status-badge status-${course.status}">
+                                                    % if course.status == 'completed':
+                                                        ${_("Hoàn thành")}
+                                                    % elif course.status == 'in_progress':
+                                                        ${_("Đang học")}
+                                                    % else:
+                                                        ${_("Chưa bắt đầu")}
+                                                    % endif
+                                                </span>
+                                            </td>
+                                        </tr>
+                                        % endfor
+                                        
+                                        % if not active_courses:
+                                        <tr>
+                                            <td colspan="4" class="text-center empty-state">
+                                                ${_("Chưa có khóa học nào")}
+                                            </td>
+                                        </tr>
+                                        % endif
+                                    </tbody>
+                                </table>
+                                
+                                <!-- Completion Rate -->
+                                <div class="completion-rate-section">
+                                    <p class="completion-note">
+                                        <em>${_("Ghi chú: Số tiết 4/4 tương ứng số giờ đã học/tổng số giờ phải học")}</em>
+                                    </p>
+                                    <p class="completion-rate">
+                                        <strong>${_("Tỷ lệ hoàn thành trong năm:")} ${yearly_stats.overall_completion_rate:.0f}%</strong>
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                    </div>
+                </div>
+                
+                <!-- Detail Tab (Chi Tiết Khóa Học) -->
+                <div class="tab-content" id="tab-detail">
+                    <div class="detail-section">
+                        <h2 class="section-title">${_("Chi Tiết Khóa Học")}</h2>
+                        
+                        <!-- Detailed course list will be loaded here via JavaScript -->
+                        <div id="course-detail-list" class="course-detail-list">
+                            <p>${_("Đang tải dữ liệu...")}</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Assessment Tab (Nhận Diện Cảm Xúc) -->
+                <div class="tab-content" id="tab-assessment">
+                    <div class="assessment-section">
+                        <h2 class="section-title">${_("Nhận Diện Cảm Xúc")}</h2>
+                        <p class="coming-soon">${_("Tính năng đang được phát triển...")}</p>
+                    </div>
+                </div>
+                
+            </div>
+            
+            <!-- Sidebar: Current and Completed Courses -->
+            <aside class="personalization-sidebar">
+                
+                <!-- Currently Active Courses -->
+                <div class="sidebar-section">
+                    <h3 class="sidebar-title">${_("Khóa học đang thực hiện")}</h3>
+                    
+                    <div class="course-list">
+                        % for course in active_courses[:5]:
+                        <div class="course-card">
+                            <div class="course-icon">
+                                <img src="${static.url('images/course-icon.png')}" alt="${_("Khóa học")}">
+                            </div>
+                            <div class="course-info">
+                                <% 
+                                    from xmodule.modulestore.django import modulestore
+                                    try:
+                                        course_obj = modulestore().get_course(course.course_id)
+                                        course_name = course_obj.display_name if course_obj else _("Khóa học An toàn")
+                                    except:
+                                        course_name = _("Khóa học An toàn")
+                                %>
+                                <h4 class="course-name">${course_name}</h4>
+                                <div class="progress-bar-container">
+                                    <div class="progress-bar" style="width: ${course.completion_percentage}%"></div>
+                                </div>
+                            </div>
+                        </div>
+                        % endfor
+                        
+                        % if not active_courses:
+                        <p class="empty-state">${_("Chưa có khóa học đang thực hiện")}</p>
+                        % endif
+                    </div>
+                </div>
+                
+                <!-- Completed Courses -->
+                <div class="sidebar-section">
+                    <h3 class="sidebar-title">${_("Khóa học đã hoàn thành")}</h3>
+                    
+                    <div class="course-list">
+                        % for course in completed_courses[:5]:
+                        <div class="course-card completed">
+                            <div class="course-icon">
+                                <img src="${static.url('images/course-icon.png')}" alt="${_("Khóa học")}">
+                            </div>
+                            <div class="course-info">
+                                <% 
+                                    from xmodule.modulestore.django import modulestore
+                                    try:
+                                        course_obj = modulestore().get_course(course.course_id)
+                                        course_name = course_obj.display_name if course_obj else _("Khóa học An toàn")
+                                    except:
+                                        course_name = _("Khóa học An toàn")
+                                %>
+                                <h4 class="course-name">${course_name}</h4>
+                                <div class="progress-bar-container">
+                                    <div class="progress-bar complete" style="width: 100%"></div>
+                                </div>
+                            </div>
+                        </div>
+                        % endfor
+                        
+                        % if not completed_courses:
+                        <p class="empty-state">${_("Chưa hoàn thành khóa học nào")}</p>
+                        % endif
+                    </div>
+                </div>
+                
+                <!-- Suggested Courses -->
+                <div class="sidebar-section">
+                    <h3 class="sidebar-title">${_("Gợi ý khóa học")}</h3>
+                    <p class="empty-state">${_("Sẽ được cập nhật sau")}</p>
+                </div>
+                
+            </aside>
+            
+        </div>
+    </div>
+    
+    <!-- Include footer -->
+    <%include file="../footer.html" />
+    
+    <!-- JavaScript -->
+    <%static:js group='personalization'/>
+    <script src="${static.url('js/personalization_dashboard.js')}"></script>
+    
+</body>
+</html>
