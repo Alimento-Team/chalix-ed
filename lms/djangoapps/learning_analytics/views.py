@@ -521,3 +521,124 @@ class LearningAnalyticsDashboardAPIView(APIView):
         }
 
         return Response(dashboard_data)
+
+
+class LearningHoursCoursesAPIView(APIView):
+    """
+    API view to get learning hours data for all user's courses.
+    Returns course list with hours completed and status.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        year = int(request.query_params.get('year', timezone.now().year))
+
+        # Get all active enrollments
+        enrollments = CourseEnrollment.objects.filter(user=user, is_active=True)
+        
+        courses_data = []
+        for enrollment in enrollments:
+            try:
+                course_overview = CourseOverview.objects.get(id=enrollment.course_id)
+                
+                # Get course grade for progress percentage
+                course_grade = CourseGradeFactory().read(user, course_key=enrollment.course_id)
+                progress_percentage = round(course_grade.percent * 100, 1) if course_grade else 0
+                
+                # Check certificate status
+                certificate = GeneratedCertificate.objects.filter(
+                    user=user,
+                    course_id=enrollment.course_id,
+                    status='downloadable'
+                ).first()
+                
+                # Get course progress
+                try:
+                    progress = StudentCourseProgress.objects.get(
+                        user=user,
+                        course_id=str(enrollment.course_id)
+                    )
+                    hours_completed = progress.credit_hours_earned
+                    course_status = progress.status
+                except StudentCourseProgress.DoesNotExist:
+                    hours_completed = 0
+                    # Determine status based on certificate and progress
+                    if certificate:
+                        course_status = 'completed'
+                    elif progress_percentage > 0:
+                        course_status = 'in_progress'
+                    else:
+                        course_status = 'not_started'
+                
+                # Get course credit hours
+                try:
+                    course_id_str = str(enrollment.course_id)
+                    credit_hours = CourseCreditHours.objects.get(course_id=course_id_str)
+                    total_hours = credit_hours.credit_hours
+                    print(f"DEBUG: Found credit hours for {course_id_str}: {total_hours}")
+                except CourseCreditHours.DoesNotExist:
+                    # Try to get estimated_hours from course block
+                    try:
+                        from xmodule.modulestore.django import modulestore
+                        store = modulestore()
+                        course_block = store.get_course(enrollment.course_id)
+                        if course_block and hasattr(course_block, 'estimated_hours') and course_block.estimated_hours:
+                            total_hours = float(course_block.estimated_hours)
+                            print(f"DEBUG: Using estimated_hours from course block for {course_id_str}: {total_hours}")
+                        else:
+                            # Try effort field as fallback
+                            if hasattr(course_overview, 'effort') and course_overview.effort:
+                                import re
+                                effort_str = str(course_overview.effort).lower()
+                                hours_match = re.search(r'(\d+)', effort_str)
+                                if hours_match:
+                                    total_hours = float(hours_match.group(1))
+                                    print(f"DEBUG: Using effort field for {course_id_str}: {total_hours}")
+                                else:
+                                    total_hours = None
+                                    print(f"DEBUG: No hours configured for {course_id_str}")
+                            else:
+                                total_hours = None
+                                print(f"DEBUG: No hours configured for {course_id_str}")
+                    except Exception as e:
+                        print(f"DEBUG: Error fetching course block for {course_id_str}: {e}")
+                        total_hours = None
+                
+                # Status text for display
+                status_text = 'Hoàn thành' if course_status == 'completed' else 'Đang học'
+                
+                courses_data.append({
+                    'id': str(enrollment.course_id),
+                    'course_id': str(enrollment.course_id),
+                    'course_name': course_overview.display_name,
+                    'name': course_overview.display_name,
+                    'hours': hours_completed,
+                    'total': total_hours,
+                    'status': course_status,  # 'in_progress', 'completed', 'not_started'
+                    'status_text': status_text,
+                    'progress_percentage': progress_percentage,
+                    'course_image_url': course_overview.course_image_url if hasattr(course_overview, 'course_image_url') else None,
+                })
+            except CourseOverview.DoesNotExist:
+                continue
+
+        # Calculate tests completed using StudentModule grades (safe and consistent)
+        tests_completed = StudentModule.objects.filter(
+            student=user,
+            grade__isnull=False,
+            grade__gt=0
+        ).count()
+
+        # Calculate certificates earned (use module-level import)
+        certificates_earned = GeneratedCertificate.objects.filter(
+            user=user,
+            status='downloadable'
+        ).count()
+
+        return Response({
+            'courses': courses_data,
+            'tests_completed': tests_completed,
+            'certificates_earned': certificates_earned,
+            'year': year
+        })

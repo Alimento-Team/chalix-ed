@@ -11,6 +11,7 @@ from .views import (
     CourseCreditHoursAPIView,
     StudentProgressUpdateAPIView,
     LearningAnalyticsDashboardAPIView,
+    LearningHoursCoursesAPIView,
 )
 
 app_name = 'learning_analytics'
@@ -33,4 +34,7 @@ urlpatterns = [
 
     # Comprehensive dashboard
     path('dashboard/', LearningAnalyticsDashboardAPIView.as_view(), name='learning_analytics_dashboard'),
+    
+    # Learning hours courses list
+    path('courses/', LearningHoursCoursesAPIView.as_view(), name='learning_hours_courses'),
 ]
