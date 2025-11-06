@@ -563,6 +563,19 @@ def list_users(request):
                     role_display = r.get_role_display()
                 except Exception:
                     role_display = getattr(r, 'role', None)
+            
+            # Get meta data from profile
+            meta_data = {}
+            gender_display = None
+            if profile:
+                try:
+                    meta_data = profile.get_meta() if hasattr(profile, 'get_meta') else {}
+                except Exception:
+                    meta_data = {}
+                
+                # Get gender display
+                if profile.gender:
+                    gender_display = profile.gender
 
             users_data.append({
                 'id': u.id,
@@ -571,7 +584,10 @@ def list_users(request):
                 'phone': phone,
                 'email': u.email,
                 'organization': org_display,
-                'role': role_display
+                'role': role_display,
+                'gender': gender_display,
+                'meta': meta_data,
+                'user_role': role_display  # Include role for the last column
             })
 
         return Response({

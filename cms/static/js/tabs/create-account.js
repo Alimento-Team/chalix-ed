@@ -30,14 +30,14 @@
             }
 
             /* Users table styling */
-            #users-table-wrap { background: #fff; border: 1px solid #e6eef6; border-radius: 12px; padding: 18px; }
-            #users-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-family: 'Inter', sans-serif; font-size: 14px; }
-            #users-table thead th { padding: 18px 16px; font-weight:600; color:#374151; border-bottom: none; text-align: center; }
-            #users-table tbody td { padding: 18px 16px; color:#374151; vertical-align: middle; text-align: center; }
+            #users-table-wrap { background: #fff; border: 1px solid #e6eef6; border-radius: 12px; padding: 18px; overflow-x: auto; }
+            #users-table { width: 100%; min-width: 2500px; border-collapse: collapse; table-layout: auto; font-family: 'Inter', sans-serif; font-size: 14px; }
+            #users-table thead th { padding: 18px 16px; font-weight:600; color:#374151; border-bottom: none; text-align: center; white-space: nowrap; }
+            #users-table tbody td { padding: 18px 16px; color:#374151; vertical-align: middle; text-align: center; white-space: nowrap; }
             #users-table tbody tr { border-bottom: 1px solid #eef6fb; }
             #users-table tbody tr:last-child { border-bottom: none; }
-            /* Make first column a bit narrower */
-            #users-table thead th:nth-child(1), #users-table tbody td:nth-child(1) { width:72px; }
+            /* Make ID column narrower */
+            #users-table thead th:nth-child(1), #users-table tbody td:nth-child(1) { width:60px; }
             /* Responsive adjustments */
             @media (max-width:900px){
                 #users-table thead th, #users-table tbody td { padding:12px 8px; font-size:13px; }
@@ -186,13 +186,34 @@
                                         <th>ID</th>
                                         <th>Username</th>
                                         <th>Họ và tên</th>
-                                        <th>Số điện thoại</th>
+                                        <th>Ngày sinh</th>
+                                        <th>Giới tính</th>
+                                        <th>Điện thoại</th>
                                         <th>Email</th>
-                                        <th>Cơ quan</th>
+                                        <th>CCCD</th>
+                                        <th>Ngày cấp CCCD</th>
+                                        <th>Đơn vị công tác</th>
+                                        <th>Quê quán</th>
+                                        <th>Dân tộc</th>
+                                        <th>Ghi chú</th>
+                                        <th>Ảnh avatar</th>
+                                        <th>Vị trí việc làm</th>
+                                        <th>Chức vụ</th>
+                                        <th>Người nhận bằng</th>
+                                        <th>Số chứng chỉ</th>
+                                        <th>Tên khóa học</th>
+                                        <th>Thời gian học</th>
+                                        <th>Năm tốt nghiệp</th>
+                                        <th>Số tiết quy đổi</th>
+                                        <th>Loại hình đào tạo</th>
+                                        <th>Nơi sinh</th>
+                                        <th>Địa chỉ</th>
+                                        <th>Số năm công tác</th>
+                                        <th>Vai trò người dùng hệ thống</th>
                                     </tr>
                                 </thead>
                                 <tbody id="users-table-body">
-                                    <tr><td colspan="6" style="padding:18px; color:#667085; text-align:center;">Đang tải...</td></tr>
+                                    <tr><td colspan="27" style="padding:18px; color:#667085; text-align:center;">Đang tải...</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -592,7 +613,7 @@
         async function loadUsers(page = 1, per_page = 50, q = '') {
             const tbody = document.getElementById('users-table-body');
             if (!tbody) return;
-            tbody.innerHTML = '<tr><td colspan="6" style="padding:12px; color:#667085;">Đang tải...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="27" style="padding:12px; color:#667085;">Đang tải...</td></tr>';
 
             try {
                 const params = new URLSearchParams();
@@ -608,12 +629,12 @@
                 });
 
                 if (resp.status === 403) {
-                    tbody.innerHTML = '<tr><td colspan="6" style="padding:12px; color:#c53030;">Bạn không có quyền xem danh sách tài khoản.</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="27" style="padding:12px; color:#c53030;">Bạn không có quyền xem danh sách tài khoản.</td></tr>';
                     return;
                 }
 
                 if (!resp.ok) {
-                    tbody.innerHTML = `<tr><td colspan="6" style="padding:12px; color:#667085;">Lỗi khi tải danh sách (status ${resp.status})</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="27" style="padding:12px; color:#667085;">Lỗi khi tải danh sách (status ${resp.status})</td></tr>`;
                     return;
                 }
 
@@ -623,20 +644,44 @@
                 usersState = { page: page, per_page: per_page, total: total, q: q };
 
                 if (!users || users.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="6" style="padding:12px; color:#667085;">Không tìm thấy tài khoản nào.</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="27" style="padding:12px; color:#667085;">Không tìm thấy tài khoản nào.</td></tr>';
                     return;
                 }
 
                 tbody.innerHTML = '';
                 users.forEach(u => {
+                    // Extract meta data if available
+                    const meta = u.meta || {};
+                    
                     const tr = document.createElement('tr');
                     tr.innerHTML = `
                         <td style="padding:8px 12px; border-bottom:1px solid #f1f7fb; vertical-align:top;">${u.id}</td>
                         <td style="padding:8px 12px; border-bottom:1px solid #f1f7fb; vertical-align:top;">${escapeHtml(u.username || '')}</td>
                         <td style="padding:8px 12px; border-bottom:1px solid #f1f7fb; vertical-align:top;">${escapeHtml(u.full_name || '')}</td>
+                        <td style="padding:8px 12px; border-bottom:1px solid #f1f7fb; vertical-align:top;">${escapeHtml(meta.ngay_sinh || '')}</td>
+                        <td style="padding:8px 12px; border-bottom:1px solid #f1f7fb; vertical-align:top;">${escapeHtml(u.gender || '')}</td>
                         <td style="padding:8px 12px; border-bottom:1px solid #f1f7fb; vertical-align:top;">${escapeHtml(u.phone || '')}</td>
                         <td style="padding:8px 12px; border-bottom:1px solid #f1f7fb; vertical-align:top;">${escapeHtml(u.email || '')}</td>
-                        <td style="padding:8px 12px; border-bottom:1px solid #f1f7fb; vertical-align:top;">${escapeHtml(u.organization || '')}</td>
+                        <td style="padding:8px 12px; border-bottom:1px solid #f1f7fb; vertical-align:top;">${escapeHtml(meta.cccd || '')}</td>
+                        <td style="padding:8px 12px; border-bottom:1px solid #f1f7fb; vertical-align:top;">${escapeHtml(meta.ngay_cap_cccd || '')}</td>
+                        <td style="padding:8px 12px; border-bottom:1px solid #f1f7fb; vertical-align:top;">${escapeHtml(meta.don_vi_cong_tac || u.organization || '')}</td>
+                        <td style="padding:8px 12px; border-bottom:1px solid #f1f7fb; vertical-align:top;">${escapeHtml(meta.que_quan || '')}</td>
+                        <td style="padding:8px 12px; border-bottom:1px solid #f1f7fb; vertical-align:top;">${escapeHtml(meta.dan_toc || '')}</td>
+                        <td style="padding:8px 12px; border-bottom:1px solid #f1f7fb; vertical-align:top;">${escapeHtml(meta.ghi_chu || '')}</td>
+                        <td style="padding:8px 12px; border-bottom:1px solid #f1f7fb; vertical-align:top;">${escapeHtml(meta.avatar_url || '')}</td>
+                        <td style="padding:8px 12px; border-bottom:1px solid #f1f7fb; vertical-align:top;">${escapeHtml(meta.vi_tri_viec_lam || '')}</td>
+                        <td style="padding:8px 12px; border-bottom:1px solid #f1f7fb; vertical-align:top;">${escapeHtml(meta.chuc_vu || '')}</td>
+                        <td style="padding:8px 12px; border-bottom:1px solid #f1f7fb; vertical-align:top;">${escapeHtml(meta.nguoi_nhan_bang || '')}</td>
+                        <td style="padding:8px 12px; border-bottom:1px solid #f1f7fb; vertical-align:top;">${escapeHtml(meta.so_chung_chi || '')}</td>
+                        <td style="padding:8px 12px; border-bottom:1px solid #f1f7fb; vertical-align:top;">${escapeHtml(meta.ten_khoa_hoc || '')}</td>
+                        <td style="padding:8px 12px; border-bottom:1px solid #f1f7fb; vertical-align:top;">${escapeHtml(meta.thoi_gian_hoc || '')}</td>
+                        <td style="padding:8px 12px; border-bottom:1px solid #f1f7fb; vertical-align:top;">${escapeHtml(meta.nam_tot_nghiep || '')}</td>
+                        <td style="padding:8px 12px; border-bottom:1px solid #f1f7fb; vertical-align:top;">${escapeHtml(meta.so_tiet_quy_doi || '')}</td>
+                        <td style="padding:8px 12px; border-bottom:1px solid #f1f7fb; vertical-align:top;">${escapeHtml(meta.loai_hinh_dao_tao || '')}</td>
+                        <td style="padding:8px 12px; border-bottom:1px solid #f1f7fb; vertical-align:top;">${escapeHtml(meta.noi_sinh || '')}</td>
+                        <td style="padding:8px 12px; border-bottom:1px solid #f1f7fb; vertical-align:top;">${escapeHtml(meta.dia_chi || '')}</td>
+                        <td style="padding:8px 12px; border-bottom:1px solid #f1f7fb; vertical-align:top;">${escapeHtml(meta.so_nam_cong_tac || '')}</td>
+                        <td style="padding:8px 12px; border-bottom:1px solid #f1f7fb; vertical-align:top;">${escapeHtml(u.user_role || '')}</td>
                     `;
                     tbody.appendChild(tr);
                 });
@@ -647,7 +692,7 @@
             } catch (e) {
                 console.error('Error loading users:', e);
                 const tbodyEl = document.getElementById('users-table-body');
-                if (tbodyEl) tbodyEl.innerHTML = '<tr><td colspan="6" style="padding:12px; color:#667085;">Lỗi kết nối. Vui lòng thử lại.</td></tr>';
+                if (tbodyEl) tbodyEl.innerHTML = '<tr><td colspan="27" style="padding:12px; color:#667085;">Lỗi kết nối. Vui lòng thử lại.</td></tr>';
             }
         }
 

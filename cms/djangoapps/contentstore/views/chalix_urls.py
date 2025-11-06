@@ -172,4 +172,11 @@ urlpatterns = [
         chalix_dashboard.preview_evaluation_quiz_api,
         name='chalix_preview_evaluation_quiz'
     ),
+    
+    # Course metadata management
+    path(
+        'dashboard/update-course-metadata/',
+        chalix_dashboard.update_course_metadata_api,
+        name='chalix_update_course_metadata'
+    ),
 ]

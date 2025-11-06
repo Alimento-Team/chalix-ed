@@ -734,6 +734,73 @@ class ChalixUserRole(models.Model):
             return []
 
 
+class ChalixCourseMetadata(models.Model):
+    """
+    Chalix-specific course metadata for managing course visibility and access control.
+    Tracks who created the course and applies visibility rules based on creator's role.
+    """
+    course_id = CourseKeyField(max_length=255, db_index=True, unique=True)
+    
+    # Creator information
+    creator = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='created_courses',
+        help_text=_("User who created this course")
+    )
+    creator_role = models.CharField(
+        max_length=20,
+        null=True,
+        blank=True,
+        choices=ChalixUserRole.ROLE_CHOICES,
+        help_text=_("Role of the creator at the time of course creation")
+    )
+    creator_organization = models.ForeignKey(
+        ChalixOrganization,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='courses',
+        help_text=_("Organization of the creator at the time of course creation")
+    )
+    
+    # Visibility settings
+    is_public = models.BooleanField(
+        default=False,
+        help_text=_("If True, all learners can see this course. If False, only learners from the same organization can see it.")
+    )
+    
+    # Course flags
+    is_mandatory_course = models.BooleanField(
+        default=False,
+        verbose_name=_("Khóa học bắt buộc"),
+        help_text=_("Indicates whether this course is mandatory for learners")
+    )
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Chalix Course Metadata"
+        verbose_name_plural = "Chalix Course Metadata"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.course_id} - {'Public' if self.is_public else 'Organization Only'}"
+
+    @property
+    def visibility_description(self):
+        """Human-readable description of course visibility"""
+        if self.is_public:
+            return "Công khai - Tất cả học viên có thể truy cập"
+        elif self.creator_organization:
+            return f"Riêng tư - Chỉ học viên thuộc {self.creator_organization.display_name}"
+        else:
+            return "Riêng tư - Không có tổ chức"
+
+
 class UnitMediaFile(models.Model):
     """
     Model for storing media files (videos and slides) attached to specific course units.

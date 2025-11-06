@@ -597,6 +597,31 @@ def create_course_api(request):
         course_key = new_course.id
         logger.info(f"[CHALIX] Created OpenEDX course with key: {course_key}")
         
+        # Create Chalix course metadata for visibility and access control
+        from cms.djangoapps.contentstore.models import ChalixCourseMetadata
+        from cms.djangoapps.contentstore.chalix_roles import get_user_primary_role
+        
+        primary_role = get_user_primary_role(request.user)
+        is_public_course = False
+        creator_role = None
+        creator_org = None
+        
+        if primary_role:
+            creator_role = primary_role.role
+            creator_org = primary_role.organization
+            # Courses created by 'bo' (ministry level) are public
+            is_public_course = (creator_role == 'bo')
+        
+        ChalixCourseMetadata.objects.create(
+            course_id=course_key,
+            creator=request.user,
+            creator_role=creator_role,
+            creator_organization=creator_org,
+            is_public=is_public_course,
+            is_mandatory_course=False  # Default to non-mandatory
+        )
+        logger.info(f"[CHALIX] Created course metadata - Public: {is_public_course}, Role: {creator_role}, Org: {creator_org}")
+        
         # Create course structure based on program topics if template provided
         units_created = 0
         if template_program and program_topics:
@@ -2638,3 +2663,80 @@ def import_users_from_excel_api(request):
             'success': False,
             'error': f'Có lỗi xảy ra khi import người dùng: {str(e)}'
         }, status=500)
+
+
+@login_required
+@require_POST
+@csrf_exempt
+def update_course_metadata_api(request):
+    """
+    Update course metadata flags (is_mandatory_course, is_public).
+    Only instructors (co_quan, giang_vien) can update course metadata.
+    
+    Expects JSON: {
+        "course_id": "course-v1:org+course+run",
+        "is_mandatory_course": true/false,  # optional
+        "is_public": true/false  # optional
+    }
+    
+    Returns JSON with updated metadata.
+    """
+    from cms.djangoapps.contentstore.models import ChalixCourseMetadata
+    from cms.djangoapps.contentstore.chalix_roles import can_edit_course
+    from opaque_keys.edx.keys import CourseKey
+    
+    try:
+        data = json.loads(request.body.decode('utf-8'))
+    except Exception:
+        return JsonResponse({'error': 'Dữ liệu không hợp lệ.'}, status=400)
+    
+    course_id_str = data.get('course_id')
+    if not course_id_str:
+        return JsonResponse({'error': 'Thiếu course_id.'}, status=400)
+    
+    try:
+        course_key = CourseKey.from_string(course_id_str)
+    except Exception:
+        return JsonResponse({'error': 'Course ID không hợp lệ.'}, status=400)
+    
+    # Check if user can edit this course
+    if not can_edit_course(request.user, course_key):
+        return JsonResponse({
+            'error': 'Bạn không có quyền chỉnh sửa khóa học này.'
+        }, status=403)
+    
+    # Get or create metadata
+    metadata, created = ChalixCourseMetadata.objects.get_or_create(
+        course_id=course_key,
+        defaults={
+            'creator': request.user,
+            'is_public': False,
+            'is_mandatory_course': False
+        }
+    )
+    
+    # Update fields if provided
+    updated_fields = []
+    if 'is_mandatory_course' in data:
+        metadata.is_mandatory_course = bool(data['is_mandatory_course'])
+        updated_fields.append('is_mandatory_course')
+    
+    if 'is_public' in data:
+        metadata.is_public = bool(data['is_public'])
+        updated_fields.append('is_public')
+    
+    if updated_fields:
+        metadata.save()
+        logger.info(
+            f"Updated course metadata for {course_key}: {', '.join(updated_fields)}"
+        )
+    
+    return JsonResponse({
+        'success': True,
+        'course_id': str(course_key),
+        'is_mandatory_course': metadata.is_mandatory_course,
+        'is_public': metadata.is_public,
+        'visibility_description': metadata.visibility_description,
+        'created': created,
+        'updated_fields': updated_fields
+    })

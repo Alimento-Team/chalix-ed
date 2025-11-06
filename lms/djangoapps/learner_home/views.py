@@ -96,13 +96,102 @@ def get_user_account_confirmation_info(user):
     return email_confirmation
 
 
+@function_trace("filter_enrollments_by_chalix_metadata")
+def filter_enrollments_by_chalix_metadata(enrollments, user, filter_type=None):
+    """
+    Filter enrollments based on Chalix course metadata.
+    
+    Args:
+        enrollments: List of CourseEnrollment objects
+        user: The learner user
+        filter_type: Type of filter to apply:
+            - 'mandatory': Return only mandatory courses (is_mandatory_course=True)
+            - 'organization': Return organization-specific courses (is_public=False, same org)
+            - 'ministry': Return public/ministry courses (is_public=True, created by 'bo')
+            - 'teaching': Return courses where user is instructor/staff
+            - None or 'all': Return all enrollments (no filter)
+    
+    Returns:
+        Filtered list of enrollments
+    """
+    if not filter_type or filter_type == 'all':
+        return enrollments
+    
+    try:
+        from cms.djangoapps.contentstore.models import ChalixCourseMetadata, ChalixUserRole
+        
+        # Get user's organization for filtering
+        user_org = None
+        try:
+            user_role = ChalixUserRole.objects.filter(user=user, is_active=True).first()
+            if user_role:
+                user_org = user_role.organization
+        except Exception:
+            pass
+        
+        filtered_enrollments = []
+        
+        for enrollment in enrollments:
+            try:
+                metadata = ChalixCourseMetadata.objects.get(course_id=enrollment.course_id)
+                
+                if filter_type == 'mandatory':
+                    # Filter: only mandatory courses
+                    if metadata.is_mandatory_course:
+                        filtered_enrollments.append(enrollment)
+                
+                elif filter_type == 'organization':
+                    # Filter: organization-specific courses (not public, same organization)
+                    if not metadata.is_public and user_org:
+                        if metadata.creator_organization_id == user_org.id:
+                            filtered_enrollments.append(enrollment)
+                
+                elif filter_type == 'ministry':
+                    # Filter: public courses (created by 'bo' ministry role)
+                    if metadata.is_public:
+                        filtered_enrollments.append(enrollment)
+                
+                elif filter_type == 'teaching':
+                    # Filter: courses where user is instructor or staff
+                    _, staff_access, instructor_access = administrative_accesses_to_course_for_user(
+                        user, enrollment.course_id
+                    )
+                    if staff_access or instructor_access:
+                        filtered_enrollments.append(enrollment)
+                
+            except ChalixCourseMetadata.DoesNotExist:
+                # Course has no metadata - include it by default for backward compatibility
+                if filter_type in ['all', 'ministry']:
+                    # Assume courses without metadata are public/ministry courses
+                    filtered_enrollments.append(enrollment)
+            except Exception as e:
+                logger.warning(f"Error filtering enrollment {enrollment.course_id}: {str(e)}")
+                # Include enrollment if there's an error to avoid hiding courses
+                filtered_enrollments.append(enrollment)
+        
+        return filtered_enrollments
+        
+    except ImportError:
+        logger.warning("ChalixCourseMetadata not available, returning all enrollments")
+        return enrollments
+    except Exception as e:
+        logger.error(f"Error in filter_enrollments_by_chalix_metadata: {str(e)}")
+        return enrollments
+
+
 @function_trace("get_enrollments")
-def get_enrollments(user, org_allow_list, org_block_list, course_limit=None):
+def get_enrollments(user, org_allow_list, org_block_list, course_limit=None, filter_type=None):
     """Get enrollments and enrollment course modes for user"""
 
     course_enrollments = list(
         get_course_enrollments(user, org_allow_list, org_block_list, course_limit)
     )
+    
+    # Apply Chalix metadata filtering if requested
+    if filter_type:
+        course_enrollments = filter_enrollments_by_chalix_metadata(
+            course_enrollments, user, filter_type
+        )
 
     # Sort the enrollments by enrollment date
     course_enrollments.sort(key=lambda x: x.created, reverse=True)
@@ -473,6 +562,9 @@ class InitializeView(APIView):  # pylint: disable=unused-argument
         """
         Load information required for displaying the learner home
         """
+        # Get filter type from query parameters (if provided)
+        filter_type = self.request.GET.get('filter_type', None)
+        
         # Determine if user needs to confirm email account
         email_confirmation = get_user_account_confirmation_info(user)
 
@@ -499,9 +591,9 @@ class InitializeView(APIView):  # pylint: disable=unused-argument
             unfulfilled_entitlement_pseudo_sessions
         )
 
-        # Get enrollments
+        # Get enrollments with optional filter
         course_enrollments, course_mode_info = get_enrollments(
-            user, site_org_whitelist, site_org_blacklist
+            user, site_org_whitelist, site_org_blacklist, filter_type=filter_type
         )
 
         # Get audit access deadlines

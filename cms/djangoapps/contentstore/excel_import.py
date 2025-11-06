@@ -46,6 +46,7 @@ EXCEL_COLUMN_MAPPINGS = {
     'Nơi sinh': 'noi_sinh',
     'Địa chỉ': 'dia_chi',
     'Số năm công tác': 'so_nam_cong_tac',
+    'Vai trò người dùng hệ thống': 'user_role',  # Quản trị cơ quan | Giảng viên | Học viên
 }
 
 # Fields that should be stored in UserProfile model directly (not in meta)
@@ -54,8 +55,11 @@ DIRECT_PROFILE_FIELDS = {'name', 'phone_number', 'gender'}
 # Fields that go to User model
 USER_MODEL_FIELDS = {'email', 'password'}
 
+# Special fields that require custom handling
+SPECIAL_FIELDS = {'user_role'}  # Requires role assignment
+
 # Fields that should be stored in UserProfile.meta as JSON
-META_FIELDS = set(EXCEL_COLUMN_MAPPINGS.values()) - DIRECT_PROFILE_FIELDS - USER_MODEL_FIELDS
+META_FIELDS = set(EXCEL_COLUMN_MAPPINGS.values()) - DIRECT_PROFILE_FIELDS - USER_MODEL_FIELDS - SPECIAL_FIELDS
 
 
 def generate_excel_template() -> bytes:
@@ -110,6 +114,7 @@ def generate_excel_template() -> bytes:
         'Nơi sinh': 'Hà Nội',
         'Địa chỉ': '123 Đường ABC, Hà Nội',
         'Số năm công tác': '5',
+        'Vai trò người dùng hệ thống': 'Học viên',  # Quản trị cơ quan | Giảng viên | Học viên
     }
     
     for col_num, header in enumerate(headers, 1):
@@ -244,12 +249,16 @@ def create_user_from_data(user_data: Dict[str, Any], created_by: User) -> Tuple[
     Returns:
         Tuple of (created_user, warning_messages)
     """
+    from cms.djangoapps.contentstore.models import ChalixUserRole
+    
     warnings = []
     
     # Extract fields for User model
     email = user_data.get('email', '').strip()
     password = user_data.get('password', '').strip()
     name = user_data.get('name', '').strip()
+    user_role = user_data.get('user_role', '').strip()  # Quản trị cơ quan | Giảng viên | Học viên
+    don_vi_cong_tac = user_data.get('don_vi_cong_tac', '').strip()  # Organization name
     
     # Generate username from email
     username = email.split('@')[0]
@@ -297,6 +306,45 @@ def create_user_from_data(user_data: Dict[str, Any], created_by: User) -> Tuple[
         # Save meta data
         profile.set_meta(meta_data)
         profile.save()
+        
+        # Assign user role if provided
+        if user_role and don_vi_cong_tac:
+            # Map Vietnamese role names to role codes
+            role_mapping = {
+                'Quản trị cơ quan': 'co_quan',
+                'Giảng viên': 'giang_vien',
+                'Học viên': 'hoc_vien',
+            }
+            
+            role_code = role_mapping.get(user_role)
+            if role_code:
+                try:
+                    # Check if user already has a role for this organization
+                    existing_role = ChalixUserRole.objects.filter(
+                        user=user,
+                        organization_name=don_vi_cong_tac
+                    ).first()
+                    
+                    if existing_role:
+                        # Update existing role
+                        existing_role.role = role_code
+                        existing_role.is_active = True
+                        existing_role.save()
+                        warnings.append(f"Cập nhật vai trò '{user_role}' cho người dùng {username} tại '{don_vi_cong_tac}'")
+                    else:
+                        # Create new role
+                        ChalixUserRole.objects.create(
+                            user=user,
+                            role=role_code,
+                            organization_name=don_vi_cong_tac,
+                            is_active=True
+                        )
+                        logger.info(f"Assigned role '{role_code}' to user {username} at '{don_vi_cong_tac}'")
+                except Exception as e:
+                    warnings.append(f"Không thể gán vai trò '{user_role}': {str(e)}")
+                    logger.warning(f"Failed to assign role to user {username}: {str(e)}")
+            else:
+                warnings.append(f"Vai trò '{user_role}' không hợp lệ. Chỉ chấp nhận: Quản trị cơ quan, Giảng viên, Học viên")
         
         logger.info(f"Created user: {username} ({email}) by {created_by.username}")
         

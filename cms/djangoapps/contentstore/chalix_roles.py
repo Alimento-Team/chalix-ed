@@ -155,7 +155,7 @@ def can_import_users(user: User) -> bool:
 
 
 def can_manage_courses(user: User) -> bool:
-    """Check if user can manage courses (giang_vien, co_quan, bo roles)"""
+    """Check if user can create and manage courses (giang_vien, co_quan, bo roles)"""
     if not user.is_authenticated:
         return False
         
@@ -164,6 +164,70 @@ def can_manage_courses(user: User) -> bool:
     
     primary_role = get_user_primary_role(user)
     return primary_role is not None and primary_role.role in ['giang_vien', 'co_quan', 'bo']
+
+
+def can_edit_course(user: User, course_id=None) -> bool:
+    """
+    Check if user can edit a specific course.
+    Only users with 'co_quan' or 'giang_vien' roles can edit courses.
+    
+    Args:
+        user: The user to check
+        course_id: Optional course ID to check specific course permissions
+        
+    Returns:
+        bool: True if user can edit courses (or the specific course if course_id provided)
+    """
+    if not user.is_authenticated:
+        return False
+        
+    if GlobalStaff().has_user(user):
+        return True
+    
+    primary_role = get_user_primary_role(user)
+    if not primary_role:
+        return False
+    
+    # Only co_quan and giang_vien can edit courses
+    if primary_role.role not in ['co_quan', 'giang_vien']:
+        return False
+    
+    # If no specific course_id provided, just check role
+    if course_id is None:
+        return True
+    
+    # Check if user has staff/instructor access to the specific course
+    from common.djangoapps.student.models import CourseAccessRole
+    has_course_access = CourseAccessRole.objects.filter(
+        user=user,
+        course_id=course_id,
+        role__in=['staff', 'instructor']
+    ).exists()
+    
+    return has_course_access
+
+
+def require_course_edit_permission(view_func: Callable[..., Any]) -> Callable[..., Any]:
+    """
+    View decorator to require course edit permission.
+    Only allows users with 'co_quan' or 'giang_vien' roles to access the view.
+    """
+    @wraps(view_func)
+    def _wrapped_view(request, *args, **kwargs):
+        user = getattr(request, 'user', None)
+        
+        # Extract course_id from kwargs or request if available
+        course_id = kwargs.get('course_key_string') or kwargs.get('course_id')
+        
+        if not can_edit_course(user, course_id):
+            raise PermissionDenied(
+                "Only instructors and organization administrators can edit courses. "
+                "Learner accounts (cong_chuc) and ministry accounts (bo) cannot edit courses."
+            )
+        
+        return view_func(request, *args, **kwargs)
+    
+    return _wrapped_view
 
 
 def enforce_single_bo_account(user: User, role: str, organization: ChalixOrganization = None, exclude_instance=None):

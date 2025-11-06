@@ -1129,6 +1129,36 @@ def create_new_course(user, org, number, run, fields):
             log.error("Auto-enrollment failed for course %s: %s", new_course.id, str(e))
             # Don't raise the exception - course creation should still succeed even if auto-enrollment fails
 
+    # Create Chalix course metadata for visibility and access control
+    try:
+        from cms.djangoapps.contentstore.models import ChalixCourseMetadata
+        from cms.djangoapps.contentstore.chalix_roles import get_user_primary_role
+        
+        primary_role = get_user_primary_role(user)
+        is_public_course = False
+        creator_role = None
+        creator_org = None
+        
+        if primary_role:
+            creator_role = primary_role.role
+            creator_org = primary_role.organization
+            # Courses created by 'bo' (ministry level) are public
+            is_public_course = (creator_role == 'bo')
+        
+        ChalixCourseMetadata.objects.create(
+            course_id=new_course.id,
+            creator=user,
+            creator_role=creator_role,
+            creator_organization=creator_org,
+            is_public=is_public_course,
+            is_mandatory_course=False  # Default to non-mandatory
+        )
+        log.info("Created Chalix course metadata for %s - Public: %s, Role: %s", 
+                 new_course.id, is_public_course, creator_role)
+    except Exception as e:
+        log.warning("Failed to create Chalix course metadata for %s: %s", new_course.id, str(e))
+        # Don't fail course creation if metadata creation fails
+
     return new_course
 
 
