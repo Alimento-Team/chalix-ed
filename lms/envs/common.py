@@ -2090,6 +2090,19 @@ AWS_QUERYSTRING_AUTH = False
 AWS_STORAGE_BUCKET_NAME = "SET-ME-PLEASE (ex. bucket-name)"
 AWS_S3_CUSTOM_DOMAIN = "SET-ME-PLEASE (ex. bucket-name.s3.amazonaws.com)"
 
+################################# FACIAL EXPRESSION RECORDING ###################################
+# Configuration for facial expression video storage (MinIO/S3)
+FACIAL_EXPRESSION_STORAGE_CLASS = 'storages.backends.s3boto3.S3Boto3Storage'
+FACIAL_EXPRESSION_STORAGE_BUCKET = 'facial-expressions'
+FACIAL_EXPRESSION_STORAGE_ROOT = 'facial_expressions/'
+FACIAL_EXPRESSION_STORAGE_ACCESS_KEY = 'minioadmin'  # Change in production
+FACIAL_EXPRESSION_STORAGE_SECRET_KEY = 'minioadmin'  # Change in production
+FACIAL_EXPRESSION_STORAGE_ENDPOINT = 'http://localhost:9000'  # Change to your MinIO endpoint
+FACIAL_EXPRESSION_STORAGE_REGION = 'us-east-1'
+ENABLE_FACIAL_EXPRESSION_RECORDING = True
+FACIAL_EXPRESSION_MAX_UPLOAD_SIZE = 100 * 1024 * 1024  # 100MB per chunk
+FACIAL_EXPRESSION_RETENTION_DAYS = 90  # Auto-delete after 90 days (0 = never)
+
 ################################# SIMPLEWIKI ###################################
 SIMPLE_WIKI_REQUIRE_LOGIN_EDIT = True
 SIMPLE_WIKI_REQUIRE_LOGIN_VIEW = False
@@ -3138,6 +3151,9 @@ INSTALLED_APPS = [
 
     # Learning analytics
     'lms.djangoapps.learning_analytics',
+
+    # Facial expression recording
+    'lms.djangoapps.facial_expression',
 
     # Chalix user menu
     'lms.djangoapps.chalix_user_menu',

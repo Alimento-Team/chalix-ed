@@ -332,3 +332,87 @@ class LearningGoal(models.Model):
         if self.target_value == 0:
             return 0
         return min(100, (self.current_value / self.target_value) * 100)
+
+
+class FacialExpressionLog(models.Model):
+    """Model to store facial expression video recordings metadata."""
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='facial_expression_logs')
+    
+    # Course hierarchy
+    course_id = models.CharField(max_length=255, help_text="Course ID")
+    unit_id = models.CharField(max_length=255, help_text="Unit/Block ID (slide or video)")
+    
+    # Additional context (nullable for flexibility)
+    topic_id = models.CharField(max_length=255, blank=True, null=True, help_text="Topic/Section ID")
+    program_id = models.CharField(max_length=255, blank=True, null=True, help_text="Program ID")
+    org_id = models.CharField(max_length=255, blank=True, null=True, help_text="Organization ID")
+    teacher_id = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='student_facial_expressions',
+        help_text="Teacher/Instructor for this course"
+    )
+    
+    # Video storage
+    video_path = models.CharField(max_length=512, help_text="MinIO storage path for the video file")
+    video_size = models.BigIntegerField(default=0, help_text="Video file size in bytes")
+    duration_seconds = models.IntegerField(default=0, help_text="Recording duration in seconds")
+    
+    # Recording metadata
+    start_timestamp = models.DateTimeField(help_text="When the recording started")
+    end_timestamp = models.DateTimeField(null=True, blank=True, help_text="When the recording ended")
+    is_complete = models.BooleanField(default=False, help_text="Whether this is a complete recording or partial chunk")
+    
+    # Processing status
+    STATUS_CHOICES = [
+        ('pending', 'Pending Processing'),
+        ('processing', 'Processing'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed'),
+    ]
+    processing_status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='pending',
+        help_text="Status of video processing/analysis"
+    )
+    
+    # Analysis results (can be populated by ML models later)
+    analysis_results = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="JSON data containing facial expression analysis results"
+    )
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        app_label = 'learning_analytics'
+        ordering = ['-start_timestamp']
+        indexes = [
+            models.Index(fields=['user', 'course_id']),
+            models.Index(fields=['course_id', 'unit_id']),
+            models.Index(fields=['start_timestamp']),
+            models.Index(fields=['processing_status']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} - {self.course_id} - {self.unit_id} ({self.start_timestamp})"
+
+    @property
+    def recording_duration(self):
+        """Calculate recording duration in a readable format."""
+        if self.end_timestamp and self.start_timestamp:
+            delta = self.end_timestamp - self.start_timestamp
+            return delta.total_seconds()
+        return self.duration_seconds
+
+    @property
+    def video_size_mb(self):
+        """Convert video size to MB for display."""
+        return round(self.video_size / (1024 * 1024), 2)

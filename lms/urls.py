@@ -204,6 +204,9 @@ urlpatterns = [
     # Learning Analytics API
     path('api/learning_analytics/', include('lms.djangoapps.learning_analytics.urls', namespace='learning_analytics')),
 
+    # Facial Expression Recording API
+    path('api/facial-expression/', include('lms.djangoapps.facial_expression.urls', namespace='facial_expression')),
+
     # Chalix User Menu API
     path('api/chalix/user-menu/', include('lms.djangoapps.chalix_user_menu.urls', namespace='chalix_user_menu')),
 
