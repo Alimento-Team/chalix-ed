@@ -173,6 +173,18 @@ urlpatterns = [
         name='chalix_preview_evaluation_quiz'
     ),
     
+    # Topic quiz management (unit-level quizzes)
+    re_path(
+        r'^topic-quiz/upload/(?P<unit_locator_string>.+)/$',
+        chalix_dashboard.upload_topic_quiz_api,
+        name='chalix_upload_topic_quiz'
+    ),
+    re_path(
+        r'^topic-quiz/get/(?P<unit_locator_string>.+)/$',
+        chalix_dashboard.get_topic_quiz_api,
+        name='chalix_get_topic_quiz'
+    ),
+    
     # Course metadata management
     path(
         'dashboard/update-course-metadata/',

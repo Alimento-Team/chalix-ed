@@ -14,6 +14,7 @@ class FacialExpressionUploadSerializer(serializers.Serializer):
     topic_id = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     timestamp = serializers.DateTimeField(required=True)
     is_final = serializers.BooleanField(default=False, help_text="Whether this is the final chunk")
+    duration_seconds = serializers.IntegerField(required=False, default=0, help_text="Recording duration in seconds")
     
     def validate_video(self, value):
         """Validate video file."""

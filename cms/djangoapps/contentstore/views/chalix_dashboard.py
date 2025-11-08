@@ -2394,6 +2394,202 @@ def upload_evaluation_quiz_api(request, course_key_string):
 
 
 @csrf_exempt
+@require_POST
+def upload_topic_quiz_api(request, unit_locator_string):
+    """
+    Upload Excel file for topic quiz (unit-level quiz).
+    
+    Topic quizzes have fixed settings:
+    - Max attempts: 1
+    - Time limit: None (no time limit)
+    - Show correct answers: immediately after submission
+    """
+    try:
+        import pandas as pd
+        from opaque_keys.edx.locator import BlockUsageLocator
+        from cms.djangoapps.contentstore.models import ChalixQuiz, ChalixQuizQuestion, ChalixQuizChoice
+        from xmodule.modulestore.django import modulestore
+        
+        unit_locator = BlockUsageLocator.from_string(unit_locator_string)
+        course_key = unit_locator.course_key
+        
+        # Verify unit exists
+        store = modulestore()
+        try:
+            unit = store.get_item(unit_locator)
+        except Exception:
+            return JsonResponse({
+                'success': False,
+                'error': 'Unit not found'
+            }, status=404)
+        
+        if 'quiz_file' not in request.FILES:
+            return JsonResponse({
+                'success': False,
+                'error': 'No file uploaded'
+            })
+        
+        quiz_file = request.FILES['quiz_file']
+        
+        # Validate file extension
+        if not quiz_file.name.endswith(('.xlsx', '.xls')):
+            return JsonResponse({
+                'success': False,
+                'error': 'Please upload an Excel file (.xlsx or .xls)'
+            })
+        
+        # Parse Excel file
+        try:
+            df = pd.read_excel(quiz_file)
+            
+            # Expected columns: Question, Choice_A, Choice_B, Choice_C, Choice_D, Correct_Answer
+            required_columns = ['Question', 'Choice_A', 'Choice_B', 'Choice_C', 'Choice_D', 'Correct_Answer']
+            missing_columns = [col for col in required_columns if col not in df.columns]
+            
+            if missing_columns:
+                return JsonResponse({
+                    'success': False,
+                    'error': f'Missing required columns: {", ".join(missing_columns)}'
+                })
+            
+            # Get or create ChalixQuiz for this unit
+            chalix_quiz, created = ChalixQuiz.objects.get_or_create(
+                course_key=course_key,
+                parent_locator=str(unit_locator),
+                defaults={
+                    'title': f'Topic Quiz: {unit.display_name}',
+                    'description': 'Topic quiz questions',
+                    'created_by': request.user
+                }
+            )
+            
+            # Clear existing questions for this quiz
+            ChalixQuizQuestion.objects.filter(quiz=chalix_quiz).delete()
+            
+            # Process each row and create questions
+            questions_created = 0
+            with transaction.atomic():
+                for index, row in df.iterrows():
+                    if pd.isna(row['Question']) or not str(row['Question']).strip():
+                        continue
+                        
+                    question = ChalixQuizQuestion.objects.create(
+                        quiz=chalix_quiz,
+                        question_text=str(row['Question']).strip(),
+                        question_type='multiple_choice',
+                        order_index=index + 1
+                    )
+                    
+                    # Create choices
+                    choices = [
+                        ('A', row['Choice_A']),
+                        ('B', row['Choice_B']), 
+                        ('C', row['Choice_C']),
+                        ('D', row['Choice_D'])
+                    ]
+                    
+                    correct_answer = str(row['Correct_Answer']).strip().upper()
+                    
+                    for choice_key, choice_text in choices:
+                        if pd.isna(choice_text) or not str(choice_text).strip():
+                            continue
+                            
+                        ChalixQuizChoice.objects.create(
+                            question=question,
+                            choice_text=str(choice_text).strip(),
+                            is_correct=(choice_key == correct_answer),
+                            order_index=ord(choice_key) - ord('A')
+                        )
+                    
+                    questions_created += 1
+            
+            return JsonResponse({
+                'success': True,
+                'message': f'Successfully uploaded topic quiz with {questions_created} questions',
+                'questions_count': questions_created,
+                'unit_locator': str(unit_locator)
+            })
+            
+        except Exception as parse_error:
+            logger.error(f"Error parsing Excel file for topic quiz: {parse_error}")
+            return JsonResponse({
+                'success': False,
+                'error': f'Error parsing Excel file: {str(parse_error)}'
+            })
+            
+    except Exception as e:
+        logger.error(f"Error uploading topic quiz for unit {unit_locator_string}: {e}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        })
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def get_topic_quiz_api(request, unit_locator_string):
+    """
+    Get topic quiz questions for a specific unit.
+    """
+    try:
+        from opaque_keys.edx.locator import BlockUsageLocator
+        from cms.djangoapps.contentstore.models import ChalixQuiz, ChalixQuizQuestion
+        
+        unit_locator = BlockUsageLocator.from_string(unit_locator_string)
+        course_key = unit_locator.course_key
+        
+        # Get ChalixQuiz for this unit
+        try:
+            chalix_quiz = ChalixQuiz.objects.get(
+                course_key=course_key,
+                parent_locator=str(unit_locator),
+                is_active=True
+            )
+            
+            questions = ChalixQuizQuestion.objects.filter(
+                quiz=chalix_quiz,
+                is_active=True
+            ).order_by('order_index')
+            
+            questions_data = []
+            for question in questions:
+                choices = question.choices.filter(is_active=True).order_by('order_index')
+                questions_data.append({
+                    'id': question.id,
+                    'question_text': question.question_text,
+                    'choices': [{
+                        'id': choice.id,
+                        'choice_text': choice.choice_text,
+                        'is_correct': choice.is_correct
+                    } for choice in choices]
+                })
+            
+            return JsonResponse({
+                'success': True,
+                'quiz': {
+                    'id': chalix_quiz.id,
+                    'title': chalix_quiz.title,
+                    'questions_count': len(questions_data),
+                    'questions': questions_data
+                }
+            })
+            
+        except ChalixQuiz.DoesNotExist:
+            return JsonResponse({
+                'success': True,
+                'quiz': None,
+                'message': 'No quiz found for this unit'
+            })
+            
+    except Exception as e:
+        logger.error(f"Error getting topic quiz for unit {unit_locator_string}: {e}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        })
+
+
+@csrf_exempt
 @require_http_methods(["GET"])
 def preview_evaluation_quiz_api(request, course_key_string):
     """

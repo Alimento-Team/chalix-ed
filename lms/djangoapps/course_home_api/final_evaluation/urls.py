@@ -10,7 +10,9 @@ from .views import (
     FinalEvaluationQuizSubmitView,
     FinalEvaluationAttemptStatusView,
     FinalEvaluationResultView,
-    FinalEvaluationProjectSubmitView
+    FinalEvaluationProjectSubmitView,
+    TopicQuizView,
+    TopicQuizSubmitView
 )
 
 app_name = 'final_evaluation'
@@ -56,5 +58,20 @@ urlpatterns = [
         fr'^{settings.COURSE_KEY_PATTERN}/project/submit$',
         FinalEvaluationProjectSubmitView.as_view(),
         name='project_submit'
+    ),
+    
+    # Topic quiz endpoints
+    # Get topic quiz questions for a specific unit
+    re_path(
+        r'^topic-quiz/(?P<unit_locator_string>.+)/quiz$',
+        TopicQuizView.as_view(),
+        name='topic_quiz'
+    ),
+    
+    # Submit topic quiz answers
+    re_path(
+        r'^topic-quiz/(?P<unit_locator_string>.+)/submit$',
+        TopicQuizSubmitView.as_view(),
+        name='topic_quiz_submit'
     ),
 ]

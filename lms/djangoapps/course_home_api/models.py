@@ -211,6 +211,56 @@ class ChalixQuizChoiceLMS(models.Model):
         db_table = 'contentstore_chalixquizchoice'
 
 
+class TopicQuizAttempt(models.Model):
+    """
+    Managed LMS model for storing topic quiz attempts.
+    Topic quizzes are unit-level quizzes with 1 attempt limit and immediate correct answer feedback.
+    """
+    quiz_id = models.BigIntegerField(db_index=True, help_text="Reference to ChalixQuiz id")
+    learner = models.ForeignKey('auth.User', on_delete=models.CASCADE, db_index=True, help_text="The learner taking the quiz")
+    attempt_number = models.PositiveIntegerField(default=1, help_text="Attempt number (always 1 for topic quizzes)")
+    started_at = models.DateTimeField(auto_now_add=True, help_text="When attempt started")
+    completed_at = models.DateTimeField(null=True, blank=True, help_text="When attempt completed")
+    score = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True, help_text="Score percentage")
+    total_questions = models.PositiveIntegerField(default=0, help_text="Total questions in quiz")
+    correct_answers = models.PositiveIntegerField(default=0, help_text="Number of correct answers")
+    is_completed = models.BooleanField(default=False, help_text="Whether attempt is completed")
+    passed = models.BooleanField(default=True, help_text="Topic quizzes always pass on completion")
+    
+    class Meta:
+        managed = True
+        db_table = 'course_home_api_topic_quiz_attempt'
+        indexes = [
+            models.Index(fields=['quiz_id', 'learner']),
+            models.Index(fields=['is_completed']),
+        ]
+    
+    def __str__(self):
+        return f"TopicQuizAttempt {self.id} - Quiz {self.quiz_id} - User {self.learner_id}"
+
+
+class TopicQuizAnswer(models.Model):
+    """
+    Managed LMS model for storing individual answers in topic quiz attempts.
+    """
+    attempt = models.ForeignKey(TopicQuizAttempt, on_delete=models.CASCADE, db_index=True, related_name='answers',
+                                help_text="The quiz attempt this answer belongs to")
+    question_id = models.BigIntegerField(db_index=True, help_text="Reference to ChalixQuizQuestion id")
+    selected_choice_id = models.BigIntegerField(null=True, blank=True, help_text="Reference to ChalixQuizChoice id")
+    is_correct = models.BooleanField(default=False, help_text="Whether the answer was correct")
+    answered_at = models.DateTimeField(auto_now_add=True, help_text="When the answer was submitted")
+    
+    class Meta:
+        managed = True
+        db_table = 'course_home_api_topic_quiz_answer'
+        indexes = [
+            models.Index(fields=['attempt', 'question_id']),
+        ]
+    
+    def __str__(self):
+        return f"TopicQuizAnswer {self.id} - Attempt {self.attempt_id} - Question {self.question_id}"
+
+
 class FinalEvaluationProjectSubmission(models.Model):
     """
     Managed LMS model for storing learner project submissions for final evaluations

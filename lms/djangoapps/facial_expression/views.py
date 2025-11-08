@@ -55,6 +55,7 @@ def upload_facial_expression_video(request):
         topic_id = serializer.validated_data.get('topic_id')
         timestamp = serializer.validated_data['timestamp']
         is_final = serializer.validated_data.get('is_final', False)
+        duration_seconds = serializer.validated_data.get('duration_seconds', 0)
         
         user = request.user
         
@@ -90,6 +91,7 @@ def upload_facial_expression_video(request):
             org_id=org_id,
             video_path=saved_path,
             video_size=video_file.size,
+            duration_seconds=duration_seconds,
             start_timestamp=timestamp,
             end_timestamp=timezone.now() if is_final else None,
             is_complete=is_final,
@@ -109,7 +111,8 @@ def upload_facial_expression_video(request):
         logger.info(
             f"Facial expression video uploaded successfully. "
             f"User: {user.username}, Course: {course_id}, Unit: {unit_id}, "
-            f"Path: {saved_path}, Size: {video_file.size} bytes"
+            f"Path: {saved_path}, Size: {video_file.size} bytes, "
+            f"Duration: {duration_seconds} seconds, Is Final: {is_final}"
         )
         
         return Response(
@@ -218,3 +221,66 @@ def get_facial_expression_log_detail(request, log_id):
             {'error': 'Failed to fetch log detail', 'details': str(e)},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+
+
+@api_view(['GET'])
+@view_auth_classes(is_authenticated=True)
+def check_valid_recording(request):
+    """
+    Check if user has a valid recording for a specific course unit.
+    
+    GET /api/facial-expression/check-recording/
+    
+    Query parameters:
+        - course_id: Course ID (required)
+        - unit_id: Unit ID (required)
+        - min_duration: Minimum duration in seconds (default: 300 = 5 minutes)
+    
+    Returns:
+        - 200 OK: { "has_valid_recording": true/false, "duration": seconds }
+    """
+    try:
+        user = request.user
+        course_id = request.GET.get('course_id')
+        unit_id = request.GET.get('unit_id')
+        min_duration = int(request.GET.get('min_duration', 300))  # Default 5 minutes
+        
+        if not course_id or not unit_id:
+            return Response(
+                {'error': 'course_id and unit_id are required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check for recent valid recording (within last 24 hours)
+        from datetime import timedelta
+        time_threshold = timezone.now() - timedelta(hours=24)
+        
+        # Find the most recent complete recording for this course-unit
+        recent_log = FacialExpressionLog.objects.filter(
+            user=user,
+            course_id=course_id,
+            unit_id=unit_id,
+            is_complete=True,
+            created_at__gte=time_threshold,
+            duration_seconds__gte=min_duration
+        ).order_by('-created_at').first()
+        
+        if recent_log:
+            return Response({
+                'has_valid_recording': True,
+                'duration': recent_log.duration_seconds,
+                'recorded_at': recent_log.created_at.isoformat(),
+            }, status=status.HTTP_200_OK)
+        else:
+            return Response({
+                'has_valid_recording': False,
+                'duration': 0,
+            }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        logger.error(f"Error checking valid recording: {e}", exc_info=True)
+        return Response(
+            {'error': 'Failed to check recording', 'details': str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+

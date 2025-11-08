@@ -665,3 +665,276 @@ class FinalEvaluationProjectSubmitView(APIView):
             return Response({
                 'error': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class TopicQuizView(APIView):
+    """
+    API view to get topic quiz questions for a specific unit.
+    Topic quizzes are identified by parent_locator matching the unit's usage key.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, unit_locator_string):
+        """
+        Get topic quiz questions for a unit.
+        """
+        try:
+            from opaque_keys.edx.locator import BlockUsageLocator
+            from xmodule.modulestore.django import modulestore
+            
+            unit_locator = BlockUsageLocator.from_string(unit_locator_string)
+            course_key = unit_locator.course_key
+            
+            # Verify unit exists
+            store = modulestore()
+            try:
+                unit = store.get_item(unit_locator)
+            except Exception:
+                return Response({
+                    'error': 'Unit not found'
+                }, status=status.HTTP_404_NOT_FOUND)
+            
+            # Get ChalixQuiz for this unit
+            try:
+                chalix_quiz = ChalixQuiz.objects.get(
+                    course_key=course_key,
+                    parent_locator=str(unit_locator),
+                    is_active=True
+                )
+            except ChalixQuiz.DoesNotExist:
+                return Response({
+                    'error': 'No quiz found for this unit',
+                    'configured': False
+                }, status=status.HTTP_404_NOT_FOUND)
+            
+            # Get questions for this quiz
+            questions = ChalixQuizQuestion.objects.filter(
+                quiz_id=chalix_quiz.id,
+                is_active=True
+            ).order_by('order_index')
+            
+            # Check user's attempts - topic quizzes have max_attempts=1
+            from lms.djangoapps.course_home_api.models import TopicQuizAttempt
+            user_attempts = TopicQuizAttempt.objects.filter(
+                quiz_id=chalix_quiz.id,
+                learner=request.user,
+                is_completed=True
+            )
+            
+            attempts_count = user_attempts.count()
+            max_attempts = 1  # Topic quizzes always have 1 attempt
+            
+            # If user has already completed, return their result
+            if attempts_count >= max_attempts:
+                last_attempt = user_attempts.first()
+                return Response({
+                    'error': 'You have already completed this quiz',
+                    'completed': True,
+                    'attempts_used': attempts_count,
+                    'max_attempts': max_attempts,
+                    'score': float(last_attempt.score) if last_attempt and last_attempt.score else 0,
+                    'can_retake': False
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            quiz_data = {
+                'title': chalix_quiz.title or f'Topic Quiz: {unit.display_name}',
+                'description': chalix_quiz.description or 'Quiz for this topic',
+                'time_limit': None,  # Topic quizzes have no time limit
+                'max_attempts': max_attempts,
+                'attempts_used': attempts_count,
+                'attempts_remaining': max_attempts - attempts_count,
+                'show_correct_answers': True,  # Topic quizzes always show correct answers
+                'questions': []
+            }
+            
+            for question in questions:
+                choices = ChalixQuizChoice.objects.filter(
+                    question_id=question.id,
+                    is_active=True
+                ).order_by('order_index')
+                
+                choices_data = []
+                for choice in choices:
+                    choices_data.append({
+                        'id': choice.id,
+                        'choice_text': choice.choice_text
+                        # Don't include is_correct until after submission
+                    })
+                
+                quiz_data['questions'].append({
+                    'id': question.id,
+                    'question_text': question.question_text,
+                    'question_type': question.question_type,
+                    'choices': choices_data
+                })
+            
+            return Response(quiz_data)
+            
+        except Exception as e:
+            logger.error(f"Error getting topic quiz for {unit_locator_string}: {e}")
+            return Response({
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class TopicQuizSubmitView(APIView):
+    """
+    API view to submit topic quiz answers.
+    Returns detailed feedback including correct answers immediately after submission.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, unit_locator_string):
+        """
+        Submit topic quiz answers and get immediate feedback with correct answers.
+        """
+        try:
+            from opaque_keys.edx.locator import BlockUsageLocator
+            from lms.djangoapps.course_home_api.models import TopicQuizAttempt, TopicQuizAnswer
+            
+            unit_locator = BlockUsageLocator.from_string(unit_locator_string)
+            course_key = unit_locator.course_key
+            answers = request.data.get('answers', {})
+            
+            # Get ChalixQuiz for this unit
+            try:
+                chalix_quiz = ChalixQuiz.objects.get(
+                    course_key=course_key,
+                    parent_locator=str(unit_locator),
+                    is_active=True
+                )
+            except ChalixQuiz.DoesNotExist:
+                return Response({
+                    'error': 'No quiz found for this unit'
+                }, status=status.HTTP_404_NOT_FOUND)
+            
+            # Check attempt limits
+            existing_attempts = TopicQuizAttempt.objects.filter(
+                quiz_id=chalix_quiz.id,
+                learner=request.user,
+                is_completed=True
+            )
+            
+            attempts_count = existing_attempts.count()
+            max_attempts = 1  # Topic quizzes have 1 attempt
+            
+            if attempts_count >= max_attempts:
+                last_attempt = existing_attempts.first()
+                return Response({
+                    'error': 'You have already completed this quiz',
+                    'completed': True,
+                    'attempts_used': attempts_count,
+                    'max_attempts': max_attempts,
+                    'score': float(last_attempt.score) if last_attempt.score else 0
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Create new attempt
+            attempt = TopicQuizAttempt.objects.create(
+                quiz_id=chalix_quiz.id,
+                learner=request.user,
+                attempt_number=1,  # Always 1 for topic quizzes
+                is_completed=False,
+                started_at=datetime.now()
+            )
+            
+            # Process submitted answers and collect detailed feedback
+            correct_count = 0
+            total_questions = 0
+            answer_details = []
+            
+            for question_id_str, choice_ids in answers.items():
+                try:
+                    question_id = int(question_id_str)
+                    question = ChalixQuizQuestion.objects.get(id=question_id)
+                    total_questions += 1
+                    
+                    # Get all choices for this question
+                    all_choices = ChalixQuizChoice.objects.filter(
+                        question_id=question.id,
+                        is_active=True
+                    ).order_by('order_index')
+                    
+                    # Find correct choices
+                    correct_choices = [c for c in all_choices if c.is_correct]
+                    correct_choice_ids = [c.id for c in correct_choices]
+                    
+                    # Get selected choice(s)
+                    selected_choice_ids = [int(cid) for cid in choice_ids if cid]
+                    
+                    # Determine if answer is correct
+                    if question.question_type == 'multiple_choice_multiple_answer':
+                        is_correct = set(correct_choice_ids) == set(selected_choice_ids)
+                    else:
+                        # Single choice
+                        is_correct = len(selected_choice_ids) > 0 and selected_choice_ids[0] in correct_choice_ids
+                    
+                    if is_correct:
+                        correct_count += 1
+                    
+                    # Save the answer(s)
+                    for choice_id in selected_choice_ids:
+                        choice = next((c for c in all_choices if c.id == choice_id), None)
+                        if choice:
+                            TopicQuizAnswer.objects.create(
+                                attempt=attempt,
+                                question_id=question.id,
+                                selected_choice_id=choice.id,
+                                is_correct=is_correct
+                            )
+                    
+                    # Build detailed feedback for this question
+                    selected_choices_text = [
+                        next((c.choice_text for c in all_choices if c.id == cid), '')
+                        for cid in selected_choice_ids
+                    ]
+                    correct_choices_text = [c.choice_text for c in correct_choices]
+                    
+                    answer_details.append({
+                        'question_id': question.id,
+                        'question_text': question.question_text,
+                        'selected_choices': selected_choices_text,
+                        'correct_choices': correct_choices_text,
+                        'is_correct': is_correct,
+                        'explanation': 'Correct!' if is_correct else f'The correct answer is: {", ".join(correct_choices_text)}'
+                    })
+                    
+                except (ValueError, ChalixQuizQuestion.DoesNotExist, ChalixQuizChoice.DoesNotExist) as e:
+                    logger.warning(f"Error processing question {question_id_str}: {e}")
+                    continue
+            
+            # Calculate score
+            from decimal import Decimal
+            score = Decimal(str((correct_count / total_questions * 100) if total_questions > 0 else 0))
+            
+            # Update attempt
+            attempt.correct_answers = correct_count
+            attempt.total_questions = total_questions
+            attempt.score = score
+            attempt.passed = True  # Topic quizzes don't have pass/fail, just completion
+            attempt.is_completed = True
+            attempt.completed_at = datetime.now()
+            attempt.save()
+            
+            response_data = {
+                'success': True,
+                'score': float(score),
+                'correct_answers': correct_count,
+                'total_questions': total_questions,
+                'completed': True,
+                'passed': True,
+                'attempt_number': 1,
+                'attempts_used': 1,
+                'max_attempts': 1,
+                'show_correct_answers': True,
+                'answers': answer_details  # Detailed feedback with correct answers
+            }
+            
+            logger.info(f"Topic quiz completed: quiz_id={chalix_quiz.id}, user={request.user.username}, score={float(score)}")
+            
+            return Response(response_data)
+            
+        except Exception as e:
+            logger.error(f"Error submitting topic quiz for {unit_locator_string}: {e}")
+            return Response({
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
