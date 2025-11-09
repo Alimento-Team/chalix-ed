@@ -31,13 +31,15 @@
 
             /* Users table styling */
             #users-table-wrap { background: #fff; border: 1px solid #e6eef6; border-radius: 12px; padding: 18px; overflow-x: auto; }
-            #users-table { width: 100%; min-width: 2500px; border-collapse: collapse; table-layout: auto; font-family: 'Inter', sans-serif; font-size: 14px; }
+            #users-table { width: 100%; min-width: 2700px; border-collapse: collapse; table-layout: auto; font-family: 'Inter', sans-serif; font-size: 14px; }
             #users-table thead th { padding: 18px 16px; font-weight:600; color:#374151; border-bottom: none; text-align: center; white-space: nowrap; }
             #users-table tbody td { padding: 18px 16px; color:#374151; vertical-align: middle; text-align: center; white-space: nowrap; }
             #users-table tbody tr { border-bottom: 1px solid #eef6fb; }
             #users-table tbody tr:last-child { border-bottom: none; }
-            /* Make ID column narrower */
-            #users-table thead th:nth-child(1), #users-table tbody td:nth-child(1) { width:60px; }
+            /* Action column */
+            #users-table thead th:nth-child(1), #users-table tbody td:nth-child(1) { width:160px; min-width:160px; }
+            /* ID column */
+            #users-table thead th:nth-child(2), #users-table tbody td:nth-child(2) { width:60px; }
             /* Responsive adjustments */
             @media (max-width:900px){
                 #users-table thead th, #users-table tbody td { padding:12px 8px; font-size:13px; }
@@ -73,7 +75,7 @@
         container.innerHTML = `
             <div class="create-account-wrap">
                 <div class="create-account-card">
-                    <!-- Excel Upload Button - Top Right -->
+                    <!-- Top button row -->
                     ${forceShowButtons ? `
                     <div style="position: relative;">
                         <div style="position: absolute; top: -10px; right: 0; display: flex; gap: 12px; align-items: center;">
@@ -95,77 +97,17 @@
                     </div>
                     ` : ''}
                     
-                    <h2 class="create-account-title" style="font-family: 'Inter', sans-serif; font-weight: 600; font-size: 18px; color: #1e1e1e; margin: ${forceShowButtons ? '60' : '0'}px 0 30px 0;">NHẬP THÔNG TIN THÊM MỚI NGƯỜI DÙNG</h2>
-                    
-                    <form class="chalix-form" id="user-creation-form" style="max-width: none;">
-                        <div style="display: flex; gap: 20px; margin-bottom: 20px;">
-                            <div style="flex: 1; max-width: 580px;">
-                                <label style="font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; color: #1e1e1e; line-height: 1.4; display: block; margin-bottom: 8px;">Họ và tên</label>
-                                <input type="text" name="full_name" placeholder="Tên người dùng sẽ được hiển thị trên tất cả các trang" required 
-                                       style="width: 100%; min-width: 240px; height: 48px; padding: 12px 16px; border: 1px solid #d9d9d9; border-radius: 8px; font-family: 'Inter', sans-serif; font-size: 14px; line-height: 1.5; color: #1e1e1e; background: #fff; box-sizing: border-box;" />
-                            </div>
-                            <div style="flex: 1; max-width: 580px;">
-                                <label style="font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; color: #1e1e1e; line-height: 1.4; display: block; margin-bottom: 8px;">Email hoặc Số điện thoại</label>
-                                <input type="email" name="email" placeholder="Nhập email hoặc số điện thoại" required 
-                                       style="width: 100%; min-width: 240px; height: 48px; padding: 12px 16px; border: 1px solid #d9d9d9; border-radius: 8px; font-family: 'Inter', sans-serif; font-size: 14px; line-height: 1.5; color: #1e1e1e; background: #fff; box-sizing: border-box;" />
-                            </div>
-                        </div>
-                        
-                        <div style="display: flex; gap: 20px; margin-bottom: 20px;">
-                            <div style="flex: 1; max-width: 580px;">
-                                <label style="font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; color: #1e1e1e; line-height: 1.4; display: block; margin-bottom: 8px;">Nhập mật khẩu</label>
-                                <input type="password" name="password" placeholder="Nhập mật khẩu" required 
-                                       style="width: 100%; min-width: 240px; height: 48px; padding: 12px 16px; border: 1px solid #d9d9d9; border-radius: 8px; font-family: 'Inter', sans-serif; font-size: 14px; line-height: 1.5; color: #1e1e1e; background: #fff; box-sizing: border-box;" />
-                            </div>
-                            <div style="flex: 1; max-width: 580px;">
-                                <label style="font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; color: #1e1e1e; line-height: 1.4; display: block; margin-bottom: 8px;">Vai trò người dùng</label>
-                                <select name="role" required style="width: 100%; min-width: 240px; height: 48px; padding: 12px 16px; border: 1px solid #d9d9d9; border-radius: 8px; font-family: 'Inter', sans-serif; font-size: 14px; line-height: 1.5; color: #1e1e1e; background: #fff; box-sizing: border-box; appearance: none; background-image: url('data:image/svg+xml;charset=US-ASCII,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><path fill=\"%23666\" d=\"M8 12L3 6h10l-5 6z\"/></svg>'); background-repeat: no-repeat; background-position: right 12px center;">
-                                    <option value="">Chọn vai trò người dùng</option>
-                                </select>
-                            </div>
-                        </div>
-                        
-                        <div style="display: flex; gap: 20px; margin-bottom: 20px;">
-                            <div style="flex: 1; max-width: 580px;">
-                                <label style="font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; color: #1e1e1e; line-height: 1.4; display: block; margin-bottom: 8px;">Lựa chọn quyền</label>
-                                <select name="permissions" required style="width: 100%; min-width: 240px; height: 48px; padding: 12px 16px; border: 1px solid #d9d9d9; border-radius: 8px; font-family: 'Inter', sans-serif; font-size: 14px; line-height: 1.5; color: #1e1e1e; background: #fff; box-sizing: border-box; appearance: none; background-image: url('data:image/svg+xml;charset=US-ASCII,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><path fill=\"%23666\" d=\"M8 12L3 6h10l-5 6z\"/></svg>'); background-repeat: no-repeat; background-position: right 12px center;">
-                                    <option value="system_admin" selected>Quản trị hệ thống</option>
-                                    <option value="content_manager">Quản lý nội dung</option>
-                                    <option value="instructor">Giảng viên</option>
-                                    <option value="learner">Học viên</option>
-                                </select>
-                            </div>
-                            <div style="flex: 1; max-width: 580px;">
-                                <label style="font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; color: #1e1e1e; line-height: 1.4; display: block; margin-bottom: 8px;">Trạng thái</label>
-                                <select name="status" required style="width: 100%; min-width: 240px; height: 48px; padding: 12px 16px; border: 1px solid #d9d9d9; border-radius: 8px; font-family: 'Inter', sans-serif; font-size: 14px; line-height: 1.5; color: #1e1e1e; background: #fff; box-sizing: border-box; appearance: none; background-image: url('data:image/svg+xml;charset=US-ASCII,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><path fill=\"%23666\" d=\"M8 12L3 6h10l-5 6z\"/></svg>'); background-repeat: no-repeat; background-position: right 12px center;">
-                                    <option value="active" selected>Hoạt động</option>
-                                    <option value="inactive">Không hoạt động</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <!-- Organization select (loaded from API) -->
-                        <div style="display: flex; gap: 20px; margin-bottom: 24px;">
-                            <div style="flex: 1; max-width: 580px;">
-                                <label style="font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; color: #1e1e1e; line-height: 1.4; display: block; margin-bottom: 8px;">Cơ quan / Đơn vị</label>
-                                <select name="organization" id="user-organization" required style="width: 100%; min-width: 240px; height: 48px; padding: 12px 16px; border: 1px solid #d9d9d9; border-radius: 8px; font-family: 'Inter', sans-serif; font-size: 14px; line-height: 1.5; color: #1e1e1e; background: #fff; box-sizing: border-box; appearance: none; background-image: url('data:image/svg+xml;charset=US-ASCII,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><path fill=\"%23666\" d=\"M8 12L3 6h10l-5 6z\"/></svg>'); background-repeat: no-repeat; background-position: right 12px center;">
-                                    <option value="">Đang tải danh sách...</option>
-                                </select>
-                            </div>
-                        </div>
-                        
-                        <div style="display: flex; justify-content: flex-end; padding-top: 20px;">
-                            <button type="submit" style="background: #00aaed; color: #f5f5f5; border: none; border-radius: 8px; padding: 12px 24px; font-family: 'Inter', sans-serif; font-weight: 500; font-size: 16px; cursor: pointer; min-width: 150px;">
-                                Tạo mới
-                            </button>
-                        </div>
-                    </form>
+                    <!-- Create User Button -->
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin: ${forceShowButtons ? '60' : '0'}px 0 24px 0;">
+                        <h2 class="create-account-title" style="font-family: 'Inter', sans-serif; font-weight: 600; font-size: 18px; color: #1e1e1e; margin: 0;">DANH SÁCH NGƯỜI DÙNG</h2>
+                        <button type="button" id="open-create-user-modal" style="background: #00aaed; color: white; border: none; padding: 12px 20px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500; display: flex; align-items: center; gap: 8px; font-family: 'Inter', sans-serif;">
+                            <i class="fa fa-plus"></i>
+                            Tạo người dùng mới
+                        </button>
+                    </div>
                     
                     <!-- Users list -->
-                    <div id="existing-users" style="margin-top: 28px;">
-                        <div style="display:flex; justify-content:center; margin-bottom:18px;">
-                            <h3 style="font-family: 'Inter', sans-serif; font-weight: 600; font-size: 18px; margin:0;">Danh sách tài khoản hiện có</h3>
-                        </div>
+                    <div id="existing-users">
                         <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px;">
                             <div style="flex:1;">
                                 <input id="users-search" type="search" placeholder="Tìm theo username, email hoặc họ tên" style="height:40px; padding:8px 12px; border:1px solid #d9d9d9; border-radius:8px; font-size:14px; width:100%; max-width:420px;" />
@@ -183,6 +125,7 @@
                             <table id="users-table">
                                 <thead>
                                     <tr>
+                                        <th style="text-align: center;">Hành động</th>
                                         <th>ID</th>
                                         <th>Username</th>
                                         <th>Họ và tên</th>
@@ -213,7 +156,7 @@
                                     </tr>
                                 </thead>
                                 <tbody id="users-table-body">
-                                    <tr><td colspan="27" style="padding:18px; color:#667085; text-align:center;">Đang tải...</td></tr>
+                                    <tr><td colspan="28" style="padding:18px; color:#667085; text-align:center;">Đang tải...</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -234,12 +177,91 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Create User Modal -->
+            <div id="user-creation-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; justify-content: center; align-items: center;">
+                <div style="background: white; padding: 28px; border-radius: 12px; width: 90%; max-width: 800px; max-height: 85vh; overflow-y: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.15);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                        <h3 style="font-family: 'Inter', sans-serif; font-weight: 600; font-size: 20px; color: #1e1e1e; margin: 0;">Tạo người dùng mới</h3>
+                        <button type="button" id="close-user-modal" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666; line-height: 1;">&times;</button>
+                    </div>
+                    
+                    <form class="chalix-form" id="user-creation-form" style="max-width: none;">
+                        <div style="display: flex; gap: 20px; margin-bottom: 20px;">
+                            <div style="flex: 1;">
+                                <label style="font-family: 'Inter', sans-serif; font-weight: 400; font-size: 14px; color: #1e1e1e; line-height: 1.4; display: block; margin-bottom: 8px;">Họ và tên</label>
+                                <input type="text" name="full_name" placeholder="Tên người dùng sẽ được hiển thị trên tất cả các trang" required 
+                                       style="width: 100%; height: 42px; padding: 10px 14px; border: 1px solid #d9d9d9; border-radius: 6px; font-family: 'Inter', sans-serif; font-size: 14px; color: #1e1e1e; background: #fff; box-sizing: border-box;" />
+                            </div>
+                            <div style="flex: 1;">
+                                <label style="font-family: 'Inter', sans-serif; font-weight: 400; font-size: 14px; color: #1e1e1e; line-height: 1.4; display: block; margin-bottom: 8px;">Email hoặc Số điện thoại</label>
+                                <input type="email" name="email" placeholder="Nhập email hoặc số điện thoại" required 
+                                       style="width: 100%; height: 42px; padding: 10px 14px; border: 1px solid #d9d9d9; border-radius: 6px; font-family: 'Inter', sans-serif; font-size: 14px; color: #1e1e1e; background: #fff; box-sizing: border-box;" />
+                            </div>
+                        </div>
+                        
+                        <div style="display: flex; gap: 20px; margin-bottom: 20px;">
+                            <div style="flex: 1;">
+                                <label style="font-family: 'Inter', sans-serif; font-weight: 400; font-size: 14px; color: #1e1e1e; line-height: 1.4; display: block; margin-bottom: 8px;">Nhập mật khẩu</label>
+                                <input type="password" name="password" placeholder="Nhập mật khẩu" required 
+                                       style="width: 100%; height: 42px; padding: 10px 14px; border: 1px solid #d9d9d9; border-radius: 6px; font-family: 'Inter', sans-serif; font-size: 14px; color: #1e1e1e; background: #fff; box-sizing: border-box;" />
+                            </div>
+                            <div style="flex: 1;">
+                                <label style="font-family: 'Inter', sans-serif; font-weight: 400; font-size: 14px; color: #1e1e1e; line-height: 1.4; display: block; margin-bottom: 8px;">Vai trò người dùng</label>
+                                <select name="role" required style="width: 100%; height: 42px; padding: 10px 14px; border: 1px solid #d9d9d9; border-radius: 6px; font-family: 'Inter', sans-serif; font-size: 14px; color: #1e1e1e; background: #fff; box-sizing: border-box; appearance: none; background-image: url('data:image/svg+xml;charset=US-ASCII,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><path fill=\"%23666\" d=\"M8 12L3 6h10l-5 6z\"/></svg>'); background-repeat: no-repeat; background-position: right 12px center;">
+                                    <option value="">Chọn vai trò người dùng</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div style="display: flex; gap: 20px; margin-bottom: 20px;">
+                            <div style="flex: 1;">
+                                <label style="font-family: 'Inter', sans-serif; font-weight: 400; font-size: 14px; color: #1e1e1e; line-height: 1.4; display: block; margin-bottom: 8px;">Lựa chọn quyền</label>
+                                <select name="permissions" required style="width: 100%; height: 42px; padding: 10px 14px; border: 1px solid #d9d9d9; border-radius: 6px; font-family: 'Inter', sans-serif; font-size: 14px; color: #1e1e1e; background: #fff; box-sizing: border-box; appearance: none; background-image: url('data:image/svg+xml;charset=US-ASCII,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><path fill=\"%23666\" d=\"M8 12L3 6h10l-5 6z\"/></svg>'); background-repeat: no-repeat; background-position: right 12px center;">
+                                    <option value="system_admin" selected>Quản trị hệ thống</option>
+                                    <option value="content_manager">Quản lý nội dung</option>
+                                    <option value="instructor">Giảng viên</option>
+                                    <option value="learner">Học viên</option>
+                                </select>
+                            </div>
+                            <div style="flex: 1;">
+                                <label style="font-family: 'Inter', sans-serif; font-weight: 400; font-size: 14px; color: #1e1e1e; line-height: 1.4; display: block; margin-bottom: 8px;">Trạng thái</label>
+                                <select name="status" required style="width: 100%; height: 42px; padding: 10px 14px; border: 1px solid #d9d9d9; border-radius: 6px; font-family: 'Inter', sans-serif; font-size: 14px; color: #1e1e1e; background: #fff; box-sizing: border-box; appearance: none; background-image: url('data:image/svg+xml;charset=US-ASCII,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><path fill=\"%23666\" d=\"M8 12L3 6h10l-5 6z\"/></svg>'); background-repeat: no-repeat; background-position: right 12px center;">
+                                    <option value="active" selected>Hoạt động</option>
+                                    <option value="inactive">Không hoạt động</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Organization select (loaded from API) -->
+                        <div style="margin-bottom: 24px;">
+                            <label style="font-family: 'Inter', sans-serif; font-weight: 400; font-size: 14px; color: #1e1e1e; line-height: 1.4; display: block; margin-bottom: 8px;">Cơ quan / Đơn vị</label>
+                            <select name="organization" id="user-organization" required style="width: 100%; height: 42px; padding: 10px 14px; border: 1px solid #d9d9d9; border-radius: 6px; font-family: 'Inter', sans-serif; font-size: 14px; color: #1e1e1e; background: #fff; box-sizing: border-box; appearance: none; background-image: url('data:image/svg+xml;charset=US-ASCII,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><path fill=\"%23666\" d=\"M8 12L3 6h10l-5 6z\"/></svg>'); background-repeat: no-repeat; background-position: right 12px center;">
+                                <option value="">Đang tải danh sách...</option>
+                            </select>
+                        </div>
+                        
+                        <div style="display: flex; justify-content: flex-end; gap: 12px; padding-top: 12px; border-top: 1px solid #e6eef6;">
+                            <button type="button" id="cancel-user-modal" style="background: #f1f5f9; color: #0f172a; border: none; border-radius: 6px; padding: 10px 20px; font-family: 'Inter', sans-serif; font-weight: 500; font-size: 14px; cursor: pointer;">
+                                Hủy
+                            </button>
+                            <button type="submit" style="background: #00aaed; color: #f5f5f5; border: none; border-radius: 6px; padding: 10px 20px; font-family: 'Inter', sans-serif; font-weight: 500; font-size: 14px; cursor: pointer;">
+                                Tạo mới
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
         `;
 
         const wrap = container;
         
-        // Handle form submission
-        const form = wrap.querySelector('#user-creation-form');
+        // Get modal and form elements
+        const modal = document.getElementById('user-creation-modal');
+        const openModalBtn = wrap.querySelector('#open-create-user-modal');
+        const closeModalBtn = document.getElementById('close-user-modal');
+        const cancelModalBtn = document.getElementById('cancel-user-modal');
+        const form = document.getElementById('user-creation-form');
         const excelUploadBtn = wrap.querySelector('#excel-upload-btn');
         const uploadTemplateBtn = wrap.querySelector('#upload-template-btn');
         const downloadTemplateBtn = wrap.querySelector('#download-template-btn');
@@ -248,6 +270,40 @@
         const messagesContainer = wrap.querySelector('#user-creation-messages');
         const successMessage = wrap.querySelector('#success-message');
         const errorMessage = wrap.querySelector('#error-message');
+
+        // Modal open/close handlers
+        if (openModalBtn && modal) {
+            openModalBtn.addEventListener('click', () => {
+                modal.style.display = 'flex';
+                hideMessages();
+                if (form) form.reset();
+            });
+        }
+
+        const closeModal = () => {
+            if (modal) {
+                modal.style.display = 'none';
+                hideMessages();
+                if (form) form.reset();
+            }
+        };
+
+        if (closeModalBtn) {
+            closeModalBtn.addEventListener('click', closeModal);
+        }
+
+        if (cancelModalBtn) {
+            cancelModalBtn.addEventListener('click', closeModal);
+        }
+
+        // Close modal on outside click
+        if (modal) {
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    closeModal();
+                }
+            });
+        }
         
         // Form submission handler
         if (form) {
@@ -285,11 +341,17 @@
                     if (result.success) {
                         showSuccess(result.message);
                         form.reset();
+                        closeModal();
                         
                         // Show created user info
                         if (result.user) {
                             showUserCreatedInfo(result.user);
                         }
+                        
+                        // Refresh user list
+                        const perPage = parseInt(document.getElementById('users-per-page').value, 10) || 50;
+                        const q = document.getElementById('users-search').value || '';
+                        loadUsers(1, perPage, q);
                     } else {
                         showError(result.message || 'Lỗi tạo tài khoản');
                     }
@@ -629,12 +691,12 @@
                 });
 
                 if (resp.status === 403) {
-                    tbody.innerHTML = '<tr><td colspan="27" style="padding:12px; color:#c53030;">Bạn không có quyền xem danh sách tài khoản.</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="28" style="padding:12px; color:#c53030;">Bạn không có quyền xem danh sách tài khoản.</td></tr>';
                     return;
                 }
 
                 if (!resp.ok) {
-                    tbody.innerHTML = `<tr><td colspan="27" style="padding:12px; color:#667085;">Lỗi khi tải danh sách (status ${resp.status})</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="28" style="padding:12px; color:#667085;">Lỗi khi tải danh sách (status ${resp.status})</td></tr>`;
                     return;
                 }
 
@@ -644,7 +706,7 @@
                 usersState = { page: page, per_page: per_page, total: total, q: q };
 
                 if (!users || users.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="27" style="padding:12px; color:#667085;">Không tìm thấy tài khoản nào.</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="28" style="padding:12px; color:#667085;">Không tìm thấy tài khoản nào.</td></tr>';
                     return;
                 }
 
@@ -655,6 +717,10 @@
                     
                     const tr = document.createElement('tr');
                     tr.innerHTML = `
+                        <td style="padding:8px 12px; border-bottom:1px solid #f1f7fb; vertical-align:middle; text-align:center;">
+                            <button class="edit-user-btn" data-user-id="${u.id}" style="background: transparent; border: 1px solid #00aaed; color: #00aaed; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; margin-right: 6px;">Sửa</button>
+                            <button class="delete-user-btn" data-user-id="${u.id}" style="background: transparent; border: 1px solid #dc3545; color: #dc3545; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px;">Xóa</button>
+                        </td>
                         <td style="padding:8px 12px; border-bottom:1px solid #f1f7fb; vertical-align:top;">${u.id}</td>
                         <td style="padding:8px 12px; border-bottom:1px solid #f1f7fb; vertical-align:top;">${escapeHtml(u.username || '')}</td>
                         <td style="padding:8px 12px; border-bottom:1px solid #f1f7fb; vertical-align:top;">${escapeHtml(u.full_name || '')}</td>
@@ -686,13 +752,28 @@
                     tbody.appendChild(tr);
                 });
 
+                // Add event listeners for edit/delete buttons
+                document.querySelectorAll('.edit-user-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const userId = e.target.getAttribute('data-user-id');
+                        editUser(userId);
+                    });
+                });
+
+                document.querySelectorAll('.delete-user-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const userId = e.target.getAttribute('data-user-id');
+                        deleteUser(userId);
+                    });
+                });
+
                 // Update pagination UI
                 updatePaginationUI();
 
             } catch (e) {
                 console.error('Error loading users:', e);
                 const tbodyEl = document.getElementById('users-table-body');
-                if (tbodyEl) tbodyEl.innerHTML = '<tr><td colspan="27" style="padding:12px; color:#667085;">Lỗi kết nối. Vui lòng thử lại.</td></tr>';
+                if (tbodyEl) tbodyEl.innerHTML = '<tr><td colspan="28" style="padding:12px; color:#667085;">Lỗi kết nối. Vui lòng thử lại.</td></tr>';
             }
         }
 
@@ -701,6 +782,45 @@
             return text.toString().replace(/[&<>\"']/g, function (c) {
                 return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
             });
+        }
+
+        async function editUser(userId) {
+            // TODO: Implement user edit functionality
+            // This would open the modal with pre-filled data for the user
+            console.log('Edit user:', userId);
+            showError('Chức năng chỉnh sửa người dùng đang được phát triển');
+        }
+
+        async function deleteUser(userId) {
+            if (!confirm('Bạn có chắc chắn muốn xóa người dùng này không?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/contentstore/v1/users/${userId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'X-CSRFToken': getCSRFToken()
+                    },
+                    credentials: 'include'
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    showSuccess(result.message || 'Đã xóa người dùng thành công');
+                    
+                    // Refresh user list
+                    const perPage = parseInt(document.getElementById('users-per-page').value, 10) || 50;
+                    const q = document.getElementById('users-search').value || '';
+                    loadUsers(usersState.page, perPage, q);
+                } else {
+                    showError(result.message || 'Lỗi khi xóa người dùng');
+                }
+            } catch (error) {
+                console.error('Error deleting user:', error);
+                showError('Lỗi kết nối. Vui lòng thử lại.');
+            }
         }
         
         function handleTemplateDownload() {
