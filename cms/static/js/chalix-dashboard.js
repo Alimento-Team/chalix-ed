@@ -169,45 +169,54 @@
                 return;
             }
             
-            // Fetch tab-specific data from API first
+            // Map 'management' tab to 'learning-management' module
+            let moduleKey = tabId;
+            if (tabId === 'management') {
+                moduleKey = 'learning-management';
+            }
+            
+            // Check if tab has its own module renderer
+            const tabModule = window.CMS_TABS && window.CMS_TABS[moduleKey];
+            
+            // Tabs with their own modules handle their own data loading
+            // (e.g., learning-management loads data from /api/v1/organizations/)
+            if (tabModule && typeof tabModule.render === 'function') {
+                // Let the module handle everything including data fetching
+                tabModule.render(this.contentElement, {
+                    contentTitle: config.contentTitle,
+                    contentDescription: config.contentDescription
+                });
+                return;
+            }
+            
+            // For tabs without modules, fetch data from dashboard_api
             this.fetchTabData(tabId).then(tabData => {
-                // Render tab-specific content
-                // Prefer module-based tab renderers when present
-                const moduleKey = tabId;
-                const tabModule = window.CMS_TABS && window.CMS_TABS[moduleKey];
-                if (tabModule && typeof tabModule.render === 'function') {
-                    // Merge config with API data
-                    const renderConfig = Object.assign({}, {
-                        contentTitle: config.contentTitle,
-                        contentDescription: config.contentDescription
-                    }, tabData || {});
-                    
-                    tabModule.render(this.contentElement, renderConfig);
-                } else {
-                    // Default placeholder for other tabs
-                    this.contentElement.innerHTML = `
-                        <div class="tab-content-placeholder">
-                            <h2>${config.contentTitle}</h2>
-                            <p>${config.contentDescription}</p>
-                            <div style="margin-top: 20px; padding: 20px; background-color: #f8f9fa; border-radius: 8px; border: 1px solid #dee2e6;">
-                                <p style="margin: 0; color: #6c757d; font-style: italic;">
-                                    Nội dung cho tab này sẽ được phát triển trong các bước tiếp theo.
-                                </p>
-                            </div>
+                // Default placeholder for other tabs
+                this.contentElement.innerHTML = `
+                    <div class="tab-content-placeholder">
+                        <h2>${config.contentTitle}</h2>
+                        <p>${config.contentDescription}</p>
+                        <div style="margin-top: 20px; padding: 20px; background-color: #f8f9fa; border-radius: 8px; border: 1px solid #dee2e6;">
+                            <p style="margin: 0; color: #6c757d; font-style: italic;">
+                                Nội dung cho tab này sẽ được phát triển trong các bước tiếp theo.
+                            </p>
                         </div>
-                    `;
-                }
+                    </div>
+                `;
             }).catch(error => {
                 console.error('Error fetching tab data:', error);
-                // Render without API data on error
-                const moduleKey = tabId;
-                const tabModule = window.CMS_TABS && window.CMS_TABS[moduleKey];
-                if (tabModule && typeof tabModule.render === 'function') {
-                    tabModule.render(this.contentElement, {
-                        contentTitle: config.contentTitle,
-                        contentDescription: config.contentDescription
-                    });
-                }
+                // Show placeholder on error
+                this.contentElement.innerHTML = `
+                    <div class="tab-content-placeholder">
+                        <h2>${config.contentTitle}</h2>
+                        <p>${config.contentDescription}</p>
+                        <div style="margin-top: 20px; padding: 20px; background-color: #f8f9fa; border-radius: 8px; border: 1px solid #dee2e6;">
+                            <p style="margin: 0; color: #6c757d; font-style: italic;">
+                                Nội dung cho tab này sẽ được phát triển trong các bước tiếp theo.
+                            </p>
+                        </div>
+                    </div>
+                `;
             });
         }
 

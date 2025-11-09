@@ -68,6 +68,14 @@ class CourseType(models.Model):
 class Organization(models.Model):
     """Cơ quan (Organization) model for administrative grouping."""
     name = models.CharField(max_length=255, unique=True)
+    admin = models.ForeignKey(
+        'auth.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='administered_organizations',
+        help_text="Admin user responsible for this organization"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

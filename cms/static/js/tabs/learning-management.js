@@ -71,18 +71,8 @@
             .lm-wrap { display: flex; width: 100%; padding: 0; box-sizing: border-box; }
             .lm-card { width: 100%; max-width: none; background: transparent; padding: 0; text-align: center; }
             
-            .lm-subtabs { display:flex; justify-content:center; margin-bottom: 32px; border-bottom: 2px solid #e5e7eb; }
-            .lm-subtab-btn { 
-                background: none; border: none; padding: 16px 32px; font-size: 16px; font-weight: 600; 
-                color: #6b7280; cursor: pointer; border-bottom: 3px solid transparent; 
-                transition: all 200ms ease; position: relative; top: 2px; 
-            }
-            .lm-subtab-btn:hover { color: #374151; }
-            .lm-subtab-btn.active { color: #1f2937; border-bottom-color: #3b82f6; }
-            
             .lm-subtab-content { text-align: left; width: 100%; }
-            .lm-subtab-panel { display: none; width: 100%; }
-            .lm-subtab-panel.active { display: block; }
+            .lm-management-view { display: block; width: 100%; }
             
             .lm-tab-header { 
                 display: flex; justify-content: space-between; align-items: center; 
@@ -471,6 +461,41 @@
                 resize: vertical;
             }
             
+            /* Searchable dropdown */
+            .lm-select-wrapper {
+                position: relative;
+            }
+            .lm-dropdown-list {
+                position: absolute;
+                top: 100%;
+                left: 0;
+                right: 0;
+                max-height: 250px;
+                overflow-y: auto;
+                background: white;
+                border: 1px solid #d1d5db;
+                border-radius: 8px;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+                z-index: 1000;
+                margin-top: 4px;
+            }
+            .lm-dropdown-item {
+                padding: 10px 14px;
+                cursor: pointer;
+                transition: background-color 200ms;
+                border-bottom: 1px solid #f3f4f6;
+            }
+            .lm-dropdown-item:last-child {
+                border-bottom: none;
+            }
+            .lm-dropdown-item:hover:not(.disabled) {
+                background: #f3f4f6;
+            }
+            .lm-dropdown-item.disabled {
+                color: #9ca3af;
+                cursor: default;
+            }
+            
             .lm-topics-editor {
                 border: 1px solid #e5e7eb;
                 border-radius: 8px;
@@ -687,112 +712,49 @@
 
     function render(container, config) {
         if (!container) return;
-        console.log('[LM] Starting render for learning-management tab');
+        console.log('[LM] Starting render for management tab (learning-management module)');
         ensureStyles();
 
         container.innerHTML = `
             <div class="lm-wrap">
                 <div class="lm-card">
-                    <div class="lm-subtabs" role="tablist">
-                        <button class="lm-subtab-btn active" role="tab" data-subtab="programs" aria-selected="true">
-                            Danh sách chương trình học
-                        </button>
-                        <button class="lm-subtab-btn" role="tab" data-subtab="courses" aria-selected="false">
-                            Danh sách khóa học
-                        </button>
-                    </div>
-
-                    <div class="lm-subtab-content">
-                        <div id="lm-programs-tab" class="lm-subtab-panel active" role="tabpanel">
-                            <div class="lm-tab-header">
-                                <h3>Chương trình học</h3>
-                                <button class="lm-btn primary" data-action="create-program">
-                                    <span class="lm-btn-icon">+</span>
-                                    Tạo chương trình học
-                                </button>
-                            </div>
-                            <div class="lm-content-area">
-                                <div class="lm-loading">Đang tải danh sách chương trình học...</div>
-                            </div>
+                    <!-- Organizations Management -->
+                    <div id="lm-organizations-view" class="lm-management-view active">
+                        <div class="lm-tab-header">
+                            <h3>Cơ quan</h3>
+                            <button class="lm-btn primary" data-action="create-organization" style="display:none;">
+                                <span class="lm-btn-icon">+</span>
+                                Tạo cơ quan
+                            </button>
                         </div>
-
-                        <div id="lm-courses-tab" class="lm-subtab-panel" role="tabpanel">
-                            <div class="lm-tab-header">
-                                <h3>Khóa học</h3>
-                                <button class="lm-btn primary" data-action="create-course">
-                                    <span class="lm-btn-icon">+</span>
-                                    Tạo khóa học
-                                </button>
-                            </div>
-                            <div class="lm-content-area">
-                                <div class="lm-loading">Đang tải danh sách khóa học...</div>
-                            </div>
+                        <div class="lm-content-area">
+                            <div class="lm-loading">Đang tải danh sách cơ quan...</div>
                         </div>
                     </div>
                 </div>
             </div>
         `;
 
-        initializeSubtabs(container);
-        loadProgramsList(container.querySelector('#lm-programs-tab .lm-content-area'));
-        console.log('[LM] Render completed successfully');
+        // Initialize action buttons
+        initializeManagementViews(container);
+        // Load organizations list
+        loadOrganizationsList(container.querySelector('#lm-organizations-view .lm-content-area'));
+        console.log('[LM] Management tab render completed successfully');
     }
 
-    function initializeSubtabs(container) {
-        const subtabBtns = container.querySelectorAll('.lm-subtab-btn');
-        const subtabPanels = container.querySelectorAll('.lm-subtab-panel');
-
-        subtabBtns.forEach(btn => {
-            btn.addEventListener('click', () => {
-                const targetSubtab = btn.dataset.subtab;
-                
-                // Update active states
-                subtabBtns.forEach(b => {
-                    b.classList.remove('active');
-                    b.setAttribute('aria-selected', 'false');
-                });
-                subtabPanels.forEach(p => p.classList.remove('active'));
-                
-                btn.classList.add('active');
-                btn.setAttribute('aria-selected', 'true');
-                
-                const targetPanel = container.querySelector(`#lm-${targetSubtab}-tab`);
-                if (targetPanel) {
-                    targetPanel.classList.add('active');
-                    
-                    // Load content if not already loaded
-                    const contentArea = targetPanel.querySelector('.lm-content-area');
-                    if (contentArea && contentArea.querySelector('.lm-loading')) {
-                        if (targetSubtab === 'programs') {
-                            loadProgramsList(contentArea);
-                        } else if (targetSubtab === 'courses') {
-                            loadCoursesList(contentArea);
-                        }
-                    }
-                }
-            });
-        });
-
-        // Setup action buttons
+    function initializeManagementViews(container) {
+        // Setup action buttons (only for organization create button)
         container.querySelectorAll('.lm-btn[data-action]').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.preventDefault();
                 const action = btn.dataset.action;
                 
-                if (action === 'create-program') {
-                    openCreateProgramModal(() => {
-                        // Refresh programs list after creation
-                        const programsContent = container.querySelector('#lm-programs-tab .lm-content-area');
-                        if (programsContent) {
-                            loadProgramsList(programsContent);
-                        }
-                    });
-                } else if (action === 'create-course') {
-                    openCreateCourseModal(() => {
-                        // Refresh courses list after creation
-                        const coursesContent = container.querySelector('#lm-courses-tab .lm-content-area');
-                        if (coursesContent) {
-                            loadCoursesList(coursesContent);
+                if (action === 'create-organization') {
+                    openCreateOrganizationModal(() => {
+                        // Refresh organizations list after creation
+                        const orgsContent = container.querySelector('#lm-organizations-view .lm-content-area');
+                        if (orgsContent) {
+                            loadOrganizationsList(orgsContent);
                         }
                     });
                 }
@@ -3603,6 +3565,566 @@
                 document.body.removeChild(overlay);
                 if (onSuccess) onSuccess();
             }, 2000);
+        });
+    }
+
+    // Organization Management Functions
+    function loadOrganizationsList(contentArea) {
+        if (!contentArea) return;
+        
+        contentArea.innerHTML = '<div class="lm-loading">Đang tải danh sách cơ quan...</div>';
+
+        fetch('/api/v1/organizations/', {
+            credentials: 'same-origin',
+            headers: { 'Accept': 'application/json' }
+        })
+        .then(resp => {
+            if (!resp.ok) throw resp;
+            return resp.json();
+        })
+        .then(data => {
+            const organizations = data.organizations || [];
+            const canCreate = data.can_create || false;
+            const isBo = data.is_bo || false;
+            
+            // Show/hide create button based on permissions
+            const createBtn = document.querySelector('[data-action="create-organization"]');
+            if (createBtn) {
+                createBtn.style.display = canCreate ? 'inline-flex' : 'none';
+            }
+            
+            renderOrganizationsList(contentArea, organizations, isBo);
+        })
+        .catch(err => {
+            console.error('Failed to load organizations:', err);
+            contentArea.innerHTML = '<div class="lm-error">Không thể tải danh sách cơ quan</div>';
+        });
+    }
+
+    function renderOrganizationsList(contentArea, organizations, isBo) {
+        if (!contentArea) return;
+
+        if (organizations.length === 0) {
+            contentArea.innerHTML = '<div class="lm-empty">Chưa có cơ quan nào.</div>';
+            return;
+        }
+
+        // Create table structure without search bar
+        const tableHtml = `
+            <div class="lm-organizations-table-wrapper">
+                <table class="lm-organizations-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 60px;">ID</th>
+                            <th>Tên cơ quan</th>
+                            <th style="width: 140px;">Ngày tạo</th>
+                            <th style="width: 140px;">Ngày cập nhật</th>
+                            <th style="width: 200px;">Quản trị viên</th>
+                            <th class="actions-cell" style="width: 150px;">Hành động</th>
+                        </tr>
+                    </thead>
+                    <tbody id="organizations-tbody">
+                    </tbody>
+                </table>
+            </div>
+        `;
+
+        contentArea.innerHTML = tableHtml;
+        const tbody = contentArea.querySelector('#organizations-tbody');
+
+        organizations.forEach(org => {
+            const row = document.createElement('tr');
+            row.dataset.orgId = org.id;
+            
+            const createdDate = org.created_at ? new Date(org.created_at).toLocaleDateString('vi-VN') : '—';
+            const updatedDate = org.updated_at ? new Date(org.updated_at).toLocaleDateString('vi-VN') : '—';
+            const adminName = org.admin_username || org.admin_email || '—';
+            
+            row.innerHTML = `
+                <td>${org.id}</td>
+                <td>${escapeHtml(org.name)}</td>
+                <td>${createdDate}</td>
+                <td>${updatedDate}</td>
+                <td>${escapeHtml(adminName)}</td>
+                <td class="actions-cell">
+                    <button class="lm-card-btn edit" data-action="update-org" data-id="${org.id}">Sửa</button>
+                    <button class="lm-card-btn delete" data-action="delete-org" data-id="${org.id}" ${isBo ? '' : 'style="display:none;"'}>Xóa</button>
+                </td>
+            `;
+
+            // Add event listeners
+            row.querySelector('[data-action="update-org"]').addEventListener('click', (e) => {
+                e.stopPropagation();
+                editOrganization(org.id, () => loadOrganizationsList(contentArea));
+            });
+
+            const deleteBtn = row.querySelector('[data-action="delete-org"]');
+            if (deleteBtn) {
+                deleteBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    deleteOrganization(org.id, () => loadOrganizationsList(contentArea));
+                });
+            }
+
+            tbody.appendChild(row);
+        });
+
+        // Add table styles
+        const tableStyles = `
+            .lm-organizations-table-wrapper {
+                width: 100%;
+                overflow-x: auto;
+                border: 1px solid #e5e7eb;
+                border-radius: 8px;
+            }
+            .lm-organizations-table {
+                width: 100%;
+                border-collapse: collapse;
+                background: white;
+            }
+            .lm-organizations-table thead {
+                background: #f9fafb;
+            }
+            .lm-organizations-table th {
+                padding: 12px 16px;
+                text-align: left;
+                font-weight: 600;
+                color: #374151;
+                border-bottom: 2px solid #e5e7eb;
+            }
+            .lm-organizations-table th.actions-cell {
+                text-align: center;
+            }
+            .lm-organizations-table td {
+                padding: 12px 16px;
+                border-bottom: 1px solid #f3f4f6;
+                color: #1f2937;
+                text-align: left;
+                vertical-align: middle;
+            }
+            .lm-organizations-table tr:last-child td {
+                border-bottom: none;
+            }
+            .lm-organizations-table tr:hover {
+                background: #f9fafb;
+            }
+            .lm-organizations-table .actions-cell {
+                white-space: nowrap;
+                text-align: center;
+                vertical-align: middle;
+            }
+            .lm-organizations-table .actions-cell button {
+                margin-right: 8px;
+            }
+            .lm-organizations-table .actions-cell button:last-child {
+                margin-right: 0;
+            }
+        `;
+        
+        if (!document.getElementById('org-table-styles')) {
+            const style = document.createElement('style');
+            style.id = 'org-table-styles';
+            style.appendChild(document.createTextNode(tableStyles));
+            document.head.appendChild(style);
+        }
+    }
+
+    function editOrganization(orgId, onSuccess) {
+        // Fetch organization details
+        fetch(`/api/v1/organizations/${orgId}/`, {
+            credentials: 'same-origin',
+            headers: { 'Accept': 'application/json' }
+        })
+        .then(resp => {
+            if (!resp.ok) throw resp;
+            return resp.json();
+        })
+        .then(org => {
+            showEditOrganizationModal(org, onSuccess);
+        })
+        .catch(err => {
+            console.error('Failed to load organization:', err);
+            alert('Không thể tải thông tin cơ quan');
+        });
+    }
+
+    function showEditOrganizationModal(org, onSuccess) {
+        ensureEditModalStyles();
+        
+        const overlay = document.createElement('div');
+        overlay.className = 'lm-modal-overlay';
+        
+        overlay.innerHTML = `
+            <div class="lm-modal lm-edit-modal">
+                <div class="lm-modal-header">
+                    <h3 class="lm-modal-title">Chỉnh sửa cơ quan</h3>
+                    <button class="lm-modal-close" aria-label="Đóng">&times;</button>
+                </div>
+                <div class="lm-modal-body">
+                    <form class="lm-edit-form" id="edit-org-form">
+                        <div class="lm-form-group">
+                            <label class="lm-form-label" for="org-name">Tên cơ quan *</label>
+                            <input type="text" id="org-name" name="name" class="lm-form-input" 
+                                   value="${escapeHtml(org.name || '')}" required>
+                        </div>
+                        
+                        <div class="lm-form-group">
+                            <label class="lm-form-label" for="org-admin">Quản trị viên</label>
+                            <div class="lm-select-wrapper">
+                                <input type="text" id="org-admin" name="admin_identifier" 
+                                       class="lm-form-input lm-searchable-select" 
+                                       value="${escapeHtml(org.admin_username || org.admin_email || '')}"
+                                       placeholder="Tìm kiếm username hoặc email..."
+                                       autocomplete="off">
+                                <div class="lm-dropdown-list" id="admin-dropdown" style="display: none;"></div>
+                            </div>
+                            <small class="lm-form-help">Để trống hoặc chọn "Không có admin" để bỏ chỉ định</small>
+                        </div>
+                    </form>
+                    
+                    <div class="lm-modal-message" id="org-modal-message" style="display: none;"></div>
+                </div>
+                
+                <div class="lm-modal-actions">
+                    <button type="button" class="lm-btn secondary" id="cancel-org-btn">Hủy</button>
+                    <button type="button" class="lm-btn primary" id="save-org-btn">Lưu thay đổi</button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(overlay);
+        setupEditOrganizationModalHandlers(overlay, org, onSuccess);
+    }
+
+    function setupEditOrganizationModalHandlers(overlay, org, onSuccess) {
+        // Close handlers
+        overlay.querySelector('.lm-modal-close').addEventListener('click', () => {
+            document.body.removeChild(overlay);
+        });
+        
+        overlay.querySelector('#cancel-org-btn').addEventListener('click', () => {
+            document.body.removeChild(overlay);
+        });
+        
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) {
+                document.body.removeChild(overlay);
+            }
+        });
+        
+        // Setup searchable admin dropdown
+        setupSearchableAdminDropdown(overlay);
+        
+        // Save handler
+        overlay.querySelector('#save-org-btn').addEventListener('click', () => {
+            saveOrganizationChanges(overlay, org, onSuccess);
+        });
+        
+        // Form validation
+        const form = overlay.querySelector('#edit-org-form');
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            saveOrganizationChanges(overlay, org, onSuccess);
+        });
+    }
+
+    function setupSearchableAdminDropdown(overlay) {
+        const input = overlay.querySelector('#org-admin');
+        const dropdown = overlay.querySelector('#admin-dropdown');
+        let allUsers = [];
+        
+        // Fetch all staff users
+        fetch('/api/v1/organizations/staff-users/', {
+            credentials: 'same-origin',
+            headers: { 'Accept': 'application/json' }
+        })
+        .then(resp => resp.ok ? resp.json() : Promise.reject('Failed to load users'))
+        .then(data => {
+            allUsers = data.users || [];
+        })
+        .catch(err => {
+            console.error('Failed to load staff users:', err);
+            allUsers = [];
+        });
+        
+        // Show dropdown on focus
+        input.addEventListener('focus', () => {
+            if (allUsers.length > 0) {
+                renderAdminDropdown(input, dropdown, allUsers, '');
+                dropdown.style.display = 'block';
+            }
+        });
+        
+        // Filter on input
+        input.addEventListener('input', () => {
+            const query = input.value.toLowerCase();
+            renderAdminDropdown(input, dropdown, allUsers, query);
+            dropdown.style.display = 'block';
+        });
+        
+        // Hide dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!input.contains(e.target) && !dropdown.contains(e.target)) {
+                dropdown.style.display = 'none';
+            }
+        });
+    }
+
+    function renderAdminDropdown(input, dropdown, users, query) {
+        // Filter users
+        const filtered = users.filter(u => {
+            const searchText = `${u.username} ${u.email} ${u.full_name}`.toLowerCase();
+            return searchText.includes(query);
+        });
+        
+        // Add "No admin" option
+        let html = '<div class="lm-dropdown-item" data-value="">(Không có admin)</div>';
+        
+        // Add filtered users
+        filtered.slice(0, 10).forEach(user => {
+            const displayText = user.full_name 
+                ? `${user.full_name} (${user.username})` 
+                : user.username;
+            html += `<div class="lm-dropdown-item" data-value="${escapeHtml(user.username)}" data-email="${escapeHtml(user.email)}">
+                ${escapeHtml(displayText)}
+                ${user.email ? `<br><small style="color: #6b7280;">${escapeHtml(user.email)}</small>` : ''}
+            </div>`;
+        });
+        
+        if (filtered.length === 0 && query) {
+            html = '<div class="lm-dropdown-item disabled">Không tìm thấy kết quả</div>';
+        }
+        
+        dropdown.innerHTML = html;
+        
+        // Attach click handlers
+        dropdown.querySelectorAll('.lm-dropdown-item:not(.disabled)').forEach(item => {
+            item.addEventListener('click', () => {
+                const value = item.dataset.value;
+                input.value = value || '';
+                dropdown.style.display = 'none';
+            });
+        });
+    }
+
+    function saveOrganizationChanges(overlay, originalOrg, onSuccess) {
+        const messageEl = overlay.querySelector('#org-modal-message');
+        const saveBtn = overlay.querySelector('#save-org-btn');
+        const form = overlay.querySelector('#edit-org-form');
+        
+        // Show loading
+        messageEl.innerHTML = '<div class="lm-message lm-loading">Đang lưu thay đổi...</div>';
+        messageEl.style.display = 'block';
+        saveBtn.disabled = true;
+        
+        // Collect form data
+        const formData = new FormData(form);
+        const orgData = {
+            name: formData.get('name'),
+            admin_identifier: formData.get('admin_identifier') || null
+        };
+        
+        // Validate required fields
+        if (!orgData.name.trim()) {
+            messageEl.innerHTML = '<div class="lm-message lm-error">Vui lòng nhập tên cơ quan</div>';
+            saveBtn.disabled = false;
+            return;
+        }
+        
+        // Try to save via API
+        fetch(`/api/v1/organizations/${originalOrg.id}/`, {
+            method: 'PATCH',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify(orgData)
+        })
+        .then(resp => {
+            if (!resp.ok) {
+                return resp.json().then(data => {
+                    throw new Error(data.error || 'Server error');
+                });
+            }
+            return resp.json();
+        })
+        .then(result => {
+            messageEl.innerHTML = '<div class="lm-message lm-success">Đã lưu cơ quan thành công!</div>';
+            setTimeout(() => {
+                document.body.removeChild(overlay);
+                if (onSuccess) onSuccess();
+            }, 1500);
+        })
+        .catch(err => {
+            console.error('Failed to save organization:', err);
+            messageEl.innerHTML = `<div class="lm-message lm-error">Có lỗi xảy ra: ${escapeHtml(err.message)}</div>`;
+            saveBtn.disabled = false;
+        });
+    }
+
+    function deleteOrganization(orgId, onSuccess) {
+        showConfirmModal({
+            title: 'Xóa cơ quan',
+            message: 'Bạn có chắc chắn muốn xóa cơ quan này? Hành động này không thể hoàn tác.',
+            confirmText: 'Xóa',
+            cancelText: 'Hủy',
+            danger: true,
+            onConfirm: (modal) => {
+                fetch(`/api/v1/organizations/${orgId}/`, {
+                    method: 'DELETE',
+                    credentials: 'same-origin',
+                    headers: {
+                        'X-CSRFToken': getCookie('csrftoken')
+                    }
+                })
+                .then(resp => {
+                    if (!resp.ok) {
+                        return resp.json().then(data => {
+                            throw new Error(data.error || 'Server error');
+                        });
+                    }
+                    return resp.json();
+                })
+                .then(result => {
+                    modal.showMessage('Đã xóa cơ quan thành công!', 'success');
+                    setTimeout(() => {
+                        modal.close();
+                        if (onSuccess) onSuccess();
+                    }, 900);
+                })
+                .catch(err => {
+                    console.error('Failed to delete organization:', err);
+                    modal.showMessage('Không thể xóa cơ quan. ' + err.message, 'error');
+                });
+            }
+        });
+    }
+
+    function openCreateOrganizationModal(onSuccess) {
+        ensureEditModalStyles();
+        
+        const overlay = document.createElement('div');
+        overlay.className = 'lm-modal-overlay';
+        
+        overlay.innerHTML = `
+            <div class="lm-modal lm-edit-modal">
+                <div class="lm-modal-header">
+                    <h3 class="lm-modal-title">Tạo cơ quan mới</h3>
+                    <button class="lm-modal-close" aria-label="Đóng">&times;</button>
+                </div>
+                <div class="lm-modal-body">
+                    <form class="lm-edit-form" id="create-org-form">
+                        <div class="lm-form-group">
+                            <label class="lm-form-label" for="new-org-name">Tên cơ quan *</label>
+                            <input type="text" id="new-org-name" name="name" class="lm-form-input" 
+                                   placeholder="Nhập tên cơ quan..." required>
+                        </div>
+                        
+                        <div class="lm-form-group">
+                            <label class="lm-form-label" for="new-org-admin">Quản trị viên (Username hoặc Email)</label>
+                            <input type="text" id="new-org-admin" name="admin_identifier" class="lm-form-input"
+                                   placeholder="Nhập username hoặc email của admin">
+                            <small class="lm-form-help">Để trống nếu không muốn chỉ định admin ngay</small>
+                        </div>
+                    </form>
+                    
+                    <div class="lm-modal-message" id="create-org-modal-message" style="display: none;"></div>
+                </div>
+                
+                <div class="lm-modal-actions">
+                    <button type="button" class="lm-btn secondary" id="cancel-create-org-btn">Hủy</button>
+                    <button type="button" class="lm-btn primary" id="create-org-btn">Tạo cơ quan</button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(overlay);
+        setupCreateOrganizationModalHandlers(overlay, onSuccess);
+    }
+
+    function setupCreateOrganizationModalHandlers(overlay, onSuccess) {
+        // Close handlers
+        overlay.querySelector('.lm-modal-close').addEventListener('click', () => {
+            document.body.removeChild(overlay);
+        });
+        
+        overlay.querySelector('#cancel-create-org-btn').addEventListener('click', () => {
+            document.body.removeChild(overlay);
+        });
+        
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) {
+                document.body.removeChild(overlay);
+            }
+        });
+        
+        // Create handler
+        overlay.querySelector('#create-org-btn').addEventListener('click', () => {
+            createNewOrganization(overlay, onSuccess);
+        });
+        
+        // Form validation
+        const form = overlay.querySelector('#create-org-form');
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            createNewOrganization(overlay, onSuccess);
+        });
+    }
+
+    function createNewOrganization(overlay, onSuccess) {
+        const messageEl = overlay.querySelector('#create-org-modal-message');
+        const createBtn = overlay.querySelector('#create-org-btn');
+        const form = overlay.querySelector('#create-org-form');
+        
+        // Show loading
+        messageEl.innerHTML = '<div class="lm-message lm-loading">Đang tạo cơ quan...</div>';
+        messageEl.style.display = 'block';
+        createBtn.disabled = true;
+        
+        // Collect form data
+        const formData = new FormData(form);
+        const orgData = {
+            name: formData.get('name'),
+            admin_identifier: formData.get('admin_identifier') || null
+        };
+        
+        // Validate required fields
+        if (!orgData.name.trim()) {
+            messageEl.innerHTML = '<div class="lm-message lm-error">Vui lòng nhập tên cơ quan</div>';
+            createBtn.disabled = false;
+            return;
+        }
+        
+        // Try to create via API
+        fetch('/api/v1/organizations/', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify(orgData)
+        })
+        .then(resp => {
+            if (!resp.ok) {
+                return resp.json().then(data => {
+                    throw new Error(data.error || 'Server error');
+                });
+            }
+            return resp.json();
+        })
+        .then(result => {
+            messageEl.innerHTML = '<div class="lm-message lm-success">Đã tạo cơ quan thành công!</div>';
+            setTimeout(() => {
+                document.body.removeChild(overlay);
+                if (onSuccess) onSuccess();
+            }, 1500);
+        })
+        .catch(err => {
+            console.error('Failed to create organization:', err);
+            messageEl.innerHTML = `<div class="lm-message lm-error">Có lỗi xảy ra: ${escapeHtml(err.message)}</div>`;
+            createBtn.disabled = false;
         });
     }
 
