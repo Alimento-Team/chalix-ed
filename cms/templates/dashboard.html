@@ -254,10 +254,11 @@ lms_base_url = _mfe_conf.get('LMS_BASE_URL') or getattr(settings, 'LMS_ROOT_URL'
         display: flex;
         gap: 0; /* tabs flush against each other */
         align-items: stretch;
-        border: 1px solid #cfcfcf;
-        border-bottom: none;
-        background: transparent;
+        border: 1px solid #b2b2b2;
+        border-bottom: 1px solid #b2b2b2;
+        background: #f6f7f8;
         height: 48px; /* overall height for the tab row */
+        overflow: hidden; /* clip any overflow */
     }
     /* Generic selector for generated tabs - make them stretch horizontally and vertically */
     .cms-tabs .tab-container > * {
@@ -268,23 +269,40 @@ lms_base_url = _mfe_conf.get('LMS_BASE_URL') or getattr(settings, 'LMS_ROOT_URL'
         padding: 0 18px;
         height: 100%;
         box-sizing: border-box;
-        border-right: 1px solid #d0d0d0;
+        border-right: 1px solid #b2b2b2;
         background: #f6f7f8;
         font-family: 'Roboto', sans-serif;
         font-weight: 600;
         font-size: 16px;
-        color: #333;
+        color: #394047;
+        cursor: pointer;
+        transition: background 0.2s ease;
+    }
+    .cms-tabs .tab-container > *:hover:not(.active):not(.selected) {
+        background: #e8e9ea;
     }
     /* Active tab appearance - matches Figma blue */
     .cms-tabs .tab-container > *.active,
     .cms-tabs .tab-container > *.selected {
         background: #3494c8;
         color: #ffffff;
-        border-bottom: 4px solid #3494c8; /* visually connect with content area */
+        border-right: 1px solid #3494c8;
+        position: relative;
     }
     /* Remove last tab right border for a cleaner edge */
     .cms-tabs .tab-container > *:last-child {
         border-right: none;
+    }
+    /* Tab content area styling */
+    .tab-content {
+        background: #ffffff;
+        border: 1px solid #b2b2b2;
+        border-top: none;
+        min-height: 400px;
+        padding: 0; /* Let individual tab modules handle their own padding */
+    }
+    .tab-content-placeholder {
+        padding: 32px 24px;
     }
     /* Styles for Create Account tab content (Figma-inspired) */
     .create-account-wrap {
@@ -502,6 +520,7 @@ lms_base_url = _mfe_conf.get('LMS_BASE_URL') or getattr(settings, 'LMS_ROOT_URL'
 
     <!-- Chalix CMS Dashboard JavaScript -->
     <script type="text/javascript" src="${static.url('js/tabs/learning-management.js')}"></script>
+    <script type="text/javascript" src="${static.url('js/tabs/management.js')}"></script>
     <script type="text/javascript" src="${static.url('js/tabs/create-account.js')}"></script>
     <script type="text/javascript" src="${static.url('js/tabs/statistics.js')}"></script>
     <script type="text/javascript" src="${static.url('js/chalix-dashboard.js')}"></script>

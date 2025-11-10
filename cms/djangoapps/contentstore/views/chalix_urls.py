@@ -3,7 +3,7 @@ URL patterns for Chalix unit types and dashboard.
 """
 
 from django.urls import path, re_path
-from . import chalix_unit_types, chalix_dashboard, chalix_quiz
+from . import chalix_unit_types, chalix_dashboard, chalix_quiz, course_progress
 
 app_name = 'chalix'
 
@@ -190,5 +190,27 @@ urlpatterns = [
         'dashboard/update-course-metadata/',
         chalix_dashboard.update_course_metadata_api,
         name='chalix_update_course_metadata'
+    ),
+    
+    # Course Progress / Learner Submissions API
+    re_path(
+        r'^course-progress/learners/(?P<course_id>.+)/$',
+        course_progress.list_course_learners,
+        name='chalix_list_course_learners'
+    ),
+    re_path(
+        r'^course-progress/submission/(?P<course_id>.+)/(?P<user_id>\d+)/$',
+        course_progress.get_learner_submission,
+        name='chalix_get_learner_submission'
+    ),
+    re_path(
+        r'^course-progress/grade/(?P<course_id>.+)/(?P<user_id>\d+)/$',
+        course_progress.grade_submission,
+        name='chalix_grade_submission'
+    ),
+    re_path(
+        r'^course-progress/download/(?P<course_id>.+)/(?P<user_id>\d+)/$',
+        course_progress.download_submission_file,
+        name='chalix_download_submission'
     ),
 ]

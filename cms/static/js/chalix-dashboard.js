@@ -169,11 +169,8 @@
                 return;
             }
             
-            // Map 'management' tab to 'learning-management' module
+            // Use tabId directly as the module key
             let moduleKey = tabId;
-            if (tabId === 'management') {
-                moduleKey = 'learning-management';
-            }
             
             // Check if tab has its own module renderer
             const tabModule = window.CMS_TABS && window.CMS_TABS[moduleKey];

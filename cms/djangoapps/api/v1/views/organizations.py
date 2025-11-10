@@ -1,5 +1,5 @@
 from rest_framework import viewsets, permissions
-from cms.djangoapps.contentstore.models import Organization
+from cms.djangoapps.contentstore.models import ChalixOrganization
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.decorators import action
@@ -7,7 +7,7 @@ from ..serializers.organizations import OrganizationSerializer
 
 
 class OrganizationViewSet(viewsets.ModelViewSet):
-    queryset = Organization.objects.all()
+    queryset = ChalixOrganization.objects.all()
     serializer_class = OrganizationSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -18,11 +18,11 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         """
         user = self.request.user
         if user.is_superuser or user.is_staff:
-            # Bộ can see all organizations
-            return Organization.objects.all()
+            # Bộ can see all active organizations
+            return ChalixOrganization.objects.filter(is_active=True)
         else:
             # Regular users can only see their own organization
-            return Organization.objects.filter(admin=user)
+            return ChalixOrganization.objects.filter(admin=user, is_active=True)
 
     def create(self, request, *args, **kwargs):
         # Only superusers can create organizations

@@ -42,6 +42,8 @@ from ...views.user_management import (
     get_user_organizations,
     get_available_roles,
     list_users,
+    get_user_detail,
+    update_user,
 )
 
 # Import user template views
@@ -205,6 +207,8 @@ urlpatterns = [
     path('users/organizations', get_user_organizations, name='get_user_organizations'),
     path('users/roles', get_available_roles, name='get_available_roles'),
     path('users/list', list_users, name='list_users'),
+    path('users/<int:user_id>', get_user_detail, name='get_user_detail'),
+    path('users/<int:user_id>/update', update_user, name='update_user'),
     
     # Template and instructions
     path('users/template/download', download_user_template, name='download_user_template'),

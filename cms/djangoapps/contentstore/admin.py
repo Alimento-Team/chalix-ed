@@ -20,7 +20,6 @@ from cms.djangoapps.contentstore.models import (
     CourseType,
     LearningContextLinksStatus,
     VideoUploadConfig,
-    Organization,
 )
 from cms.djangoapps.contentstore.outlines_regenerate import CourseOutlineRegenerate
 from openedx.core.djangoapps.content.learning_sequences.api import key_supports_outlines
@@ -412,7 +411,7 @@ admin.site.register(User, ChalixUserAdmin)
 
 
 admin.site.register(BackfillCourseTabsConfig, ConfigurationModelAdmin)
-admin.site.register(Organization)
+# Organization is now an alias to ChalixOrganization, which is already registered above
 admin.site.register(VideoUploadConfig, ConfigurationModelAdmin)
 admin.site.register(CourseOutlineRegenerate, CourseOutlineRegenerateAdmin)
 admin.site.register(CleanStaleCertificateAvailabilityDatesConfig, ConfigurationModelAdmin)

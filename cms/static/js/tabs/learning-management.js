@@ -68,7 +68,7 @@
     function ensureStyles() {
         if (document.getElementById('cms-learning-management-styles')) return;
         const css = `
-            .lm-wrap { display: flex; width: 100%; padding: 0; box-sizing: border-box; }
+            .lm-wrap { display: flex; width: 100%; padding: 32px 24px; box-sizing: border-box; }
             .lm-card { width: 100%; max-width: none; background: transparent; padding: 0; text-align: center; }
             
             .lm-subtab-content { text-align: left; width: 100%; }
@@ -712,49 +712,176 @@
 
     function render(container, config) {
         if (!container) return;
-        console.log('[LM] Starting render for management tab (learning-management module)');
+        console.log('[LM] Starting render for learning-management tab');
         ensureStyles();
 
         container.innerHTML = `
             <div class="lm-wrap">
                 <div class="lm-card">
-                    <!-- Organizations Management -->
-                    <div id="lm-organizations-view" class="lm-management-view active">
-                        <div class="lm-tab-header">
-                            <h3>Cơ quan</h3>
-                            <button class="lm-btn primary" data-action="create-organization" style="display:none;">
-                                <span class="lm-btn-icon">+</span>
-                                Tạo cơ quan
-                            </button>
+                    <!-- Learning Management Subtabs: Programs and Courses -->
+                    <div class="lm-subtab-nav" style="margin-bottom: 24px;">
+                        <button class="lm-subtab-btn active" data-view="programs">
+                            Chương trình học
+                        </button>
+                        <button class="lm-subtab-btn" data-view="courses">
+                            Khóa học
+                        </button>
+                    </div>
+
+                    <div class="lm-subtab-content">
+                        <!-- Programs Tab -->
+                        <div id="lm-programs-tab" class="lm-management-view active">
+                            <div class="lm-tab-header">
+                                <h3>Chương trình học</h3>
+                                <button class="lm-btn primary" data-action="create-program">
+                                    <span class="lm-btn-icon">+</span>
+                                    Tạo chương trình học
+                                </button>
+                            </div>
+                            <div class="lm-content-area">
+                                <div class="lm-loading">Đang tải danh sách chương trình học...</div>
+                            </div>
                         </div>
-                        <div class="lm-content-area">
-                            <div class="lm-loading">Đang tải danh sách cơ quan...</div>
+
+                        <!-- Courses Tab -->
+                        <div id="lm-courses-tab" class="lm-management-view">
+                            <div class="lm-tab-header">
+                                <h3>Khóa học</h3>
+                                <button class="lm-btn primary" data-action="create-course">
+                                    <span class="lm-btn-icon">+</span>
+                                    Tạo khóa học
+                                </button>
+                            </div>
+                            <div class="lm-content-area">
+                                <div class="lm-loading">Đang tải danh sách khóa học...</div>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
         `;
 
+        // Add subtab navigation styles
+        addSubtabStyles();
+        
+        // Initialize subtab navigation
+        initializeSubtabNavigation(container);
+        
         // Initialize action buttons
         initializeManagementViews(container);
-        // Load organizations list
-        loadOrganizationsList(container.querySelector('#lm-organizations-view .lm-content-area'));
-        console.log('[LM] Management tab render completed successfully');
+        
+        // Load initial view (programs)
+        loadProgramsList(container.querySelector('#lm-programs-tab .lm-content-area'));
+        
+        console.log('[LM] Learning-management tab render completed successfully');
+    }
+
+    function addSubtabStyles() {
+        if (document.getElementById('lm-subtab-styles')) return;
+        
+        const css = `
+            .lm-subtab-nav {
+                display: flex;
+                gap: 12px;
+                padding: 12px;
+                background: #f9fafb;
+                border-radius: 8px;
+                border: 1px solid #e5e7eb;
+            }
+            
+            .lm-subtab-btn {
+                flex: 1;
+                padding: 12px 24px;
+                background: white;
+                border: 1px solid #d1d5db;
+                border-radius: 6px;
+                font-size: 14px;
+                font-weight: 600;
+                color: #374151;
+                cursor: pointer;
+                transition: all 200ms ease;
+            }
+            
+            .lm-subtab-btn:hover {
+                background: #f9fafb;
+                border-color: #3b82f6;
+            }
+            
+            .lm-subtab-btn.active {
+                background: #3b82f6;
+                color: white;
+                border-color: #3b82f6;
+            }
+            
+            .lm-management-view {
+                display: none;
+            }
+            
+            .lm-management-view.active {
+                display: block;
+            }
+        `;
+        
+        const style = document.createElement('style');
+        style.id = 'lm-subtab-styles';
+        style.appendChild(document.createTextNode(css));
+        document.head.appendChild(style);
+    }
+
+    function initializeSubtabNavigation(container) {
+        const subtabButtons = container.querySelectorAll('.lm-subtab-btn');
+        const views = container.querySelectorAll('.lm-management-view');
+        
+        subtabButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const viewName = btn.dataset.view;
+                
+                // Update button states
+                subtabButtons.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                
+                // Update view visibility
+                views.forEach(v => v.classList.remove('active'));
+                
+                // Show selected view and load data if needed
+                const targetView = container.querySelector(`#lm-${viewName}-tab`);
+                if (targetView) {
+                    targetView.classList.add('active');
+                    
+                    const contentArea = targetView.querySelector('.lm-content-area');
+                    
+                    // Load data based on view (programs or courses only)
+                    if (viewName === 'programs') {
+                        loadProgramsList(contentArea);
+                    } else if (viewName === 'courses') {
+                        loadCoursesList(contentArea);
+                    }
+                }
+            });
+        });
     }
 
     function initializeManagementViews(container) {
-        // Setup action buttons (only for organization create button)
+        // Setup action buttons for programs and courses
         container.querySelectorAll('.lm-btn[data-action]').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.preventDefault();
                 const action = btn.dataset.action;
                 
-                if (action === 'create-organization') {
-                    openCreateOrganizationModal(() => {
-                        // Refresh organizations list after creation
-                        const orgsContent = container.querySelector('#lm-organizations-view .lm-content-area');
-                        if (orgsContent) {
-                            loadOrganizationsList(orgsContent);
+                if (action === 'create-program') {
+                    openCreateProgramModal(() => {
+                        // Refresh programs list after creation
+                        const programsContent = container.querySelector('#lm-programs-tab .lm-content-area');
+                        if (programsContent) {
+                            loadProgramsList(programsContent);
+                        }
+                    });
+                } else if (action === 'create-course') {
+                    openCreateCourseModal(() => {
+                        // Refresh courses list after creation
+                        const coursesContent = container.querySelector('#lm-courses-tab .lm-content-area');
+                        if (coursesContent) {
+                            loadCoursesList(coursesContent);
                         }
                     });
                 }

@@ -57,7 +57,7 @@ def create_user_account(request):
         
         # Validate input data
         data = request.data
-        required_fields = ['full_name', 'email', 'password', 'role', 'status']
+        required_fields = ['full_name', 'email', 'password', 'status']
         missing_fields = [field for field in required_fields if not data.get(field)]
         
         if missing_fields:
@@ -66,8 +66,8 @@ def create_user_account(request):
                 'message': _('Thiếu thông tin bắt buộc: {}').format(', '.join(missing_fields))
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # Validate role assignment permissions
-        target_role = data.get('role')
+        # Validate role assignment permissions - default to cong_chuc if not provided
+        target_role = data.get('role', 'cong_chuc')
         if not can_assign_role(current_user_role, target_role):
             return Response({
                 'success': False,
@@ -230,11 +230,15 @@ def bulk_create_users(request):
         for row_num, user_data in enumerate(users_data, 1):
             try:
                 # Validate required fields
-                required_fields = ['full_name', 'email', 'role']
+                required_fields = ['full_name', 'email']
                 missing = [f for f in required_fields if not user_data.get(f)]
                 if missing:
                     validation_errors.append(f"Dòng {row_num}: Thiếu thông tin {', '.join(missing)}")
                     continue
+                
+                # Set default role to cong_chuc if not provided
+                if not user_data.get('role'):
+                    user_data['role'] = 'cong_chuc'
                 
                 # Validate email
                 try:
@@ -364,14 +368,12 @@ def get_user_organizations(request):
         organizations = ChalixOrganization.objects.filter(is_active=True)
         
         # For bo role, can see all organizations
-        # For co_quan role, can only see their own organization and children
+        # For co_quan role, can only see their own organization
         if current_user_role.role == 'co_quan':
             user_org = current_user_role.organization
             if user_org:
-                # Get current org and its children
-                org_ids = [user_org.id]
-                org_ids.extend(user_org.children.values_list('id', flat=True))
-                organizations = organizations.filter(id__in=org_ids)
+                # Co quan admin can only see their own organization
+                organizations = organizations.filter(id=user_org.id)
             else:
                 organizations = organizations.none()
         elif current_user_role.role not in ['bo', 'co_quan']:
@@ -381,9 +383,10 @@ def get_user_organizations(request):
         org_data = [{
             'id': org.id,
             'name': org.name,
-            'display_name': org.display_name,
-            'code': org.code
-        } for org in organizations.order_by('display_name')]
+            'value': org.id,
+            'label': org.display_name if hasattr(org, 'display_name') and org.display_name else org.name,
+            'display_name': org.display_name if hasattr(org, 'display_name') and org.display_name else org.name
+        } for org in organizations.order_by('name')]
         
         return Response({
             'success': True,
@@ -633,8 +636,8 @@ def get_assignable_roles(current_role: str) -> List[tuple]:
     role_choices = ChalixUserRole.ROLE_CHOICES
     
     if current_role == 'bo':
-        # Ministry can assign: co_quan, giang_vien, cong_chuc
-        return [choice for choice in role_choices if choice[0] in ['co_quan', 'giang_vien', 'cong_chuc']]
+        # Ministry can assign all roles including bo itself
+        return role_choices
     elif current_role == 'co_quan':
         # Organization can assign: giang_vien, cong_chuc
         return [choice for choice in role_choices if choice[0] in ['giang_vien', 'cong_chuc']]
@@ -714,3 +717,248 @@ def parse_users_file(uploaded_file) -> List[Dict[str, Any]]:
             raise Exception(_('Hệ thống không hỗ trợ đọc file Excel. Vui lòng sử dụng file CSV.'))
     
     return users_data
+
+
+@view_auth_classes(is_authenticated=True)
+@api_view(['GET'])
+def get_user_detail(request, user_id):
+    """
+    Get details of a specific user.
+    """
+    try:
+        user = User.objects.get(id=user_id)
+        
+        # Check permission - only Bo or admin of same organization
+        current_user_role = get_user_current_role(request.user)
+        if not current_user_role:
+            return Response(
+                {'error': 'Bạn không có quyền xem thông tin người dùng'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Bo can see all users
+        if current_user_role.role == 'bo':
+            pass
+        # Admin can only see users in their organization
+        elif current_user_role.role == 'co_quan':
+            user_role = get_user_current_role(user)
+            if not user_role or user_role.organization != current_user_role.organization:
+                return Response(
+                    {'error': 'Bạn không có quyền xem thông tin người dùng này'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        else:
+            return Response(
+                {'error': 'Bạn không có quyền xem thông tin người dùng'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Get user role and organization
+        user_role = get_user_current_role(user)
+        
+        # Get user profile meta
+        from common.djangoapps.student.models import UserProfile
+        try:
+            profile = UserProfile.objects.get(user=user)
+            # Handle meta field - it might be a string (JSON) or dict
+            if hasattr(profile, 'meta') and profile.meta:
+                if isinstance(profile.meta, str):
+                    try:
+                        meta = json.loads(profile.meta)
+                    except (json.JSONDecodeError, ValueError):
+                        meta = {}
+                elif isinstance(profile.meta, dict):
+                    meta = profile.meta
+                else:
+                    meta = {}
+            else:
+                meta = {}
+            full_name = profile.name if hasattr(profile, 'name') and profile.name else ''
+        except UserProfile.DoesNotExist:
+            meta = {}
+            full_name = f"{user.first_name or ''} {user.last_name or ''}".strip() or user.username or user.email
+        
+        if not full_name:
+            full_name = f"{user.first_name or ''} {user.last_name or ''}".strip() or user.username or user.email
+        
+        user_data = {
+            'id': user.id,
+            'username': user.username,
+            'email': user.email,
+            'full_name': full_name,
+            'phone': meta.get('phone', ''),
+            'gender': meta.get('gender', ''),
+            'organization': user_role.organization.name if user_role and user_role.organization else '',
+            'organization_id': user_role.organization.id if user_role and user_role.organization else None,
+            'user_role': user_role.role if user_role else '',
+            'meta': meta
+        }
+        
+        return Response(user_data)
+        
+    except User.DoesNotExist:
+        return Response(
+            {'error': 'Không tìm thấy người dùng'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    except Exception as e:
+        log.error(f'Error getting user detail: {str(e)}')
+        return Response(
+            {'error': f'Lỗi khi lấy thông tin người dùng: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@view_auth_classes(is_authenticated=True)
+@api_view(['PATCH'])
+def update_user(request, user_id):
+    """
+    Update user information.
+    """
+    try:
+        user = User.objects.get(id=user_id)
+        
+        # Check permission
+        current_user_role = get_user_current_role(request.user)
+        if not current_user_role:
+            return Response(
+                {'error': 'Bạn không có quyền chỉnh sửa người dùng'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Bo can edit all users
+        if current_user_role.role == 'bo':
+            pass
+        # Admin can only edit users in their organization
+        elif current_user_role.role == 'co_quan':
+            user_role = get_user_current_role(user)
+            if not user_role or user_role.organization != current_user_role.organization:
+                return Response(
+                    {'error': 'Bạn không có quyền chỉnh sửa người dùng này'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        else:
+            return Response(
+                {'error': 'Bạn không có quyền chỉnh sửa người dùng'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Update user basic fields
+        data = request.data
+        
+        if 'full_name' in data:
+            names = data['full_name'].strip().split(maxsplit=1)
+            user.first_name = names[0] if len(names) > 0 else ''
+            user.last_name = names[1] if len(names) > 1 else ''
+        
+        if 'email' in data and data['email'] != user.email:
+            # Validate email
+            try:
+                validate_email(data['email'])
+                # Check if email already exists
+                if User.objects.filter(email=data['email']).exclude(id=user.id).exists():
+                    return Response(
+                        {'error': 'Email đã được sử dụng'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                user.email = data['email']
+            except ValidationError:
+                return Response(
+                    {'error': 'Email không hợp lệ'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        user.save()
+        
+        # Update user profile (including name and meta)
+        from common.djangoapps.student.models import UserProfile
+        try:
+            profile = UserProfile.objects.get(user=user)
+            
+            # Update profile name
+            if 'full_name' in data:
+                profile.name = data['full_name'].strip()
+            
+            # Handle meta field - it might be a string (JSON) or dict
+            if hasattr(profile, 'meta') and profile.meta:
+                if isinstance(profile.meta, str):
+                    try:
+                        meta = json.loads(profile.meta)
+                    except (json.JSONDecodeError, ValueError):
+                        meta = {}
+                elif isinstance(profile.meta, dict):
+                    meta = profile.meta
+                else:
+                    meta = {}
+            else:
+                meta = {}
+            
+            # Update meta fields
+            meta_fields = [
+                'phone', 'gender', 'ngay_sinh', 'cccd', 'ngay_cap_cccd',
+                'don_vi_cong_tac', 'que_quan', 'dan_toc', 'ghi_chu',
+                'avatar_url', 'vi_tri_viec_lam', 'chuc_vu', 'nguoi_nhan_bang',
+                'so_chung_chi', 'ten_khoa_hoc', 'thoi_gian_hoc', 'nam_tot_nghiep',
+                'so_tiet_quy_doi', 'loai_hinh_dao_tao', 'noi_sinh', 'dia_chi',
+                'so_nam_cong_tac'
+            ]
+            
+            for field in meta_fields:
+                if field in data:
+                    meta[field] = data[field]
+            
+            # Convert meta back to JSON string if needed
+            profile.meta = json.dumps(meta) if meta else '{}'
+            profile.save()
+            
+        except UserProfile.DoesNotExist:
+            pass
+        
+        # Update role and organization if provided (only Bo can do this)
+        if current_user_role.role == 'bo':
+            if 'user_role' in data or 'organization_id' in data:
+                user_role = get_user_current_role(user)
+                
+                if 'user_role' in data and data['user_role']:
+                    if user_role:
+                        user_role.role = data['user_role']
+                    else:
+                        user_role = ChalixUserRole(user=user, role=data['user_role'])
+                
+                if 'organization_id' in data:
+                    if data['organization_id']:
+                        try:
+                            org = ChalixOrganization.objects.get(id=data['organization_id'])
+                            if user_role:
+                                user_role.organization = org
+                            else:
+                                # Create role if doesn't exist
+                                user_role = ChalixUserRole(user=user, organization=org)
+                        except ChalixOrganization.DoesNotExist:
+                            return Response(
+                                {'error': 'Không tìm thấy cơ quan'},
+                                status=status.HTTP_400_BAD_REQUEST
+                            )
+                    else:
+                        if user_role:
+                            user_role.organization = None
+                
+                if user_role:
+                    user_role.save()
+        
+        return Response({
+            'success': True,
+            'message': 'Cập nhật người dùng thành công'
+        })
+        
+    except User.DoesNotExist:
+        return Response(
+            {'error': 'Không tìm thấy người dùng'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    except Exception as e:
+        log.error(f'Error updating user: {str(e)}')
+        return Response(
+            {'error': f'Lỗi khi cập nhật người dùng: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )

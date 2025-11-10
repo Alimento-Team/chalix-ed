@@ -207,11 +207,20 @@
                                        style="width: 100%; height: 42px; padding: 10px 14px; border: 1px solid #d9d9d9; border-radius: 6px; font-family: 'Inter', sans-serif; font-size: 14px; color: #1e1e1e; background: #fff; box-sizing: border-box;" />
                             </div>
                             <div style="flex: 1;">
+                                <label style="font-family: 'Inter', sans-serif; font-weight: 400; font-size: 14px; color: #1e1e1e; line-height: 1.4; display: block; margin-bottom: 8px;">Nhập lại mật khẩu</label>
+                                <input type="password" name="password_confirm" placeholder="Nhập lại mật khẩu" required 
+                                       style="width: 100%; height: 42px; padding: 10px 14px; border: 1px solid #d9d9d9; border-radius: 6px; font-family: 'Inter', sans-serif; font-size: 14px; color: #1e1e1e; background: #fff; box-sizing: border-box;" />
+                            </div>
+                        </div>
+                        
+                        <div style="display: flex; gap: 20px; margin-bottom: 20px;">
+                            <div style="flex: 1;">
                                 <label style="font-family: 'Inter', sans-serif; font-weight: 400; font-size: 14px; color: #1e1e1e; line-height: 1.4; display: block; margin-bottom: 8px;">Vai trò người dùng</label>
                                 <select name="role" required style="width: 100%; height: 42px; padding: 10px 14px; border: 1px solid #d9d9d9; border-radius: 6px; font-family: 'Inter', sans-serif; font-size: 14px; color: #1e1e1e; background: #fff; box-sizing: border-box; appearance: none; background-image: url('data:image/svg+xml;charset=US-ASCII,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><path fill=\"%23666\" d=\"M8 12L3 6h10l-5 6z\"/></svg>'); background-repeat: no-repeat; background-position: right 12px center;">
                                     <option value="">Chọn vai trò người dùng</option>
                                 </select>
                             </div>
+                            <div style="flex: 1;"></div>
                         </div>
                         
                         <div style="display: flex; gap: 20px; margin-bottom: 20px;">
@@ -258,6 +267,7 @@
         
         // Get modal and form elements
         const modal = document.getElementById('user-creation-modal');
+        const modalTitle = modal ? modal.querySelector('h3') : null;
         const openModalBtn = wrap.querySelector('#open-create-user-modal');
         const closeModalBtn = document.getElementById('close-user-modal');
         const cancelModalBtn = document.getElementById('cancel-user-modal');
@@ -275,8 +285,43 @@
         if (openModalBtn && modal) {
             openModalBtn.addEventListener('click', () => {
                 modal.style.display = 'flex';
+                modalTitle.textContent = 'Tạo tài khoản mới';
                 hideMessages();
-                if (form) form.reset();
+                if (form) {
+                    form.reset();
+                    // Reset form state for create mode
+                    delete form.dataset.userId;
+                    delete form.dataset.isEdit;
+                    
+                    // Show password fields and make them required for create mode
+                    const passwordField = form.querySelector('[name="password"]');
+                    const passwordConfirmField = form.querySelector('[name="password_confirm"]');
+                    const passwordGroup = passwordField ? passwordField.closest('.form-group') : null;
+                    const passwordConfirmGroup = passwordConfirmField ? passwordConfirmField.closest('.form-group') : null;
+                    
+                    if (passwordGroup) {
+                        passwordGroup.style.display = 'block';
+                    }
+                    if (passwordConfirmGroup) {
+                        passwordConfirmGroup.style.display = 'block';
+                    }
+                    
+                    // Make password fields required and reset placeholders for create mode
+                    if (passwordField) {
+                        passwordField.setAttribute('required', 'required');
+                        passwordField.placeholder = 'Nhập mật khẩu (tối thiểu 6 ký tự)';
+                    }
+                    if (passwordConfirmField) {
+                        passwordConfirmField.setAttribute('required', 'required');
+                        passwordConfirmField.placeholder = 'Nhập lại mật khẩu';
+                    }
+                    
+                    // Reset submit button text
+                    const submitBtn = form.querySelector('button[type="submit"]');
+                    if (submitBtn) {
+                        submitBtn.textContent = 'Tạo tài khoản';
+                    }
+                }
             });
         }
 
@@ -284,7 +329,25 @@
             if (modal) {
                 modal.style.display = 'none';
                 hideMessages();
-                if (form) form.reset();
+                if (form) {
+                    form.reset();
+                    // Reset form state
+                    delete form.dataset.userId;
+                    delete form.dataset.isEdit;
+                    
+                    // Show password field
+                    const passwordField = form.querySelector('[name="password"]');
+                    const passwordGroup = passwordField ? passwordField.closest('.form-group') : null;
+                    if (passwordGroup) {
+                        passwordGroup.style.display = 'block';
+                    }
+                    
+                    // Reset submit button text
+                    const submitBtn = form.querySelector('button[type="submit"]');
+                    if (submitBtn) {
+                        submitBtn.textContent = 'Tạo tài khoản';
+                    }
+                }
             }
         };
 
@@ -317,8 +380,12 @@
                 const formData = new FormData(form);
                 const userData = Object.fromEntries(formData.entries());
                 
-                // Validate required fields
-                if (!validateUserData(userData)) {
+                // Check if this is an edit or create
+                const isEdit = form.dataset.isEdit === 'true';
+                const userId = form.dataset.userId;
+                
+                // Validate required fields (skip password for edit)
+                if (!validateUserData(userData, isEdit)) {
                     return;
                 }
                 
@@ -326,38 +393,80 @@
                 setLoadingState(true);
                 
                 try {
-                    const response = await fetch('/api/contentstore/v1/users/create', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRFToken': getCSRFToken()
-                        },
-                        credentials: 'include',
-                        body: JSON.stringify(userData)
-                    });
+                    let response, result;
                     
-                    const result = await response.json();
-                    
-                    if (result.success) {
-                        showSuccess(result.message);
-                        form.reset();
-                        closeModal();
+                    if (isEdit) {
+                        // Update existing user
+                        response = await fetch(`/api/contentstore/v1/users/${userId}/update`, {
+                            method: 'PATCH',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': getCSRFToken()
+                            },
+                            credentials: 'include',
+                            body: JSON.stringify(userData)
+                        });
                         
-                        // Show created user info
-                        if (result.user) {
-                            showUserCreatedInfo(result.user);
+                        result = await response.json();
+                        
+                        if (result.success) {
+                            showSuccess(result.message || 'Cập nhật người dùng thành công');
+                            form.reset();
+                            closeModal();
+                            
+                            // Reset form state
+                            delete form.dataset.userId;
+                            delete form.dataset.isEdit;
+                            
+                            // Show password field again
+                            const passwordField = form.querySelector('[name="password"]');
+                            const passwordGroup = passwordField.closest('.form-group');
+                            if (passwordGroup) {
+                                passwordGroup.style.display = 'block';
+                            }
+                            
+                            // Refresh user list
+                            const perPage = parseInt(document.getElementById('users-per-page').value, 10) || 50;
+                            const q = document.getElementById('users-search').value || '';
+                            loadUsers(usersState.page, perPage, q);
+                        } else {
+                            showError(result.error || result.message || 'Lỗi cập nhật người dùng');
                         }
-                        
-                        // Refresh user list
-                        const perPage = parseInt(document.getElementById('users-per-page').value, 10) || 50;
-                        const q = document.getElementById('users-search').value || '';
-                        loadUsers(1, perPage, q);
                     } else {
-                        showError(result.message || 'Lỗi tạo tài khoản');
+                        // Create new user
+                        response = await fetch('/api/contentstore/v1/users/create', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': getCSRFToken()
+                            },
+                            credentials: 'include',
+                            body: JSON.stringify(userData)
+                        });
+                        
+                        result = await response.json();
+                        
+                        if (result.success) {
+                            showSuccess(result.message);
+                            form.reset();
+                            closeModal();
+                            
+                            // Show created user info
+                            if (result.user) {
+                                showUserCreatedInfo(result.user);
+                            }
+                            
+                            // Refresh user list
+                            const perPage = parseInt(document.getElementById('users-per-page').value, 10) || 50;
+                            const q = document.getElementById('users-search').value || '';
+                            loadUsers(1, perPage, q);
+                        } else {
+                            showError(result.message || 'Lỗi tạo tài khoản');
+                        }
                     }
                     
                 } catch (error) {
-                    console.error('Error creating user:', error);
+                    console.error('Error saving user:', error);
                     showError('Lỗi kết nối. Vui lòng thử lại.');
                 } finally {
                     setLoadingState(false);
@@ -397,14 +506,19 @@
     loadOrganizations();
         
         // Helper functions
-        function validateUserData(userData) {
+        function validateUserData(userData, isEdit = false) {
             const requiredFields = {
                 'full_name': 'Họ và tên',
                 'email': 'Email',
-                'password': 'Mật khẩu',
                 'role': 'Vai trò',
                 'status': 'Trạng thái'
             };
+            
+            // Password is only required for create, not edit
+            if (!isEdit) {
+                requiredFields['password'] = 'Mật khẩu';
+                requiredFields['password_confirm'] = 'Nhập lại mật khẩu';
+            }
             
             let isValid = true;
             
@@ -424,9 +538,24 @@
                 }
             }
             
-            // Validate password strength
-            if (userData.password && userData.password.length < 6) {
-                showError('Mật khẩu phải có ít nhất 6 ký tự');
+            // Validate password matching and strength
+            if (userData.password || userData.password_confirm) {
+                // If either password field has a value, both must match
+                if (userData.password !== userData.password_confirm) {
+                    showError('Mật khẩu và xác nhận mật khẩu không khớp');
+                    isValid = false;
+                }
+                
+                // Validate password strength (only if provided)
+                if (userData.password && userData.password.length < 6) {
+                    showError('Mật khẩu phải có ít nhất 6 ký tự');
+                    isValid = false;
+                }
+            }
+            
+            // For edit mode: if password is provided, it must be confirmed
+            if (isEdit && userData.password && !userData.password_confirm) {
+                showError('Vui lòng nhập lại mật khẩu để xác nhận');
                 isValid = false;
             }
             
@@ -785,10 +914,92 @@
         }
 
         async function editUser(userId) {
-            // TODO: Implement user edit functionality
-            // This would open the modal with pre-filled data for the user
-            console.log('Edit user:', userId);
-            showError('Chức năng chỉnh sửa người dùng đang được phát triển');
+            try {
+                // Fetch user details
+                const response = await fetch(`/api/contentstore/v1/users/${userId}`, {
+                    headers: {
+                        'X-CSRFToken': getCSRFToken()
+                    },
+                    credentials: 'include'
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to fetch user details');
+                }
+
+                const userData = await response.json();
+                showEditUserModal(userData);
+
+            } catch (e) {
+                console.error('Error loading user for edit:', e);
+                showError('Không thể tải thông tin người dùng. Vui lòng thử lại.');
+            }
+        }
+
+        function showEditUserModal(userData) {
+            // Show modal
+            modal.style.display = 'flex';
+            modalTitle.textContent = 'Chỉnh sửa người dùng';
+
+            // Pre-fill form with user data
+            form.querySelector('[name="full_name"]').value = userData.full_name || '';
+            form.querySelector('[name="email"]').value = userData.email || '';
+            
+            // Show password fields but make them optional for edit
+            const passwordField = form.querySelector('[name="password"]');
+            const passwordConfirmField = form.querySelector('[name="password_confirm"]');
+            
+            if (passwordField) {
+                passwordField.value = '';  // Clear password field
+                passwordField.removeAttribute('required');  // Make optional
+                passwordField.placeholder = 'Để trống nếu không muốn đổi mật khẩu';
+            }
+            
+            if (passwordConfirmField) {
+                passwordConfirmField.value = '';  // Clear confirm field
+                passwordConfirmField.removeAttribute('required');  // Make optional
+                passwordConfirmField.placeholder = 'Nhập lại mật khẩu mới (nếu có)';
+            }
+
+            // Set meta fields
+            const meta = userData.meta || {};
+            const metaFields = [
+                'phone', 'gender', 'ngay_sinh', 'cccd', 'ngay_cap_cccd',
+                'don_vi_cong_tac', 'que_quan', 'dan_toc', 'ghi_chu',
+                'avatar_url', 'vi_tri_viec_lam', 'chuc_vu', 'nguoi_nhan_bang',
+                'so_chung_chi', 'ten_khoa_hoc', 'thoi_gian_hoc', 'nam_tot_nghiep',
+                'so_tiet_quy_doi', 'loai_hinh_dao_tao', 'noi_sinh', 'dia_chi',
+                'so_nam_cong_tac'
+            ];
+
+            metaFields.forEach(field => {
+                const input = form.querySelector(`[name="${field}"]`);
+                if (input) {
+                    input.value = meta[field] || '';
+                }
+            });
+
+            // Set role
+            const roleSelect = form.querySelector('[name="role"]');
+            if (roleSelect && userData.user_role) {
+                roleSelect.value = userData.user_role;
+            }
+
+            // Set organization
+            const orgSelect = form.querySelector('[name="organization"]');
+            if (orgSelect && userData.organization_id) {
+                orgSelect.value = userData.organization_id;
+            }
+
+            // Change form submit handler to update instead of create
+            const submitBtn = form.querySelector('button[type="submit"]');
+            if (submitBtn) {
+                submitBtn.textContent = 'Cập nhật';
+            }
+
+            // Store user ID for update
+            form.dataset.userId = userData.id;
+            form.dataset.isEdit = 'true';
         }
 
         async function deleteUser(userId) {
