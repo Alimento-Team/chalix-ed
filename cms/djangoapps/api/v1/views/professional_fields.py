@@ -1,5 +1,6 @@
 from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
+from django.db import IntegrityError
 from cms.djangoapps.contentstore.models import ProfessionalField
 from ..serializers.professional_fields import ProfessionalFieldSerializer
 
@@ -37,9 +38,16 @@ class ProfessionalFieldViewSet(viewsets.ModelViewSet):
         
         serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
         
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        try:
+            self.perform_create(serializer)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        except IntegrityError:
+            # Catch any database-level unique constraint violations
+            return Response(
+                {"name": ["A professional field with this name already exists"]},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
     def update(self, request, *args, **kwargs):
         """Only Bộ (superusers/staff) can update professional fields"""
@@ -49,7 +57,13 @@ class ProfessionalFieldViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN
             )
         
-        return super().update(request, *args, **kwargs)
+        try:
+            return super().update(request, *args, **kwargs)
+        except IntegrityError:
+            return Response(
+                {"name": ["A professional field with this name already exists"]},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
     def partial_update(self, request, *args, **kwargs):
         """Only Bộ (superusers/staff) can update professional fields"""
@@ -59,7 +73,13 @@ class ProfessionalFieldViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN
             )
         
-        return super().partial_update(request, *args, **kwargs)
+        try:
+            return super().partial_update(request, *args, **kwargs)
+        except IntegrityError:
+            return Response(
+                {"name": ["A professional field with this name already exists"]},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
     def destroy(self, request, *args, **kwargs):
         """Only Bộ (superusers/staff) can delete professional fields"""

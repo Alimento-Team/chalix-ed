@@ -25,6 +25,8 @@ from common.djangoapps.student.auth import has_course_author_access
 from opaque_keys.edx.keys import CourseKey
 from xmodule.modulestore.django import modulestore
 from openedx.core.djangoapps.models.course_details import CourseDetails
+from django.conf import settings
+import requests
 
 from .models import UserLearningPlan, TeachingRequest, UserRequest, UserPersonalization, Notification, NotificationType, NotificationPreference
 
@@ -771,3 +773,52 @@ def course_detail_api(request, course_key_string):
     except Exception as e:
         logger.error(f"Error getting course details for {course_key}: {str(e)}")
         return JsonResponse({'error': 'Course not found or inaccessible'}, status=404)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def professional_fields_proxy(request):
+    """
+    Fetch professional fields directly from the database.
+    Since LMS and CMS share the same database, we can query it directly.
+    """
+    try:
+        from django.db import connection
+        
+        # Query the contentstore_professionalfield table directly
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT id, name, description, is_active, sort_order, created_by, created_at, updated_at
+                FROM contentstore_professionalfield
+                WHERE is_active = 1
+                ORDER BY sort_order, name
+            """)
+            
+            columns = [col[0] for col in cursor.description]
+            fields = []
+            
+            for row in cursor.fetchall():
+                field_dict = dict(zip(columns, row))
+                # Convert datetime objects to ISO format strings
+                if field_dict.get('created_at'):
+                    field_dict['created_at'] = field_dict['created_at'].isoformat()
+                if field_dict.get('updated_at'):
+                    field_dict['updated_at'] = field_dict['updated_at'].isoformat()
+                fields.append(field_dict)
+        
+        logger.info(f"[Professional Fields] Retrieved {len(fields)} fields from database")
+        
+        return Response({
+            'professional_fields': fields,
+            'can_manage': request.user.is_superuser or request.user.is_staff,
+            'is_bo': request.user.is_superuser or request.user.is_staff
+        })
+            
+    except Exception as e:
+        logger.error(f"[Professional Fields] Error fetching professional fields: {e}", exc_info=True)
+        # Return empty list on error to not break the frontend
+        return Response({
+            'professional_fields': [],
+            'can_manage': False,
+            'is_bo': False
+        })

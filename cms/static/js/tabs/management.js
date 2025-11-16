@@ -1119,7 +1119,7 @@
             return resp.json();
         })
         .then(data => {
-            const fields = Array.isArray(data) ? data : (data.results || []);
+            const fields = Array.isArray(data) ? data : (data.professional_fields || data.results || []);
             renderProfessionalFieldsList(contentArea, fields);
         })
         .catch(err => {

@@ -208,7 +208,7 @@ urlpatterns = [
     path('api/facial-expression/', include('lms.djangoapps.facial_expression.urls', namespace='facial_expression')),
 
     # Chalix User Menu API
-    path('api/chalix/user-menu/', include('lms.djangoapps.chalix_user_menu.urls', namespace='chalix_user_menu')),
+    path('api/chalix/user-menu/', include('lms.djangoapps.chalix_user_menu.urls')),
 
     path(
         'api/experiments/',

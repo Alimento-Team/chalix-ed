@@ -19,6 +19,7 @@ from .views import (
     create_notification,
     notification_preferences,
     course_detail_api,
+    professional_fields_proxy,
 )
 
 app_name = 'chalix_user_menu'
@@ -56,6 +57,9 @@ urlpatterns = [
     path('notifications/unread-count/', get_unread_count, name='get_unread_count'),
     path('notifications/create/', create_notification, name='create_notification'),
     path('notifications/preferences/', notification_preferences, name='notification_preferences'),
+
+    # Professional fields proxy (to avoid CORS issues)
+    path('professional-fields/', professional_fields_proxy, name='professional_fields_proxy'),
 
     # Logout
     path('logout/', user_logout, name='user_logout'),
