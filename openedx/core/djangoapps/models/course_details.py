@@ -91,6 +91,7 @@ class CourseDetails:
         self.final_evaluation_type = ""
         self.course_type = ""
         self.course_level = ""
+        self.course_category = ""  # Chalix: course category for bộ role (elective or mandatory)
 
     @classmethod
     def fetch_about_attribute(cls, course_key, attribute):
@@ -151,6 +152,16 @@ class CourseDetails:
         course_details.final_evaluation_type = getattr(block, 'final_evaluation_type', "")
         course_details.course_type = getattr(block, 'course_type', "")
         course_details.course_level = getattr(block, 'course_level', "")
+        
+        # Fetch course_category from ChalixCourseMetadata
+        try:
+            from cms.djangoapps.contentstore.models import ChalixCourseMetadata
+            chalix_metadata = ChalixCourseMetadata.objects.filter(course_key=course_key).first()
+            if chalix_metadata:
+                course_details.course_category = chalix_metadata.course_category or ""
+        except Exception:  # pylint: disable=broad-except
+            # If ChalixCourseMetadata doesn't exist or import fails, default to empty
+            course_details.course_category = ""
 
         # Default course license is "All Rights Reserved"
         course_details.license = getattr(block, "license", "all-rights-reserved")
@@ -352,6 +363,30 @@ class CourseDetails:
 
         if dirty:
             module_store.update_item(block, user.id)
+        
+        # Handle course_category separately via ChalixCourseMetadata
+        if 'course_category' in jsondict:
+            try:
+                from cms.djangoapps.contentstore.models import ChalixCourseMetadata
+                chalix_metadata, created = ChalixCourseMetadata.objects.get_or_create(
+                    course_key=course_key
+                )
+                if chalix_metadata.course_category != jsondict['course_category']:
+                    chalix_metadata.course_category = jsondict['course_category']
+                    # Also update publish_type for backwards compatibility
+                    chalix_metadata.publish_type = jsondict['course_category']
+                    chalix_metadata.save()
+                    logging.getLogger(__name__).info(
+                        "Updated course_category to '%s' for course %s", 
+                        jsondict['course_category'], 
+                        course_key
+                    )
+            except Exception as e:  # pylint: disable=broad-except
+                logging.getLogger(__name__).error(
+                    "Failed to update course_category for course %s: %s", 
+                    course_key, 
+                    str(e)
+                )
 
         # NOTE: below auto writes to the db w/o verifying that any of
         # the fields actually changed to make faster, could compare

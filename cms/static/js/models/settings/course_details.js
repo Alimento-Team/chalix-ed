@@ -37,7 +37,8 @@ function(Backbone, _, gettext, ValidationHelpers, DateUtils, StringUtils) {
             entrance_exam_minimum_score_pct: '50',
             learning_info: [],
             instructor_info: {},
-            self_paced: null
+            self_paced: null,
+            course_category: ''  // Chalix: course category for bộ role
         },
 
         validate: function(newattrs) {

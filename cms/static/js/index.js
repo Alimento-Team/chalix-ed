@@ -52,6 +52,16 @@ function(domReady, $, _, CancelOnEscape, CreateCourseUtilsFactory, CreateLibrary
         var org = $newCourseForm.find('.new-course-org').val();
         var number = $newCourseForm.find('.new-course-number').val();
         var run = $newCourseForm.find('.new-course-run').val();
+        var course_category = $newCourseForm.find('.new-course-category').val();
+
+        // Check if course_category field exists and is required (for 'bộ' role)
+        var $courseCategoryField = $newCourseForm.find('#field-course-category');
+        if ($courseCategoryField.length && !course_category) {
+            // Show error for missing course category
+            $courseCategoryField.find('.tip-error').text('Vui lòng chọn loại khoá học').removeClass('is-hidden');
+            $courseCategoryField.addClass('error');
+            return;
+        }
 
         var course_info = {
             org: org,
@@ -59,6 +69,13 @@ function(domReady, $, _, CancelOnEscape, CreateCourseUtilsFactory, CreateLibrary
             display_name: display_name,
             run: run
         };
+
+        // Add course_category only if it exists
+        if (course_category) {
+            course_info.course_category = course_category;
+            // Also set publish_type for backwards compatibility
+            course_info.publish_type = course_category;
+        }
 
         analytics.track('Created a Course', course_info);
         CreateCourseUtils.create(course_info, function(errorMessage) {

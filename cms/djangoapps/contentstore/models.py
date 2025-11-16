@@ -779,6 +779,30 @@ class ChalixCourseMetadata(models.Model):
         help_text=_("Indicates whether this course is mandatory for learners")
     )
     
+    # Course category for 'bộ' role courses
+    COURSE_CATEGORY_CHOICES = [
+        ('elective', _('Khoá học tự chọn CC, VC Bộ')),
+        ('mandatory', _('Khoá học bắt buộc cho CC, VC Bộ')),
+    ]
+    course_category = models.CharField(
+        max_length=20,
+        choices=COURSE_CATEGORY_CHOICES,
+        null=True,
+        blank=True,
+        verbose_name=_("Loại khoá học"),
+        help_text=_("Course category for 'bộ' role courses - determines course classification")
+    )
+    
+    # Legacy field - keeping for backwards compatibility
+    publish_type = models.CharField(
+        max_length=20,
+        choices=COURSE_CATEGORY_CHOICES,
+        null=True,
+        blank=True,
+        verbose_name=_("Loại yêu cầu khoá học"),
+        help_text=_("Type of course publish requirement for 'bộ' role courses (legacy field)")
+    )
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

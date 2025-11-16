@@ -125,6 +125,23 @@
                                                     <span class="tip tip-error is-hidden"></span>
                                                 </li>
 
+                                                <!-- Course Category (Only for 'bộ' role) -->
+                                                % if is_bo_role:
+                                                <li class="field select required" id="field-course-category">
+                                                    <label for="new-course-category">${_("Loại khoá học")}</label>
+                                                    <select class="new-course-category" id="new-course-category"
+                                                        name="new-course-category" aria-required="true">
+                                                        <option value="">${_("Chọn loại khoá học...")}</option>
+                                                        <option value="elective">${_("Khoá học tự chọn CC, VC Bộ")}</option>
+                                                        <option value="mandatory">${_("Khoá học bắt buộc cho CC, VC Bộ")}</option>
+                                                    </select>
+                                                    <span class="tip">
+                                                        ${_("Chọn loại khoá học để phân loại trong hệ thống.")}
+                                                    </span>
+                                                    <span class="tip tip-error is-hidden"></span>
+                                                </li>
+                                                % endif
+
                                                 <li class="row">
                                                     <!-- Organization -->
                                                     <div class="column field text required">

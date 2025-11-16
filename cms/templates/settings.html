@@ -212,6 +212,37 @@ CMS.URL.UPLOAD_ASSET = '${upload_asset_url | n, js_escaped_string}'
 
         <hr class="divide" />
 
+        <%
+          from common.djangoapps.student.models import CourseAccessRole
+          is_bo_role = CourseAccessRole.objects.filter(
+              user=user,
+              org=context_course.id.org,
+              role='bộ'
+          ).exists()
+        %>
+        % if is_bo_role:
+        <div class="group-settings course-category">
+          <header>
+            <h2 class="title-2">${_("Loại khoá học")}</h2>
+            <span class="tip">${_("Chọn loại khoá học cho CC, VC Bộ")}</span>
+          </header>
+
+          <ol class="list-input">
+            <li class="field field-select" id="field-course-category">
+              <label for="course-category">${_("Loại khoá học")}</label>
+              <select class="input" id="course-category">
+                <option value="">${_("-- Chọn loại khoá học --")}</option>
+                <option value="elective">${_("Khoá học tự chọn CC, VC Bộ")}</option>
+                <option value="mandatory">${_("Khoá học bắt buộc cho CC, VC Bộ")}</option>
+              </select>
+              <span class="tip tip-stacked">${_("Loại khoá học này sẽ được hiển thị trong dashboard của học viên")}</span>
+            </li>
+          </ol>
+        </div>
+
+        <hr class="divide" />
+        % endif
+
         <div id="schedule" class="group-settings schedule">
           <header>
             <h2 class="title-2">${_('Course Schedule')}</h2>

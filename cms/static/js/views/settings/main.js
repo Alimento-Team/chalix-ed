@@ -155,6 +155,11 @@ function(ValidatingView, CodeMirror, _, $, ui, DateUtils, FileUploadModel,
                 paceToggleTip.text(gettext('Course pacing cannot be changed once a course has started.'));
             }
 
+            // Render course_category if it exists
+            if (this.$('#' + this.fieldToSelectorMap.course_category).length > 0) {
+                this.$('#' + this.fieldToSelectorMap.course_category).val(this.model.get('course_category') || '');
+            }
+
             this.licenseView.render();
             this.learning_info_view.render();
             this.instructor_info_view.render();
@@ -188,7 +193,8 @@ function(ValidatingView, CodeMirror, _, $, ui, DateUtils, FileUploadModel,
             course_settings_learning_fields: 'course-settings-learning-fields',
             add_course_learning_info: 'add-course-learning-info',
             add_course_instructor_info: 'add-course-instructor-info',
-            course_learning_info: 'course-learning-info'
+            course_learning_info: 'course-learning-info',
+            course_category: 'course-category'  // Chalix: course category mapping
         },
 
         addLearningFields: function() {

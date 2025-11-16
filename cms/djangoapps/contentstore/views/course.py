@@ -969,6 +969,8 @@ def _create_or_rerun_course(request):
         course = request.json.get('number', request.json.get('course'))
         display_name = request.json.get('display_name')
         course_type = request.json.get('course_type', '')
+        course_category = request.json.get('course_category')  # Get course_category from request
+        publish_type = request.json.get('publish_type')  # Legacy field, fallback
         # force the start date for reruns and allow us to override start via the client
         start = request.json.get('start', CourseFields.start.default)
         end = request.json.get('end', CourseFields.end.default)
@@ -991,6 +993,13 @@ def _create_or_rerun_course(request):
             fields['display_name'] = display_name
         if course_type:
             fields['course_type'] = course_type
+        # Use course_category if provided, otherwise fall back to publish_type
+        if course_category:
+            fields['course_category'] = course_category
+            fields['publish_type'] = course_category  # Keep both for compatibility
+        elif publish_type:
+            fields['course_category'] = publish_type
+            fields['publish_type'] = publish_type
 
         # Set a unique wiki_slug for newly created courses. To maintain active wiki_slugs for
         # existing xml courses this cannot be changed in CourseBlock.
@@ -1138,6 +1147,8 @@ def create_new_course(user, org, number, run, fields):
         is_public_course = False
         creator_role = None
         creator_org = None
+        course_category = fields.get('course_category')  # Get course_category from fields
+        publish_type = fields.get('publish_type')  # Legacy field
         
         if primary_role:
             creator_role = primary_role.role
@@ -1145,16 +1156,24 @@ def create_new_course(user, org, number, run, fields):
             # Courses created by 'bo' (ministry level) are public
             is_public_course = (creator_role == 'bo')
         
+        # Use course_category if available, otherwise fall back to publish_type
+        category = course_category or publish_type
+        
+        # Set is_mandatory_course based on category
+        is_mandatory = (category == 'mandatory') if category else False
+        
         ChalixCourseMetadata.objects.create(
             course_id=new_course.id,
             creator=user,
             creator_role=creator_role,
             creator_organization=creator_org,
             is_public=is_public_course,
-            is_mandatory_course=False  # Default to non-mandatory
+            is_mandatory_course=is_mandatory,
+            course_category=category,  # Save course_category
+            publish_type=category  # Keep publish_type for backwards compatibility
         )
-        log.info("Created Chalix course metadata for %s - Public: %s, Role: %s", 
-                 new_course.id, is_public_course, creator_role)
+        log.info("Created Chalix course metadata for %s - Public: %s, Role: %s, Category: %s", 
+                 new_course.id, is_public_course, creator_role, category)
     except Exception as e:
         log.warning("Failed to create Chalix course metadata for %s: %s", new_course.id, str(e))
         # Don't fail course creation if metadata creation fails
@@ -2081,11 +2100,17 @@ def course_create_view(request):
     """
     # Get all active course types
     course_types = CourseType.objects.filter(is_active=True).order_by('sort_order', 'name')
+    
+    # Get user's role to determine if publish type dropdown should be shown
+    from cms.djangoapps.contentstore.chalix_roles import get_user_primary_role
+    user_role = get_user_primary_role(request.user)
+    is_bo_role = user_role and user_role.role == 'bo'
 
     context = {
         'course_types': course_types,
         'allow_unicode_course_id': settings.FEATURES.get('ALLOW_UNICODE_COURSE_ID', False),
         'course_creator_status': get_course_creator_status(request.user),
+        'is_bo_role': is_bo_role,
     }
 
     return render_to_response('course-create.html', context)

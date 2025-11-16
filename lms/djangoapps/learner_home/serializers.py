@@ -72,9 +72,30 @@ class CourseSerializer(serializers.Serializer):
     courseName = serializers.CharField(source="display_name_with_default")
     courseNumber = serializers.CharField(source="display_number_with_default")
     socialShareUrl = serializers.SerializerMethodField()
+    courseCategory = serializers.SerializerMethodField()
+    publishType = serializers.SerializerMethodField()  # Keep for backwards compatibility
 
     def get_socialShareUrl(self, instance):
         return self.context.get("course_share_urls", {}).get(instance.id)
+    
+    def get_courseCategory(self, instance):
+        """Get the course category from Chalix course metadata"""
+        try:
+            from cms.djangoapps.contentstore.models import ChalixCourseMetadata
+            metadata = ChalixCourseMetadata.objects.filter(course_id=instance.id).first()
+            return metadata.course_category if metadata else None
+        except Exception:
+            return None
+    
+    def get_publishType(self, instance):
+        """Get the publish type from Chalix course metadata (legacy field)"""
+        try:
+            from cms.djangoapps.contentstore.models import ChalixCourseMetadata
+            metadata = ChalixCourseMetadata.objects.filter(course_id=instance.id).first()
+            # Return course_category for backwards compatibility
+            return metadata.course_category if metadata else None
+        except Exception:
+            return None
 
 
 class CourseRunSerializer(serializers.Serializer):
