@@ -72,15 +72,9 @@ class ProfessionalField(models.Model):
     """
     name = models.CharField(
         max_length=200,
+        unique=True,
         verbose_name=_("Professional Field Name"),
         help_text=_("The name of the professional field (e.g., 'Y tế', 'Giáo dục')")
-    )
-
-    org = models.CharField(
-        max_length=255,
-        verbose_name=_("Organization"),
-        help_text=_("Organization that this professional field belongs to"),
-        db_index=True
     )
 
     description = models.TextField(
@@ -113,11 +107,10 @@ class ProfessionalField(models.Model):
     class Meta:
         verbose_name = _("Professional Field")
         verbose_name_plural = _("Professional Fields")
-        ordering = ['org', 'sort_order', 'name']
-        unique_together = [['name', 'org']]
+        ordering = ['sort_order', 'name']
 
     def __str__(self):
-        return f"{self.name} ({self.org})"
+        return self.name
 
 
 class VideoUploadConfig(ConfigurationModel):

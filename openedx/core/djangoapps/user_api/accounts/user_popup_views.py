@@ -54,7 +54,7 @@ class UserPopupView(APIView):
                     status=status.HTTP_401_UNAUTHORIZED
                 )
             
-            serializer = UserPopupSerializer(user)
+            serializer = UserPopupSerializer(user, context={'request': request})
             return Response(serializer.data, status=status.HTTP_200_OK)
             
         except Exception as e:
@@ -92,7 +92,7 @@ class UserPopupByUsernameView(APIView):
         """
         try:
             user = get_object_or_404(User, username=username)
-            serializer = UserPopupSerializer(user)
+            serializer = UserPopupSerializer(user, context={'request': request})
             return Response(serializer.data, status=status.HTTP_200_OK)
             
         except Exception as e:

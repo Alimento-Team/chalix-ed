@@ -8,7 +8,8 @@ class ProfessionalFieldViewSet(viewsets.ModelViewSet):
     """
     ViewSet for managing Professional Fields (Lĩnh vực chuyên môn).
     Only Bộ role can create, update, and delete.
-    All authenticated users can list fields for their organization.
+    All authenticated users can list active fields.
+    Professional fields are global, not organization-specific.
     """
     queryset = ProfessionalField.objects.all()
     serializer_class = ProfessionalFieldSerializer
@@ -16,30 +17,11 @@ class ProfessionalFieldViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         """
-        Return all active professional fields for the user's organization.
-        Bộ can see all fields.
+        Return all active professional fields.
+        Professional fields are now global, not organization-specific.
         """
-        user = self.request.user
-        
-        # Bộ can see all fields
-        if user.is_superuser or user.is_staff:
-            return ProfessionalField.objects.filter(is_active=True).order_by('org', 'sort_order', 'name')
-        
-        # Get user's organization from ChalixUserRole
-        from cms.djangoapps.contentstore.models import ChalixUserRole
-        try:
-            user_role = ChalixUserRole.objects.filter(user=user).first()
-            if user_role and user_role.organization:
-                org = user_role.organization.org
-                return ProfessionalField.objects.filter(
-                    org=org, 
-                    is_active=True
-                ).order_by('sort_order', 'name')
-        except Exception:
-            pass
-        
-        # Default: return empty queryset
-        return ProfessionalField.objects.none()
+        # All authenticated users can see active fields
+        return ProfessionalField.objects.filter(is_active=True).order_by('sort_order', 'name')
 
     def create(self, request, *args, **kwargs):
         """Only Bộ (superusers/staff) can create professional fields"""

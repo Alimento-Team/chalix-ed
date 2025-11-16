@@ -30,11 +30,13 @@ class UserPopupSerializer(serializers.Serializer):
         return obj.username
     
     def get_profile_image_url(self, obj):
-        """Get user's profile image URL."""
+        """Get user's profile image URL (with absolute URL if request is available)."""
         try:
             if hasattr(obj, 'profile') and obj.profile:
                 from openedx.core.djangoapps.user_api.accounts.image_helpers import get_profile_image_urls_for_user
-                image_urls = get_profile_image_urls_for_user(obj)
+                # Get request from context for absolute URLs
+                request = self.context.get('request')
+                image_urls = get_profile_image_urls_for_user(obj, request=request)
                 if image_urls:
                     return image_urls.get('full', image_urls.get('medium'))
         except Exception:

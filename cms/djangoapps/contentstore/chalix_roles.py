@@ -290,9 +290,6 @@ def get_user_organization_display_name(user: User) -> str:
     organization = get_user_organization(user)
     if organization:
         return organization.display_name
-    
-    # Fallback to default
-    return "CỤC HÀNG HẢI VÀ ĐƯỜNG THỦY NỘI ĐỊA VIỆT NAM"
 
 
 def assign_role_to_user(user: User, role: str, organization: ChalixOrganization = None, created_by: User = None) -> ChalixUserRole:

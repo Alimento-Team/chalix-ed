@@ -484,6 +484,12 @@
         if (document.getElementById('mgmt-modal-styles')) return;
         
         const css = `
+            .mgmt-modal-overlay *,
+            .mgmt-modal-overlay *::before,
+            .mgmt-modal-overlay *::after {
+                box-sizing: border-box;
+            }
+            
             .mgmt-modal-overlay {
                 position: fixed;
                 top: 0;
@@ -507,6 +513,7 @@
                 box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
                 display: flex;
                 flex-direction: column;
+                box-sizing: border-box;
             }
             
             .mgmt-modal-header {
@@ -613,6 +620,7 @@
                 border-radius: 4px;
                 font-size: 14px;
                 transition: border-color 0.2s;
+                box-sizing: border-box;
             }
             
             .mgmt-form-input:focus {
@@ -628,6 +636,7 @@
             .mgmt-form-textarea {
                 min-height: 100px;
                 resize: vertical;
+                box-sizing: border-box;
             }
             
             .mgmt-form-help {
@@ -646,6 +655,7 @@
                 border: 1px solid #b2b2b2;
                 border-radius: 4px;
                 font-size: 14px;
+                box-sizing: border-box;
             }
             
             .mgmt-user-search-input:focus {
@@ -1097,7 +1107,7 @@
         
         contentArea.innerHTML = '<div class="mgmt-loading">Đang tải danh sách lĩnh vực chuyên môn...</div>';
 
-        fetch('/api/cms/v1/professional_fields/', {
+        fetch('/api/v1/professional_fields/', {
             credentials: 'same-origin',
             headers: { 
                 'Accept': 'application/json',
@@ -1134,7 +1144,6 @@
                         <tr>
                             <th style="padding: 18px 16px; font-weight:600; color:#374151; text-align: left; white-space: nowrap;">ID</th>
                             <th style="padding: 18px 16px; font-weight:600; color:#374151; text-align: left; white-space: nowrap;">Tên lĩnh vực</th>
-                            <th style="padding: 18px 16px; font-weight:600; color:#374151; text-align: left; white-space: nowrap;">Cơ quan</th>
                             <th style="padding: 18px 16px; font-weight:600; color:#374151; text-align: left; white-space: nowrap;">Thứ tự</th>
                             <th style="padding: 18px 16px; font-weight:600; color:#374151; text-align: center; white-space: nowrap;">Trạng thái</th>
                             <th style="padding: 18px 16px; font-weight:600; color:#374151; text-align: left; white-space: nowrap;">Ngày tạo</th>
@@ -1146,7 +1155,6 @@
                             <tr style="border-bottom: 1px solid #eef6fb;">
                                 <td style="padding: 18px 16px; color:#374151; vertical-align: middle; text-align: left;">${field.id}</td>
                                 <td style="padding: 18px 16px; color:#374151; vertical-align: middle; text-align: left;">${escapeHtml(field.name)}</td>
-                                <td style="padding: 18px 16px; color:#374151; vertical-align: middle; text-align: left;">${escapeHtml(field.org_name || '—')}</td>
                                 <td style="padding: 18px 16px; color:#374151; vertical-align: middle; text-align: left;">${field.sort_order || 0}</td>
                                 <td style="padding: 18px 16px; vertical-align: middle; text-align: center;">
                                     <span style="padding: 4px 8px; border-radius: 4px; font-size: 12px; background: ${field.is_active ? '#d1fae5' : '#fee2e2'}; color: ${field.is_active ? '#065f46' : '#991b1b'};">${field.is_active ? 'Hoạt động' : 'Vô hiệu'}</span>
@@ -1182,29 +1190,10 @@
     }
 
     function showCreateFieldModal(contentArea) {
-        // Fetch available organizations first
-        fetch('/api/v1/organizations/', {
-            credentials: 'same-origin',
-            headers: { 
-                'Accept': 'application/json',
-                'X-CSRFToken': getCookie('csrftoken')
-            }
-        })
-        .then(resp => {
-            if (!resp.ok) throw resp;
-            return resp.json();
-        })
-        .then(data => {
-            const organizations = data.results || data.organizations || [];
-            renderCreateFieldModal(contentArea, organizations);
-        })
-        .catch(err => {
-            console.error('Failed to load organizations:', err);
-            alert('Không thể tải danh sách cơ quan. Vui lòng thử lại.');
-        });
+        renderCreateFieldModal(contentArea);
     }
 
-    function renderCreateFieldModal(contentArea, organizations) {
+    function renderCreateFieldModal(contentArea) {
         ensureModalStyles();
         
         const overlay = document.createElement('div');
@@ -1225,16 +1214,6 @@
                         <div class="mgmt-form-group">
                             <label class="mgmt-form-label">Tên lĩnh vực *</label>
                             <input type="text" name="name" required class="mgmt-form-input" placeholder="Ví dụ: Toán học">
-                        </div>
-                        
-                        <div class="mgmt-form-group">
-                            <label class="mgmt-form-label">Cơ quan *</label>
-                            <select name="org" required class="mgmt-form-input">
-                                <option value="">-- Chọn cơ quan --</option>
-                                ${organizations.map(org => `
-                                    <option value="${org.id}">${escapeHtml(org.name)}</option>
-                                `).join('')}
-                            </select>
                         </div>
                         
                         <div class="mgmt-form-group">
@@ -1286,7 +1265,6 @@
             
             const data = {
                 name: form.querySelector('[name="name"]').value,
-                org: parseInt(form.querySelector('[name="org"]').value),
                 description: form.querySelector('[name="description"]').value || '',
                 sort_order: parseInt(form.querySelector('[name="sort_order"]').value) || 0,
                 is_active: form.querySelector('[name="is_active"]').checked
@@ -1296,7 +1274,7 @@
             createBtn.disabled = true;
             createBtn.textContent = 'Đang tạo...';
             
-            fetch('/api/cms/v1/professional_fields/', {
+            fetch('/api/v1/professional_fields/', {
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: {
@@ -1335,7 +1313,7 @@
 
     function editProfessionalField(fieldId, contentArea) {
         // Fetch field details
-        fetch(`/api/cms/v1/professional_fields/${fieldId}/`, {
+        fetch(`/api/v1/professional_fields/${fieldId}/`, {
             credentials: 'same-origin',
             headers: { 
                 'Accept': 'application/json',
@@ -1356,30 +1334,10 @@
     }
 
     function showEditFieldModal(field, contentArea) {
-        // Fetch available organizations first
-        fetch('/api/v1/organizations/', {
-            credentials: 'same-origin',
-            headers: { 
-                'Accept': 'application/json',
-                'X-CSRFToken': getCookie('csrftoken')
-            }
-        })
-        .then(resp => {
-            if (!resp.ok) throw resp;
-            return resp.json();
-        })
-        .then(data => {
-            const organizations = data.results || data.organizations || [];
-            renderEditFieldModal(field, contentArea, organizations);
-        })
-        .catch(err => {
-            console.error('Failed to load organizations:', err);
-            // Still render modal but with empty organizations list
-            renderEditFieldModal(field, contentArea, []);
-        });
+        renderEditFieldModal(field, contentArea);
     }
 
-    function renderEditFieldModal(field, contentArea, organizations) {
+    function renderEditFieldModal(field, contentArea) {
         ensureModalStyles();
         
         const overlay = document.createElement('div');
@@ -1400,16 +1358,6 @@
                         <div class="mgmt-form-group">
                             <label class="mgmt-form-label">Tên lĩnh vực *</label>
                             <input type="text" name="name" value="${escapeHtml(field.name || '')}" required class="mgmt-form-input">
-                        </div>
-                        
-                        <div class="mgmt-form-group">
-                            <label class="mgmt-form-label">Cơ quan *</label>
-                            <select name="org" required class="mgmt-form-input">
-                                <option value="">-- Chọn cơ quan --</option>
-                                ${organizations.map(org => `
-                                    <option value="${org.id}" ${org.id === field.org ? 'selected' : ''}>${escapeHtml(org.name)}</option>
-                                `).join('')}
-                            </select>
                         </div>
                         
                         <div class="mgmt-form-group">
@@ -1461,7 +1409,6 @@
             
             const data = {
                 name: form.querySelector('[name="name"]').value,
-                org: parseInt(form.querySelector('[name="org"]').value),
                 description: form.querySelector('[name="description"]').value || '',
                 sort_order: parseInt(form.querySelector('[name="sort_order"]').value) || 0,
                 is_active: form.querySelector('[name="is_active"]').checked
@@ -1471,7 +1418,7 @@
             saveBtn.disabled = true;
             saveBtn.textContent = 'Đang lưu...';
             
-            fetch(`/api/cms/v1/professional_fields/${field.id}/`, {
+            fetch(`/api/v1/professional_fields/${field.id}/`, {
                 method: 'PATCH',
                 credentials: 'same-origin',
                 headers: {
@@ -1509,7 +1456,7 @@
 
     function deleteProfessionalField(fieldId, contentArea) {
         if (confirm('Bạn có chắc chắn muốn xóa lĩnh vực chuyên môn này?')) {
-            fetch(`/api/cms/v1/professional_fields/${fieldId}/`, {
+            fetch(`/api/v1/professional_fields/${fieldId}/`, {
                 method: 'DELETE',
                 credentials: 'same-origin',
                 headers: {

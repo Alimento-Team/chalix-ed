@@ -43,7 +43,7 @@ function(domReady, $, _, CancelOnEscape, CreateCourseUtilsFactory, CreateLibrary
     var loadProfessionalFields = function() {
         // Load professional fields from API
         $.ajax({
-            url: '/api/cms/v1/professional_fields/',
+            url: '/api/v1/professional_fields/',
             method: 'GET',
             success: function(response) {
                 var $select = $('.new-course-professional-field');

@@ -10,7 +10,6 @@ class ProfessionalFieldSerializer(serializers.ModelSerializer):
         fields = [
             'id',
             'name',
-            'org',
             'description',
             'is_active',
             'sort_order',

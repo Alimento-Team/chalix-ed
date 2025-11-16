@@ -82,7 +82,7 @@ function(ValidatingView, CodeMirror, _, $, ui, DateUtils, FileUploadModel,
         loadProfessionalFields: function() {
             var self = this;
             $.ajax({
-                url: '/api/cms/v1/professional_fields/',
+                url: '/api/v1/professional_fields/',
                 method: 'GET',
                 success: function(response) {
                     var $select = self.$('#' + self.fieldToSelectorMap.professional_field_id);
