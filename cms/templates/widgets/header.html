@@ -11,6 +11,11 @@
   header_language_selector_is_enabled, released_languages %>
 
   <!-- Vietnamese CMS Header based on Figma Design -->
+  <%
+  # Get user organization name from profile
+  user_organization = getattr(user, 'organization', None) if hasattr(user, 'organization') else None
+  org_name = user_organization or ''
+  %>
   <div class="chalix-header-wrapper" id="view-top">
     <header class="chalix-header" role="banner">
       <!-- Top Blue Header -->
@@ -18,16 +23,17 @@
         <div class="header-top-content">
           <div class="organization-info">
             <h1 class="organization-title">PHẦN MỀM HỌC TẬP THÔNG MINH DÀNH CHO CÔNG CHỨC, VIÊN CHỨC</h1>
-            <h2 class="department-name">CỤC HÀNG HẢI VÀ ĐƯỜNG THỦY NỘI ĐỊA VIỆT NAM</h2>
+            % if org_name:
+            <h2 class="organization-name">${org_name}</h2>
+            % endif
           </div>
           <div class="header-top-right">
-            <span class="organization-label">Cơ Quan 1</span>
             <div class="header-actions">
-              <div class="notification-icon">
-                <img src="${static.url('images/notification-icon.png')}" alt="Notifications" class="notification-img">
-              </div>
+              <button class="notification-button" aria-label="Notifications">
+                <i class="fa fa-bell" aria-hidden="true"></i>
+              </button>
               <button class="user-avatar-button" id="user-avatar-popup-trigger" aria-label="User Menu" aria-expanded="false">
-                <img src="${static.url('images/default-avatar.png')}" alt="User Avatar" class="avatar-img">
+                <i class="fa fa-user" aria-hidden="true"></i>
               </button>
             </div>
           </div>
@@ -38,29 +44,29 @@
       <div class="header-bottom">
         <div class="header-bottom-content">
           <nav class="main-navigation">
-            <div class="nav-item">
-              <img src="${static.url('images/home-icon.png')}" alt="Home" class="nav-icon">
+            <a href="${reverse('home')}" class="nav-item">
+              <i class="fa fa-home nav-icon" aria-hidden="true"></i>
               <span class="nav-label">Trang chủ</span>
-            </div>
-            <div class="nav-item">
-              <img src="${static.url('images/category-icon.png')}" alt="Category" class="nav-icon">
+            </a>
+            <a href="#" class="nav-item">
+              <i class="fa fa-list nav-icon" aria-hidden="true"></i>
               <span class="nav-label">Danh mục</span>
-            </div>
-            <div class="nav-item">
-              <img src="${static.url('images/learning-icon.png')}" alt="Learning" class="nav-icon">
+            </a>
+            <a href="#" class="nav-item">
+              <i class="fa fa-graduation-cap nav-icon" aria-hidden="true"></i>
               <span class="nav-label">Học tập</span>
-            </div>
-            <div class="nav-item">
-              <img src="${static.url('images/personalize-icon.png')}" alt="Personalize" class="nav-icon">
+            </a>
+            <a href="#" class="nav-item">
+              <i class="fa fa-user-circle nav-icon" aria-hidden="true"></i>
               <span class="nav-label">Cá nhân hóa</span>
-            </div>
+            </a>
           </nav>
 
           <div class="search-container">
             <div class="search-bar">
               <input type="text" placeholder="Nhập từ khóa tìm kiếm" class="search-input">
               <button class="search-button">
-                <img src="${static.url('images/search-icon.png')}" alt="Search" class="search-icon">
+                <i class="fa fa-search" aria-hidden="true"></i>
               </button>
             </div>
           </div>
