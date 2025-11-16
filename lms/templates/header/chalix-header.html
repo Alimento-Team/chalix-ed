@@ -47,7 +47,61 @@ from lms.djangoapps.branding import api as branding_api %>
                 props={}
                 )}
                 % endif
-                <div class="chalix-header-content">
+                <!-- Blue Top Header with Platform Title and User Info -->
+                <div class="chalix-top-header">
+                    <div class="header-container">
+                        <div class="platform-title">
+                            <span>PHẦN MỀM HỌC TẬP THÔNG MINH DÀNH CHO CÔNG CHỨC, VIÊN CHỨC</span>
+                        </div>
+                        % if user.is_authenticated:
+                        <div class="user-info-section">
+                            <span class="user-name">${user.profile.name or user.username}</span>
+                            <div class="user-profile-icon">
+                                <img src="${static.url('images/profile.svg')}" alt="User Profile" />
+                            </div>
+                            <div class="notification-icon">
+                                <img src="${static.url('images/notification.svg')}" alt="Notifications" />
+                            </div>
+                        </div>
+                        % endif
+                    </div>
+                </div>
+
+                <!-- Navigation Tabs -->
+                <div class="chalix-nav-header">
+                    <div class="header-container">
+                        <nav class="main-navigation">
+                            <div class="nav-tabs">
+                                <a href="${reverse('dashboard') if user.is_authenticated else '/'}" class="nav-tab">
+                                    <img src="${static.url('images/home.svg')}" alt="Home" />
+                                    <span>Trang chủ</span>
+                                </a>
+                                % if settings.FEATURES.get('COURSES_ARE_BROWSABLE'):
+                                <a href="${marketing_link('COURSES')}" class="nav-tab">
+                                    <img src="${static.url('images/categories.svg')}" alt="Categories" />
+                                    <span>Danh mục</span>
+                                </a>
+                                % endif
+                                <a href="/courses" class="nav-tab">
+                                    <img src="${static.url('images/learning.svg')}" alt="Learning" />
+                                    <span>Học tập</span>
+                                </a>
+                            </div>
+                        </nav>
+
+                        <!-- Search Bar -->
+                        <div class="search-section">
+                            <div class="search-bar">
+                                <input type="text" placeholder="Nhập từ khóa tìm kiếm" />
+                                <button type="submit">
+                                    <img src="${static.url('images/search.svg')}" alt="Search" />
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="chalix-header-content" style="display: none !important;">
                     <!-- Logo -->
                     <div class="chalix-logo">
                         <a href="${branding_api.get_home_url()}">
@@ -136,13 +190,10 @@ except:
                 }
 
                 .chalix-header-content {
-                    display: flex;
-                    align-items: center;
-                    height: 100%;
-                    max-width: 1440px;
-                    margin: 0 auto;
-                    padding: 0 20px;
-                    position: relative;
+                    display: none !important;
+                    visibility: hidden !important;
+                    height: 0 !important;
+                    overflow: hidden !important;
                 }
 
                 .chalix-logo {
@@ -348,6 +399,114 @@ except:
                     background: #2a7ba7;
                     border-color: #2a7ba7;
                     text-decoration: none;
+                }
+
+                /* Blue Top Header Styles */
+                .chalix-top-header {
+                    background: linear-gradient(90deg, #4ABADB 0%, #5BC4E5 100%) !important;
+                    height: 60px;
+                    width: 100%;
+                    box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.1);
+                }
+
+                .chalix-top-header .header-container {
+                    max-width: 1440px;
+                    margin: 0 auto;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    height: 100%;
+                    padding: 0 42px;
+                }
+
+                .chalix-top-header .platform-title span {
+                    color: white !important;
+                    font-family: 'Roboto', sans-serif !important;
+                    font-size: 18px !important;
+                    font-weight: 700 !important;
+                    line-height: 21.09px !important;
+                    letter-spacing: 0.02em !important;
+                    text-transform: uppercase !important;
+                }
+
+                /* Navigation Header Styles */
+                .chalix-nav-header {
+                    background-color: white !important;
+                    height: 58px;
+                    border-bottom: 1px solid #E0E0E0 !important;
+                    box-shadow: 0px 1px 3px rgba(0, 0, 0, 0.08);
+                }
+
+                .chalix-nav-header .header-container {
+                    max-width: 1440px;
+                    margin: 0 auto;
+                    display: flex;
+                    align-items: center;
+                    height: 100%;
+                    padding: 0 42px;
+                }
+
+                .chalix-nav-header .nav-tabs {
+                    display: flex;
+                    gap: 0;
+                    align-items: center;
+                }
+
+                .chalix-nav-header .nav-tab {
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 8px;
+                    padding: 0 24px;
+                    height: 58px;
+                    text-decoration: none !important;
+                    color: #333333 !important;
+                    font-family: 'Roboto', sans-serif !important;
+                    font-size: 16px !important;
+                    font-weight: 500 !important;
+                    line-height: 18.75px !important;
+                    letter-spacing: 0.01em !important;
+                    border-right: 1px solid #E0E0E0;
+                    transition: all 0.2s ease;
+                    position: relative;
+                }
+
+                .chalix-nav-header .nav-tab:hover,
+                .chalix-nav-header .nav-tab.active {
+                    background-color: #F5F5F5;
+                    color: #4ABADB !important;
+                }
+
+                .chalix-nav-header .nav-tab img {
+                    width: 24px;
+                    height: 24px;
+                }
+
+                .search-section {
+                    margin-left: auto;
+                }
+
+                .search-bar {
+                    display: flex;
+                    align-items: center;
+                    background: white;
+                    border: 1px solid #E0E0E0;
+                    border-radius: 4px;
+                    padding: 8px 12px;
+                }
+
+                .search-bar input {
+                    border: none;
+                    outline: none;
+                    font-size: 14px;
+                    width: 300px;
+                }
+
+                .search-bar button {
+                    background: none;
+                    border: none;
+                    cursor: pointer;
+                    padding: 0;
                 }
 
                 /* Responsive adjustments */
