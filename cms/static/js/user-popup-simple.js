@@ -40,12 +40,17 @@
     function getNavigationUrls() {
         const roleData = window.CMS_ROLE_DATA || {};
         const username = roleData.user_name || 'user';
-        // Prefer server-provided LMS base URL from CMS_ROLE_DATA when available. This should come from
-        // platform settings (MFE_CONFIG['LMS_BASE_URL'] or LMS_ROOT_URL) so we don't heuristically
-        // construct the LMS host on the client.
-        let lmsBaseUrl = roleData.lms_base_url || '';
-        if (!lmsBaseUrl) {
-            // Fallback: determine the LMS base URL by deriving from current location (legacy behavior)
+        
+        // Get MFE URLs from CMS_ROLE_DATA (passed from backend)
+        const lmsBaseUrl = roleData.lms_base_url || '';
+        const learningBaseUrl = roleData.learning_base_url || lmsBaseUrl;
+        const learnerDashboardUrl = roleData.learner_dashboard_url || (lmsBaseUrl + '/dashboard');
+        const accountSettingsUrl = roleData.account_settings_url || (lmsBaseUrl + '/account/settings');
+        const accountProfileUrl = roleData.account_profile_url || lmsBaseUrl;
+        
+        // Fallback for older configurations without MFE URLs
+        if (!roleData.learning_base_url && !lmsBaseUrl) {
+            // Determine the LMS base URL by deriving from current location (legacy behavior)
             const protocol = window.location.protocol; // e.g. 'http:'
             const hostname = window.location.hostname; // e.g. 'studio.local.openedx.io'
             const port = window.location.port; // e.g. '8001'
@@ -58,54 +63,29 @@
 
             // Map common dev CMS port to LMS port. If CMS is 8001, LMS commonly runs on 8000.
             let lmsPort = port === '8001' ? '8000' : port;
-            // If no explicit port and hostname is same, don't append port (will use default)
-            lmsBaseUrl = protocol + '//' + lmsHost + (lmsPort ? ':' + lmsPort : '');
+            const fallbackLmsBaseUrl = protocol + '//' + lmsHost + (lmsPort ? ':' + lmsPort : '');
+            
+            return {
+                courses: fallbackLmsBaseUrl + '/dashboard',
+                account: fallbackLmsBaseUrl + '/account/settings',
+                profile: fallbackLmsBaseUrl + '/u/' + username,
+                logout: '/logout/'
+            };
         }
 
-
-        // Helper to safely join a base URL with a path segment
-        function joinUrl(base, pathSegment) {
-            if (!base) return null;
-            try {
-                // new URL(relative, base) handles joining correctly
-                return new URL(pathSegment, base).href;
-            } catch (e) {
-                // Fallback simple join
-                return base.replace(/\/$/, '') + '/' + pathSegment.replace(/^\//, '');
-            }
-        }
-
-        // Use CMS-provided URLs directly since they're authoritative from platform config
-        // The account_settings_url should point directly to the account page
-        let accountBase = roleData.account_settings_url;
-        // Ensure it ends with trailing slash for consistency and points to /account/ path
-        if (typeof accountBase === 'string' && !accountBase.endsWith('/')) {
-            accountBase = accountBase + '/';
-        }
-
-        // For profile, extract MFE base URL from account_settings_url if available
-        let profileBase = roleData.profile_base_url;
-        if (!profileBase && roleData.account_settings_url) {
-            // Extract MFE base from account URL and use it for profile
-            const mfeBase = roleData.account_settings_url.replace(/\/account\/?$/, '');
-            if (mfeBase && mfeBase !== roleData.account_settings_url.replace(/\/$/, '')) {
-                profileBase = mfeBase;
-            }
-        }
-        if (typeof profileBase === 'string' && profileBase.endsWith('/')) {
-            // remove trailing slash for consistent concatenation below
-            profileBase = profileBase.replace(/\/+$/, '');
-        }
+        // Construct profile URL with username
+        const profileUrl = accountProfileUrl 
+            ? (accountProfileUrl.endsWith('/') ? accountProfileUrl : accountProfileUrl + '/') + 'u/' + username
+            : null;
 
         return {
-            // LMS dashboard - navigate to LMS
-            courses: lmsBaseUrl + '/dashboard',
-            // Account settings MFE (point to account root by default, ensure trailing slash)
-            account: accountBase || null,
-            // Profile MFE (profileBase + /u/<username>)
-            profile: profileBase ? (profileBase + '/u/' + username) : null,
-            // Logout - always use the CMS frontend logout URL so the logout flow runs on
-            // the current site (LogoutView -> IDA iframe logout -> redirect).
+            // Courses - use learner dashboard MFE
+            courses: learnerDashboardUrl,
+            // Account settings - use account settings MFE
+            account: accountSettingsUrl,
+            // Profile - use profile MFE with username
+            profile: profileUrl,
+            // Logout - always use the CMS frontend logout URL
             logout: '/logout/'
         };
     }

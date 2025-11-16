@@ -195,6 +195,10 @@ lms_base_url = _mfe_conf.get('LMS_BASE_URL') or getattr(settings, 'LMS_ROOT_URL'
             border-right: 1px solid #394047;
             cursor: pointer;
             transition: all 0.2s ease;
+            background: none;
+            border-left: none;
+            border-top: none;
+            border-bottom: none;
         }
 
         .nav-item:first-child {
@@ -495,20 +499,20 @@ org_name = user_organization or ''
         <div class="header-bottom">
             <div class="header-bottom-content">
                 <nav class="main-navigation">
-                    <a href="${lms_base_url}/dashboard" class="nav-item">
+                    <a href="${learner_dashboard_url}" class="nav-item">
                         <i class="fa fa-home nav-icon" aria-hidden="true"></i>
                         <span class="nav-label">Trang chủ</span>
                     </a>
-                    <a href="${lms_base_url}/learner-dashboard" class="nav-item">
+                    <a href="${learner_dashboard_url}" class="nav-item">
                         <i class="fa fa-list nav-icon" aria-hidden="true"></i>
                         <span class="nav-label">Danh mục</span>
                     </a>
-                    <a href="${lms_base_url}/learning" class="nav-item">
+                    <a href="${learning_base_url}" class="nav-item">
                         <i class="fa fa-graduation-cap nav-icon" aria-hidden="true"></i>
                         <span class="nav-label">Học tập</span>
                     </a>
-                    <a href="${lms_base_url}/personalize" class="nav-item">
-                        <i class="fa fa-user-circle nav-icon" aria-hidden="true"></i>
+                    <a href="${learner_dashboard_url}?tab=personalized" class="nav-item">
+                        <i class="fa fa-user nav-icon" aria-hidden="true"></i>
                         <span class="nav-label">Cá nhân hóa</span>
                     </a>
                 </nav>
@@ -579,7 +583,11 @@ org_name = user_organization or ''
             mfe_base_url: '${settings.ACCOUNT_MICROFRONTEND_URL.replace("/account/", "").rstrip("/") if hasattr(settings, "ACCOUNT_MICROFRONTEND_URL") and settings.ACCOUNT_MICROFRONTEND_URL and "/account/" in settings.ACCOUNT_MICROFRONTEND_URL else (settings.ACCOUNT_MICROFRONTEND_URL.rstrip("/") if hasattr(settings, "ACCOUNT_MICROFRONTEND_URL") and settings.ACCOUNT_MICROFRONTEND_URL else "")}',
             profile_base_url: '${settings.PROFILE_MICROFRONTEND_URL if hasattr(settings, "PROFILE_MICROFRONTEND_URL") else ""}',
             // Server-provided LMS base URL: prefer explicit platform configuration (MFE_CONFIG['LMS_BASE_URL'] or LMS_ROOT_URL)
-            lms_base_url: '${lms_base_url}'
+            lms_base_url: '${lms_base_url}',
+            // MFE-specific URLs for proper navigation
+            learning_base_url: '${learning_base_url}',
+            learner_dashboard_url: '${learner_dashboard_url}',
+            account_profile_url: '${account_profile_url}'
         };
     </script>
 

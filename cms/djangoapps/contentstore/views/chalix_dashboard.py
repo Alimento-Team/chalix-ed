@@ -194,6 +194,14 @@ def cms_dashboard(request):
     # Get account URL from user info or settings
     account_url = user_info.get('header_urls', {}).get('account_settings', '/account/settings')
     
+    # Get MFE URLs from settings for navigation
+    from django.conf import settings
+    mfe_config = getattr(settings, 'MFE_CONFIG', {})
+    lms_base_url = mfe_config.get('LMS_BASE_URL') or getattr(settings, 'LMS_ROOT_URL', '')
+    learning_base_url = mfe_config.get('LEARNING_BASE_URL', lms_base_url)
+    learner_dashboard_url = mfe_config.get('LEARNER_DASHBOARD_URL', f'{lms_base_url}/dashboard')
+    account_profile_url = mfe_config.get('ACCOUNT_PROFILE_URL', lms_base_url)
+    
     # Prepare context for template
     context = {
         'user': user,
@@ -209,6 +217,10 @@ def cms_dashboard(request):
         'in_process_count': len(in_process_course_actions),
         'page_title': 'CMS Dashboard',
         'active_tab': request.GET.get('tab', 'statistics'),  # Default to statistics tab
+        # MFE URLs for navigation
+        'learning_base_url': learning_base_url,
+        'learner_dashboard_url': learner_dashboard_url,
+        'account_profile_url': account_profile_url,
     }
     
     return render_to_response('dashboard.html', context)
