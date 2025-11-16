@@ -54,8 +54,22 @@
                                 Tạo cơ quan
                             </button>
                         </div>
-                        <div class="mgmt-content-area">
+                        <div class="mgmt-content-area" id="organizations-content-area">
                             <div class="mgmt-loading">Đang tải danh sách cơ quan...</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Professional Fields Management -->
+                    <div id="mgmt-professional-fields-view" style="margin-top: 48px;">
+                        <div class="mgmt-tab-header">
+                            <h3>Lĩnh vực chuyên môn</h3>
+                            <button class="mgmt-btn primary" data-action="create-professional-field" id="create-field-btn">
+                                <span class="mgmt-btn-icon">+</span>
+                                Tạo lĩnh vực
+                            </button>
+                        </div>
+                        <div class="mgmt-content-area" id="professional-fields-content-area">
+                            <div class="mgmt-loading">Đang tải danh sách lĩnh vực chuyên môn...</div>
                         </div>
                     </div>
                 </div>
@@ -66,7 +80,10 @@
         initializeActionButtons(container);
         
         // Load organizations list
-        loadOrganizationsList(container.querySelector('.mgmt-content-area'));
+        loadOrganizationsList(container.querySelector('#organizations-content-area'));
+        
+        // Load professional fields list
+        loadProfessionalFieldsList(container.querySelector('#professional-fields-content-area'));
         
         console.log('[Management] Management tab render completed successfully');
     }
@@ -78,8 +95,11 @@
                 const action = btn.dataset.action;
                 
                 if (action === 'create-organization') {
-                    const contentArea = container.querySelector('.mgmt-content-area');
+                    const contentArea = container.querySelector('#organizations-content-area');
                     showCreateModal(contentArea);
+                } else if (action === 'create-professional-field') {
+                    const contentArea = container.querySelector('#professional-fields-content-area');
+                    showCreateFieldModal(contentArea);
                 }
             });
         });
@@ -1066,6 +1086,445 @@
             }
         }
         return cookieValue;
+    }
+
+    // ============================================================================
+    // Professional Fields Management Functions
+    // ============================================================================
+
+    function loadProfessionalFieldsList(contentArea) {
+        if (!contentArea) return;
+        
+        contentArea.innerHTML = '<div class="mgmt-loading">Đang tải danh sách lĩnh vực chuyên môn...</div>';
+
+        fetch('/api/cms/v1/professional_fields/', {
+            credentials: 'same-origin',
+            headers: { 
+                'Accept': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            }
+        })
+        .then(resp => {
+            if (!resp.ok) throw resp;
+            return resp.json();
+        })
+        .then(data => {
+            const fields = Array.isArray(data) ? data : (data.results || []);
+            renderProfessionalFieldsList(contentArea, fields);
+        })
+        .catch(err => {
+            console.error('Failed to load professional fields:', err);
+            contentArea.innerHTML = '<div class="mgmt-error">Không thể tải danh sách lĩnh vực chuyên môn. Vui lòng thử lại.</div>';
+        });
+    }
+
+    function renderProfessionalFieldsList(contentArea, fields) {
+        if (!contentArea) return;
+
+        if (fields.length === 0) {
+            contentArea.innerHTML = '<div class="mgmt-empty">Chưa có lĩnh vực chuyên môn nào.</div>';
+            return;
+        }
+
+        // Create table
+        const tableHtml = `
+            <div style="background: #fff; border: 1px solid #e6eef6; border-radius: 12px; padding: 18px; overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse; font-family: 'Inter', sans-serif; font-size: 14px;">
+                    <thead>
+                        <tr>
+                            <th style="padding: 18px 16px; font-weight:600; color:#374151; text-align: left; white-space: nowrap;">ID</th>
+                            <th style="padding: 18px 16px; font-weight:600; color:#374151; text-align: left; white-space: nowrap;">Tên lĩnh vực</th>
+                            <th style="padding: 18px 16px; font-weight:600; color:#374151; text-align: left; white-space: nowrap;">Cơ quan</th>
+                            <th style="padding: 18px 16px; font-weight:600; color:#374151; text-align: left; white-space: nowrap;">Thứ tự</th>
+                            <th style="padding: 18px 16px; font-weight:600; color:#374151; text-align: center; white-space: nowrap;">Trạng thái</th>
+                            <th style="padding: 18px 16px; font-weight:600; color:#374151; text-align: left; white-space: nowrap;">Ngày tạo</th>
+                            <th style="padding: 18px 16px; font-weight:600; color:#374151; text-align: center; white-space: nowrap;">Hành động</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${fields.map(field => `
+                            <tr style="border-bottom: 1px solid #eef6fb;">
+                                <td style="padding: 18px 16px; color:#374151; vertical-align: middle; text-align: left;">${field.id}</td>
+                                <td style="padding: 18px 16px; color:#374151; vertical-align: middle; text-align: left;">${escapeHtml(field.name)}</td>
+                                <td style="padding: 18px 16px; color:#374151; vertical-align: middle; text-align: left;">${escapeHtml(field.org_name || '—')}</td>
+                                <td style="padding: 18px 16px; color:#374151; vertical-align: middle; text-align: left;">${field.sort_order || 0}</td>
+                                <td style="padding: 18px 16px; vertical-align: middle; text-align: center;">
+                                    <span style="padding: 4px 8px; border-radius: 4px; font-size: 12px; background: ${field.is_active ? '#d1fae5' : '#fee2e2'}; color: ${field.is_active ? '#065f46' : '#991b1b'};">${field.is_active ? 'Hoạt động' : 'Vô hiệu'}</span>
+                                </td>
+                                <td style="padding: 18px 16px; color:#374151; vertical-align: middle; text-align: left;">${formatDate(field.created)}</td>
+                                <td style="padding: 18px 16px; vertical-align: middle; text-align: center;">
+                                    <button class="mgmt-action-btn edit-field" data-id="${field.id}" style="background: transparent; border: 1px solid #00aaed; color: #00aaed; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; margin-right: 6px;">Sửa</button>
+                                    <button class="mgmt-action-btn delete-field" data-id="${field.id}" style="background: transparent; border: 1px solid #dc3545; color: #dc3545; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px;">Xóa</button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `;
+
+        contentArea.innerHTML = tableHtml;
+
+        // Add event listeners for action buttons
+        contentArea.querySelectorAll('.mgmt-action-btn.edit-field').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const fieldId = btn.dataset.id;
+                editProfessionalField(fieldId, contentArea);
+            });
+        });
+
+        contentArea.querySelectorAll('.mgmt-action-btn.delete-field').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const fieldId = btn.dataset.id;
+                deleteProfessionalField(fieldId, contentArea);
+            });
+        });
+    }
+
+    function showCreateFieldModal(contentArea) {
+        // Fetch available organizations first
+        fetch('/api/v1/organizations/', {
+            credentials: 'same-origin',
+            headers: { 
+                'Accept': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            }
+        })
+        .then(resp => {
+            if (!resp.ok) throw resp;
+            return resp.json();
+        })
+        .then(data => {
+            const organizations = data.results || data.organizations || [];
+            renderCreateFieldModal(contentArea, organizations);
+        })
+        .catch(err => {
+            console.error('Failed to load organizations:', err);
+            alert('Không thể tải danh sách cơ quan. Vui lòng thử lại.');
+        });
+    }
+
+    function renderCreateFieldModal(contentArea, organizations) {
+        ensureModalStyles();
+        
+        const overlay = document.createElement('div');
+        overlay.className = 'mgmt-modal-overlay';
+        
+        overlay.innerHTML = `
+            <div class="mgmt-modal">
+                <div class="mgmt-modal-header">
+                    <h3 class="mgmt-modal-title">Tạo lĩnh vực chuyên môn mới</h3>
+                    <button class="mgmt-modal-close" aria-label="Đóng">×</button>
+                </div>
+                <div class="mgmt-modal-body">
+                    <div class="mgmt-notification" id="modal-notification">
+                        <span class="mgmt-notification-icon"></span>
+                        <span class="mgmt-notification-message"></span>
+                    </div>
+                    <form id="createFieldForm">
+                        <div class="mgmt-form-group">
+                            <label class="mgmt-form-label">Tên lĩnh vực *</label>
+                            <input type="text" name="name" required class="mgmt-form-input" placeholder="Ví dụ: Toán học">
+                        </div>
+                        
+                        <div class="mgmt-form-group">
+                            <label class="mgmt-form-label">Cơ quan *</label>
+                            <select name="org" required class="mgmt-form-input">
+                                <option value="">-- Chọn cơ quan --</option>
+                                ${organizations.map(org => `
+                                    <option value="${org.id}">${escapeHtml(org.name)}</option>
+                                `).join('')}
+                            </select>
+                        </div>
+                        
+                        <div class="mgmt-form-group">
+                            <label class="mgmt-form-label">Mô tả</label>
+                            <textarea name="description" class="mgmt-form-input mgmt-form-textarea" placeholder="Mô tả về lĩnh vực chuyên môn (tùy chọn)"></textarea>
+                        </div>
+                        
+                        <div class="mgmt-form-group">
+                            <label class="mgmt-form-label">Thứ tự sắp xếp</label>
+                            <input type="number" name="sort_order" value="0" min="0" class="mgmt-form-input" placeholder="0">
+                            <div class="mgmt-form-help">Số thấp hơn sẽ hiển thị trước</div>
+                        </div>
+                        
+                        <div class="mgmt-form-group">
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <input type="checkbox" name="is_active" checked style="width: auto;">
+                                <span class="mgmt-form-label" style="margin: 0;">Kích hoạt</span>
+                            </label>
+                        </div>
+                    </form>
+                    <div class="mgmt-modal-actions">
+                        <button class="mgmt-btn secondary mgmt-cancel-btn">Hủy</button>
+                        <button class="mgmt-btn primary mgmt-create-field-btn">Tạo lĩnh vực</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(overlay);
+        
+        // Close modal handlers
+        const closeModal = () => {
+            document.body.removeChild(overlay);
+        };
+        
+        overlay.querySelector('.mgmt-modal-close').addEventListener('click', closeModal);
+        overlay.querySelector('.mgmt-cancel-btn').addEventListener('click', closeModal);
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) closeModal();
+        });
+        
+        // Create handler
+        const form = overlay.querySelector('#createFieldForm');
+        overlay.querySelector('.mgmt-create-field-btn').addEventListener('click', () => {
+            if (!form.checkValidity()) {
+                form.reportValidity();
+                return;
+            }
+            
+            const data = {
+                name: form.querySelector('[name="name"]').value,
+                org: parseInt(form.querySelector('[name="org"]').value),
+                description: form.querySelector('[name="description"]').value || '',
+                sort_order: parseInt(form.querySelector('[name="sort_order"]').value) || 0,
+                is_active: form.querySelector('[name="is_active"]').checked
+            };
+            
+            const createBtn = overlay.querySelector('.mgmt-create-field-btn');
+            createBtn.disabled = true;
+            createBtn.textContent = 'Đang tạo...';
+            
+            fetch('/api/cms/v1/professional_fields/', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify(data)
+            })
+            .then(resp => {
+                if (!resp.ok) {
+                    return resp.json().then(err => { throw err; });
+                }
+                return resp.json();
+            })
+            .then(() => {
+                showNotification(overlay, 'success', 'Tạo lĩnh vực chuyên môn thành công!');
+                form.reset();
+                
+                // Close modal after 1.5 seconds and reload list
+                setTimeout(() => {
+                    closeModal();
+                    loadProfessionalFieldsList(contentArea);
+                }, 1500);
+            })
+            .catch(err => {
+                console.error('Failed to create professional field:', err);
+                const errorMsg = err.error || err.message || 'Không thể tạo lĩnh vực chuyên môn. Vui lòng thử lại.';
+                showNotification(overlay, 'error', errorMsg);
+            })
+            .finally(() => {
+                createBtn.disabled = false;
+                createBtn.textContent = 'Tạo lĩnh vực';
+            });
+        });
+    }
+
+    function editProfessionalField(fieldId, contentArea) {
+        // Fetch field details
+        fetch(`/api/cms/v1/professional_fields/${fieldId}/`, {
+            credentials: 'same-origin',
+            headers: { 
+                'Accept': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            }
+        })
+        .then(resp => {
+            if (!resp.ok) throw resp;
+            return resp.json();
+        })
+        .then(field => {
+            showEditFieldModal(field, contentArea);
+        })
+        .catch(err => {
+            console.error('Failed to load professional field:', err);
+            alert('Không thể tải thông tin lĩnh vực chuyên môn. Vui lòng thử lại.');
+        });
+    }
+
+    function showEditFieldModal(field, contentArea) {
+        // Fetch available organizations first
+        fetch('/api/v1/organizations/', {
+            credentials: 'same-origin',
+            headers: { 
+                'Accept': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            }
+        })
+        .then(resp => {
+            if (!resp.ok) throw resp;
+            return resp.json();
+        })
+        .then(data => {
+            const organizations = data.results || data.organizations || [];
+            renderEditFieldModal(field, contentArea, organizations);
+        })
+        .catch(err => {
+            console.error('Failed to load organizations:', err);
+            // Still render modal but with empty organizations list
+            renderEditFieldModal(field, contentArea, []);
+        });
+    }
+
+    function renderEditFieldModal(field, contentArea, organizations) {
+        ensureModalStyles();
+        
+        const overlay = document.createElement('div');
+        overlay.className = 'mgmt-modal-overlay';
+        
+        overlay.innerHTML = `
+            <div class="mgmt-modal">
+                <div class="mgmt-modal-header">
+                    <h3 class="mgmt-modal-title">Chỉnh sửa lĩnh vực chuyên môn</h3>
+                    <button class="mgmt-modal-close" aria-label="Đóng">×</button>
+                </div>
+                <div class="mgmt-modal-body">
+                    <div class="mgmt-notification" id="modal-notification">
+                        <span class="mgmt-notification-icon"></span>
+                        <span class="mgmt-notification-message"></span>
+                    </div>
+                    <form id="editFieldForm">
+                        <div class="mgmt-form-group">
+                            <label class="mgmt-form-label">Tên lĩnh vực *</label>
+                            <input type="text" name="name" value="${escapeHtml(field.name || '')}" required class="mgmt-form-input">
+                        </div>
+                        
+                        <div class="mgmt-form-group">
+                            <label class="mgmt-form-label">Cơ quan *</label>
+                            <select name="org" required class="mgmt-form-input">
+                                <option value="">-- Chọn cơ quan --</option>
+                                ${organizations.map(org => `
+                                    <option value="${org.id}" ${org.id === field.org ? 'selected' : ''}>${escapeHtml(org.name)}</option>
+                                `).join('')}
+                            </select>
+                        </div>
+                        
+                        <div class="mgmt-form-group">
+                            <label class="mgmt-form-label">Mô tả</label>
+                            <textarea name="description" class="mgmt-form-input mgmt-form-textarea">${escapeHtml(field.description || '')}</textarea>
+                        </div>
+                        
+                        <div class="mgmt-form-group">
+                            <label class="mgmt-form-label">Thứ tự sắp xếp</label>
+                            <input type="number" name="sort_order" value="${field.sort_order || 0}" min="0" class="mgmt-form-input">
+                            <div class="mgmt-form-help">Số thấp hơn sẽ hiển thị trước</div>
+                        </div>
+                        
+                        <div class="mgmt-form-group">
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <input type="checkbox" name="is_active" ${field.is_active ? 'checked' : ''} style="width: auto;">
+                                <span class="mgmt-form-label" style="margin: 0;">Kích hoạt</span>
+                            </label>
+                        </div>
+                    </form>
+                    <div class="mgmt-modal-actions">
+                        <button class="mgmt-btn secondary mgmt-cancel-btn">Hủy</button>
+                        <button class="mgmt-btn primary mgmt-save-field-btn">Lưu thay đổi</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(overlay);
+        
+        // Close modal handlers
+        const closeModal = () => {
+            document.body.removeChild(overlay);
+        };
+        
+        overlay.querySelector('.mgmt-modal-close').addEventListener('click', closeModal);
+        overlay.querySelector('.mgmt-cancel-btn').addEventListener('click', closeModal);
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) closeModal();
+        });
+        
+        // Save handler
+        const form = overlay.querySelector('#editFieldForm');
+        overlay.querySelector('.mgmt-save-field-btn').addEventListener('click', () => {
+            if (!form.checkValidity()) {
+                form.reportValidity();
+                return;
+            }
+            
+            const data = {
+                name: form.querySelector('[name="name"]').value,
+                org: parseInt(form.querySelector('[name="org"]').value),
+                description: form.querySelector('[name="description"]').value || '',
+                sort_order: parseInt(form.querySelector('[name="sort_order"]').value) || 0,
+                is_active: form.querySelector('[name="is_active"]').checked
+            };
+            
+            const saveBtn = overlay.querySelector('.mgmt-save-field-btn');
+            saveBtn.disabled = true;
+            saveBtn.textContent = 'Đang lưu...';
+            
+            fetch(`/api/cms/v1/professional_fields/${field.id}/`, {
+                method: 'PATCH',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify(data)
+            })
+            .then(resp => {
+                if (!resp.ok) {
+                    return resp.json().then(err => { throw err; });
+                }
+                return resp.json();
+            })
+            .then(() => {
+                showNotification(overlay, 'success', 'Cập nhật lĩnh vực chuyên môn thành công!');
+                
+                // Close modal after 1.5 seconds and reload list
+                setTimeout(() => {
+                    closeModal();
+                    loadProfessionalFieldsList(contentArea);
+                }, 1500);
+            })
+            .catch(err => {
+                console.error('Failed to update professional field:', err);
+                const errorMsg = err.error || err.message || 'Không thể cập nhật lĩnh vực chuyên môn. Vui lòng thử lại.';
+                showNotification(overlay, 'error', errorMsg);
+            })
+            .finally(() => {
+                saveBtn.disabled = false;
+                saveBtn.textContent = 'Lưu thay đổi';
+            });
+        });
+    }
+
+    function deleteProfessionalField(fieldId, contentArea) {
+        if (confirm('Bạn có chắc chắn muốn xóa lĩnh vực chuyên môn này?')) {
+            fetch(`/api/cms/v1/professional_fields/${fieldId}/`, {
+                method: 'DELETE',
+                credentials: 'same-origin',
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken')
+                }
+            })
+            .then(resp => {
+                if (!resp.ok) throw resp;
+                loadProfessionalFieldsList(contentArea);
+            })
+            .catch(err => {
+                console.error('Failed to delete professional field:', err);
+                alert('Không thể xóa lĩnh vực chuyên môn. Vui lòng thử lại.');
+            });
+        }
     }
 
     // Register the module

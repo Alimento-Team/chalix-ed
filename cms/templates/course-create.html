@@ -142,6 +142,20 @@
                                                 </li>
                                                 % endif
 
+                                                <!-- Professional Field (Required for all course creators) -->
+                                                <li class="field select required" id="field-professional-field">
+                                                    <label for="new-course-professional-field">${_("Lĩnh vực chuyên môn")}</label>
+                                                    <select class="new-course-professional-field" id="new-course-professional-field"
+                                                        name="new-course-professional-field" aria-required="true">
+                                                        <option value="">${_("Chọn lĩnh vực chuyên môn...")}</option>
+                                                        <!-- Options will be loaded via JavaScript from API -->
+                                                    </select>
+                                                    <span class="tip">
+                                                        ${_("Chọn lĩnh vực chuyên môn mà khóa học này thuộc về.")}
+                                                    </span>
+                                                    <span class="tip tip-error is-hidden"></span>
+                                                </li>
+
                                                 <li class="row">
                                                     <!-- Organization -->
                                                     <div class="column field text required">

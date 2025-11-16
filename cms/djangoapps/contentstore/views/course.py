@@ -971,6 +971,7 @@ def _create_or_rerun_course(request):
         course_type = request.json.get('course_type', '')
         course_category = request.json.get('course_category')  # Get course_category from request
         publish_type = request.json.get('publish_type')  # Legacy field, fallback
+        professional_field_id = request.json.get('professional_field_id')  # Get professional field
         # force the start date for reruns and allow us to override start via the client
         start = request.json.get('start', CourseFields.start.default)
         end = request.json.get('end', CourseFields.end.default)
@@ -1000,6 +1001,9 @@ def _create_or_rerun_course(request):
         elif publish_type:
             fields['course_category'] = publish_type
             fields['publish_type'] = publish_type
+        # Add professional_field_id to fields if provided
+        if professional_field_id:
+            fields['professional_field_id'] = professional_field_id
 
         # Set a unique wiki_slug for newly created courses. To maintain active wiki_slugs for
         # existing xml courses this cannot be changed in CourseBlock.
@@ -1149,6 +1153,7 @@ def create_new_course(user, org, number, run, fields):
         creator_org = None
         course_category = fields.get('course_category')  # Get course_category from fields
         publish_type = fields.get('publish_type')  # Legacy field
+        professional_field_id = fields.get('professional_field_id')  # Get professional field ID
         
         if primary_role:
             creator_role = primary_role.role
@@ -1162,6 +1167,15 @@ def create_new_course(user, org, number, run, fields):
         # Set is_mandatory_course based on category
         is_mandatory = (category == 'mandatory') if category else False
         
+        # Get ProfessionalField instance if ID provided
+        professional_field = None
+        if professional_field_id:
+            try:
+                from cms.djangoapps.contentstore.models import ProfessionalField
+                professional_field = ProfessionalField.objects.get(id=professional_field_id, is_active=True)
+            except ProfessionalField.DoesNotExist:
+                log.warning("Professional field with ID %s not found", professional_field_id)
+        
         ChalixCourseMetadata.objects.create(
             course_id=new_course.id,
             creator=user,
@@ -1170,10 +1184,12 @@ def create_new_course(user, org, number, run, fields):
             is_public=is_public_course,
             is_mandatory_course=is_mandatory,
             course_category=category,  # Save course_category
-            publish_type=category  # Keep publish_type for backwards compatibility
+            publish_type=category,  # Keep publish_type for backwards compatibility
+            professional_field=professional_field  # Save professional field
         )
-        log.info("Created Chalix course metadata for %s - Public: %s, Role: %s, Category: %s", 
-                 new_course.id, is_public_course, creator_role, category)
+        log.info("Created Chalix course metadata for %s - Public: %s, Role: %s, Category: %s, Field: %s", 
+                 new_course.id, is_public_course, creator_role, category, 
+                 professional_field.name if professional_field else None)
     except Exception as e:
         log.warning("Failed to create Chalix course metadata for %s: %s", new_course.id, str(e))
         # Don't fail course creation if metadata creation fails

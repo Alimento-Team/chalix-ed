@@ -92,6 +92,8 @@ class CourseDetails:
         self.course_type = ""
         self.course_level = ""
         self.course_category = ""  # Chalix: course category for bộ role (elective or mandatory)
+        self.professional_field_id = None  # Chalix: professional field ID
+        self.professional_field_name = ""  # Chalix: professional field name for display
 
     @classmethod
     def fetch_about_attribute(cls, course_key, attribute):
@@ -153,12 +155,16 @@ class CourseDetails:
         course_details.course_type = getattr(block, 'course_type', "")
         course_details.course_level = getattr(block, 'course_level', "")
         
-        # Fetch course_category from ChalixCourseMetadata
+        # Fetch course_category and professional_field from ChalixCourseMetadata
         try:
             from cms.djangoapps.contentstore.models import ChalixCourseMetadata
             chalix_metadata = ChalixCourseMetadata.objects.filter(course_key=course_key).first()
             if chalix_metadata:
                 course_details.course_category = chalix_metadata.course_category or ""
+                # Fetch professional field info
+                if chalix_metadata.professional_field:
+                    course_details.professional_field_id = chalix_metadata.professional_field.id
+                    course_details.professional_field_name = chalix_metadata.professional_field.name
         except Exception:  # pylint: disable=broad-except
             # If ChalixCourseMetadata doesn't exist or import fails, default to empty
             course_details.course_category = ""
@@ -384,6 +390,46 @@ class CourseDetails:
             except Exception as e:  # pylint: disable=broad-except
                 logging.getLogger(__name__).error(
                     "Failed to update course_category for course %s: %s", 
+                    course_key, 
+                    str(e)
+                )
+        
+        # Handle professional_field_id separately via ChalixCourseMetadata
+        if 'professional_field_id' in jsondict:
+            try:
+                from cms.djangoapps.contentstore.models import ChalixCourseMetadata, ProfessionalField
+                chalix_metadata, created = ChalixCourseMetadata.objects.get_or_create(
+                    course_key=course_key
+                )
+                
+                professional_field_id = jsondict['professional_field_id']
+                professional_field = None
+                
+                # Get ProfessionalField instance if ID provided
+                if professional_field_id:
+                    try:
+                        professional_field = ProfessionalField.objects.get(
+                            id=professional_field_id, 
+                            is_active=True
+                        )
+                    except ProfessionalField.DoesNotExist:
+                        logging.getLogger(__name__).warning(
+                            "Professional field with ID %s not found", 
+                            professional_field_id
+                        )
+                
+                # Update if changed
+                if chalix_metadata.professional_field != professional_field:
+                    chalix_metadata.professional_field = professional_field
+                    chalix_metadata.save()
+                    logging.getLogger(__name__).info(
+                        "Updated professional_field to '%s' for course %s", 
+                        professional_field.name if professional_field else None, 
+                        course_key
+                    )
+            except Exception as e:  # pylint: disable=broad-except
+                logging.getLogger(__name__).error(
+                    "Failed to update professional_field for course %s: %s", 
                     course_key, 
                     str(e)
                 )

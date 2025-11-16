@@ -74,6 +74,47 @@ function(ValidatingView, CodeMirror, _, $, ui, DateUtils, FileUploadModel,
                 el: $('.course-instructor-details-fields'),
                 model: this.model
             });
+            
+            // Load professional fields for dropdown
+            this.loadProfessionalFields();
+        },
+        
+        loadProfessionalFields: function() {
+            var self = this;
+            $.ajax({
+                url: '/api/cms/v1/professional_fields/',
+                method: 'GET',
+                success: function(response) {
+                    var $select = self.$('#' + self.fieldToSelectorMap.professional_field_id);
+                    if ($select.length > 0) {
+                        $select.find('option:not(:first)').remove(); // Clear existing options except placeholder
+                        
+                        if (response.professional_fields && response.professional_fields.length > 0) {
+                            response.professional_fields.forEach(function(field) {
+                                $select.append($('<option>', {
+                                    value: field.id,
+                                    text: field.name
+                                }));
+                            });
+                            
+                            // Set the current value after options are loaded
+                            var currentFieldId = self.model.get('professional_field_id');
+                            if (currentFieldId) {
+                                $select.val(currentFieldId);
+                            }
+                        } else {
+                            $select.append($('<option>', {
+                                value: '',
+                                text: '(Chưa có lĩnh vực nào)',
+                                disabled: true
+                            }));
+                        }
+                    }
+                },
+                error: function() {
+                    console.error('Failed to load professional fields');
+                }
+            });
         },
 
         render: function() {
@@ -194,7 +235,8 @@ function(ValidatingView, CodeMirror, _, $, ui, DateUtils, FileUploadModel,
             add_course_learning_info: 'add-course-learning-info',
             add_course_instructor_info: 'add-course-instructor-info',
             course_learning_info: 'course-learning-info',
-            course_category: 'course-category'  // Chalix: course category mapping
+            course_category: 'course-category',  // Chalix: course category mapping
+            professional_field_id: 'professional-field'  // Chalix: professional field mapping
         },
 
         addLearningFields: function() {

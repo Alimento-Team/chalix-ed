@@ -40,6 +40,37 @@ function(domReady, $, _, CancelOnEscape, CreateCourseUtilsFactory, CreateLibrary
         error: 'error'
     });
 
+    var loadProfessionalFields = function() {
+        // Load professional fields from API
+        $.ajax({
+            url: '/api/cms/v1/professional_fields/',
+            method: 'GET',
+            success: function(response) {
+                var $select = $('.new-course-professional-field');
+                $select.find('option:not(:first)').remove(); // Clear existing options except placeholder
+                
+                if (response.professional_fields && response.professional_fields.length > 0) {
+                    response.professional_fields.forEach(function(field) {
+                        $select.append($('<option>', {
+                            value: field.id,
+                            text: field.name
+                        }));
+                    });
+                } else {
+                    // No professional fields available
+                    $select.append($('<option>', {
+                        value: '',
+                        text: '(Chưa có lĩnh vực nào)',
+                        disabled: true
+                    }));
+                }
+            },
+            error: function() {
+                console.error('Failed to load professional fields');
+            }
+        });
+    };
+
     var saveNewCourse = function(e) {
         e.preventDefault();
 
@@ -53,6 +84,7 @@ function(domReady, $, _, CancelOnEscape, CreateCourseUtilsFactory, CreateLibrary
         var number = $newCourseForm.find('.new-course-number').val();
         var run = $newCourseForm.find('.new-course-run').val();
         var course_category = $newCourseForm.find('.new-course-category').val();
+        var professional_field_id = $newCourseForm.find('.new-course-professional-field').val();
 
         // Check if course_category field exists and is required (for 'bộ' role)
         var $courseCategoryField = $newCourseForm.find('#field-course-category');
@@ -60,6 +92,15 @@ function(domReady, $, _, CancelOnEscape, CreateCourseUtilsFactory, CreateLibrary
             // Show error for missing course category
             $courseCategoryField.find('.tip-error').text('Vui lòng chọn loại khoá học').removeClass('is-hidden');
             $courseCategoryField.addClass('error');
+            return;
+        }
+
+        // Check if professional_field is required (for all roles)
+        var $professionalFieldField = $newCourseForm.find('#field-professional-field');
+        if ($professionalFieldField.length && !professional_field_id) {
+            // Show error for missing professional field
+            $professionalFieldField.find('.tip-error').text('Vui lòng chọn lĩnh vực chuyên môn').removeClass('is-hidden');
+            $professionalFieldField.addClass('error');
             return;
         }
 
@@ -75,6 +116,11 @@ function(domReady, $, _, CancelOnEscape, CreateCourseUtilsFactory, CreateLibrary
             course_info.course_category = course_category;
             // Also set publish_type for backwards compatibility
             course_info.publish_type = course_category;
+        }
+
+        // Add professional_field_id if selected
+        if (professional_field_id) {
+            course_info.professional_field_id = professional_field_id;
         }
 
         analytics.track('Created a Course', course_info);
@@ -133,6 +179,9 @@ function(domReady, $, _, CancelOnEscape, CreateCourseUtilsFactory, CreateLibrary
         CreateCourseUtils.setupOrgAutocomplete();
         CreateCourseUtils.configureHandlers();
         rtlTextDirection();
+        
+        // Load professional fields for dropdown
+        loadProfessionalFields();
     };
 
     var saveNewLibrary = function(e) {

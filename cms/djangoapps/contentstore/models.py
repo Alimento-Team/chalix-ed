@@ -65,7 +65,59 @@ class CourseType(models.Model):
         return self.name
 
 
+class ProfessionalField(models.Model):
+    """
+    Model for managing professional fields (Lĩnh vực chuyên môn) that can be
+    assigned to courses. Managed by Bộ role.
+    """
+    name = models.CharField(
+        max_length=200,
+        verbose_name=_("Professional Field Name"),
+        help_text=_("The name of the professional field (e.g., 'Y tế', 'Giáo dục')")
+    )
 
+    org = models.CharField(
+        max_length=255,
+        verbose_name=_("Organization"),
+        help_text=_("Organization that this professional field belongs to"),
+        db_index=True
+    )
+
+    description = models.TextField(
+        blank=True,
+        verbose_name=_("Description"),
+        help_text=_("Optional description of this professional field")
+    )
+
+    is_active = models.BooleanField(
+        default=True,
+        verbose_name=_("Is Active"),
+        help_text=_("Whether this professional field is available for selection")
+    )
+
+    sort_order = models.PositiveIntegerField(
+        default=0,
+        verbose_name=_("Sort Order"),
+        help_text=_("Order in which this field appears in dropdowns (lower numbers first)")
+    )
+
+    created_by = models.CharField(
+        max_length=255,
+        verbose_name=_("Created By"),
+        help_text=_("Username of the user who created this field")
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = _("Professional Field")
+        verbose_name_plural = _("Professional Fields")
+        ordering = ['org', 'sort_order', 'name']
+        unique_together = [['name', 'org']]
+
+    def __str__(self):
+        return f"{self.name} ({self.org})"
 
 
 class VideoUploadConfig(ConfigurationModel):
@@ -801,6 +853,17 @@ class ChalixCourseMetadata(models.Model):
         blank=True,
         verbose_name=_("Loại yêu cầu khoá học"),
         help_text=_("Type of course publish requirement for 'bộ' role courses (legacy field)")
+    )
+    
+    # Professional field (Lĩnh vực chuyên môn)
+    professional_field = models.ForeignKey(
+        ProfessionalField,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='courses',
+        verbose_name=_("Lĩnh vực chuyên môn"),
+        help_text=_("Professional field/domain that this course belongs to")
     )
     
     created_at = models.DateTimeField(auto_now_add=True)

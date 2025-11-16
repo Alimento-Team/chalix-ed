@@ -243,6 +243,26 @@ CMS.URL.UPLOAD_ASSET = '${upload_asset_url | n, js_escaped_string}'
         <hr class="divide" />
         % endif
 
+        <div class="group-settings professional-field">
+          <header>
+            <h2 class="title-2">${_("Lĩnh vực chuyên môn")}</h2>
+            <span class="tip">${_("Chọn lĩnh vực chuyên môn cho khóa học này")}</span>
+          </header>
+
+          <ol class="list-input">
+            <li class="field field-select" id="field-professional-field">
+              <label for="professional-field">${_("Lĩnh vực chuyên môn")}</label>
+              <select class="input" id="professional-field">
+                <option value="">${_("-- Chọn lĩnh vực chuyên môn --")}</option>
+                <!-- Options will be loaded via JavaScript -->
+              </select>
+              <span class="tip tip-stacked">${_("Lĩnh vực chuyên môn mà khóa học này thuộc về")}</span>
+            </li>
+          </ol>
+        </div>
+
+        <hr class="divide" />
+
         <div id="schedule" class="group-settings schedule">
           <header>
             <h2 class="title-2">${_('Course Schedule')}</h2>

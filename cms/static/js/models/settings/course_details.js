@@ -38,7 +38,9 @@ function(Backbone, _, gettext, ValidationHelpers, DateUtils, StringUtils) {
             learning_info: [],
             instructor_info: {},
             self_paced: null,
-            course_category: ''  // Chalix: course category for bộ role
+            course_category: '',  // Chalix: course category for bộ role
+            professional_field_id: null,  // Chalix: professional field ID
+            professional_field_name: ''  // Chalix: professional field name
         },
 
         validate: function(newattrs) {
