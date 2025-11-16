@@ -179,7 +179,7 @@ def cms_dashboard(request):
     
     # Get user permissions and role info
     is_staff = user.is_staff
-    is_global_staff = user_has_role(user, GlobalStaff)
+    is_global_staff = GlobalStaff().has_user(user)
     user_role = get_user_primary_role(user)
     available_tabs = get_available_tabs(user)
     organization_name = get_user_organization_display_name(user)
