@@ -4,6 +4,57 @@ from django.conf import settings
 from django.db import migrations, models
 
 
+def remove_constraint_if_exists(apps, schema_editor):
+    """
+    Safely remove constraints only if they exist.
+    """
+    db_alias = schema_editor.connection.alias
+    with schema_editor.connection.cursor() as cursor:
+        # Check and remove named constraints if they exist
+        constraints_to_remove = [
+            ('contentstore_finalevaluation', 'unique_course_evaluation'),
+            ('contentstore_learnersubmission', 'unique_learner_submission'),
+            ('contentstore_quizanswer', 'unique_quiz_answer'),
+            ('contentstore_quizattempt', 'unique_quiz_attempt'),
+        ]
+        
+        for table_name, constraint_name in constraints_to_remove:
+            try:
+                cursor.execute(f"ALTER TABLE {table_name} DROP INDEX {constraint_name}")
+            except Exception:
+                # Constraint doesn't exist, skip it
+                pass
+        
+        # Also remove any auto-generated unique constraints that Django might have created
+        # Query for unique indexes on these table/column combinations
+        tables_and_columns = [
+            ('contentstore_learnersubmission', ['evaluation_id', 'learner_id']),
+            ('contentstore_quizanswer', ['attempt_id', 'question_id']),
+            ('contentstore_quizattempt', ['evaluation_id', 'learner_id']),
+        ]
+        
+        for table_name, columns in tables_and_columns:
+            # Find all unique indexes on this table
+            cursor.execute(f"""
+                SELECT DISTINCT index_name
+                FROM information_schema.statistics 
+                WHERE table_schema = DATABASE() 
+                AND table_name = '{table_name}'
+                AND non_unique = 0
+                AND index_name != 'PRIMARY'
+            """)
+            
+            indexes = [row[0] for row in cursor.fetchall()]
+            
+            # Drop each unique index found
+            for index_name in indexes:
+                try:
+                    cursor.execute(f"ALTER TABLE {table_name} DROP INDEX {index_name}")
+                except Exception:
+                    # Index might not exist or might be needed, skip it
+                    pass
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -12,22 +63,7 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RemoveConstraint(
-            model_name='finalevaluation',
-            name='unique_course_evaluation',
-        ),
-        migrations.RemoveConstraint(
-            model_name='learnersubmission',
-            name='unique_learner_submission',
-        ),
-        migrations.RemoveConstraint(
-            model_name='quizanswer',
-            name='unique_quiz_answer',
-        ),
-        migrations.RemoveConstraint(
-            model_name='quizattempt',
-            name='unique_quiz_attempt',
-        ),
+        migrations.RunPython(remove_constraint_if_exists, migrations.RunPython.noop),
         migrations.AlterField(
             model_name='chalixuserrole',
             name='role',
