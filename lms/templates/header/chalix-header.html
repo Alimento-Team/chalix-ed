@@ -63,6 +63,10 @@ from lms.djangoapps.branding import api as branding_api %>
                                 <img src="${static.url('images/notification.svg')}" alt="Notifications" />
                             </div>
                         </div>
+                        % else:
+                        <div class="chalix-auth-buttons">
+                            <a href="/login" class="btn-signin">Đăng nhập</a>
+                        </div>
                         % endif
                     </div>
                 </div>
@@ -171,7 +175,6 @@ except:
                             % else:
                             <div class="chalix-auth-buttons">
                                 <a href="/login" class="btn-signin">Đăng nhập</a>
-                                <a href="/register" class="btn-signup">Đăng ký</a>
                             </div>
                             % endif
                 </div>
@@ -403,7 +406,7 @@ except:
 
                 /* Blue Top Header Styles */
                 .chalix-top-header {
-                    background: linear-gradient(90deg, #4ABADB 0%, #5BC4E5 100%) !important;
+                    background: linear-gradient(90deg, #2E8FB5 0%, #3FA8C9 100%) !important;
                     height: 60px;
                     width: 100%;
                     box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.1);
@@ -427,6 +430,47 @@ except:
                     line-height: 21.09px !important;
                     letter-spacing: 0.02em !important;
                     text-transform: uppercase !important;
+                }
+
+                /* Auth buttons in top header */
+                .chalix-top-header .chalix-auth-buttons {
+                    display: flex;
+                    gap: 12px;
+                    align-items: center;
+                }
+
+                .chalix-top-header .btn-signin,
+                .chalix-top-header .btn-signup {
+                    padding: 10px 24px;
+                    border-radius: 4px;
+                    text-decoration: none;
+                    font-family: 'Roboto', sans-serif;
+                    font-weight: 500;
+                    font-size: 14px;
+                    line-height: 16px;
+                    transition: all 0.2s;
+                    border: 1px solid white;
+                }
+
+                .chalix-top-header .btn-signin {
+                    background: transparent;
+                    color: white;
+                }
+
+                .chalix-top-header .btn-signin:hover {
+                    background: rgba(255, 255, 255, 0.1);
+                    text-decoration: none;
+                }
+
+                .chalix-top-header .btn-signup {
+                    background: white;
+                    color: #4ABADB;
+                    border-color: white;
+                }
+
+                .chalix-top-header .btn-signup:hover {
+                    background: rgba(255, 255, 255, 0.9);
+                    text-decoration: none;
                 }
 
                 /* Navigation Header Styles */
