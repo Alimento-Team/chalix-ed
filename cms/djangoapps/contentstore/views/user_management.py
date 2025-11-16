@@ -703,7 +703,7 @@ def parse_users_file(uploaded_file) -> List[Dict[str, Any]]:
             
             df = pd.read_excel(uploaded_file)
             
-            for _, row in df.iterrows():
+            for index, row in df.iterrows():
                 users_data.append({
                     'full_name': str(row.get('ho_va_ten', '')).strip(),
                     'email': str(row.get('email', '')).strip(),
