@@ -1,5 +1,6 @@
 """Views for users"""
 
+import logging
 
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User  # lint-amnesty, pylint: disable=imported-auth-user
@@ -9,6 +10,8 @@ from django.shortcuts import redirect
 from django.utils.translation import gettext as _
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods, require_POST
+
+logger = logging.getLogger(__name__)
 from opaque_keys.edx.keys import CourseKey
 from opaque_keys.edx.locator import LibraryLocator
 
@@ -23,7 +26,7 @@ from common.djangoapps.util.json_request import JsonResponse, expect_json
 from ..toggles import use_new_course_team_page
 from ..utils import get_course_team_url, get_course_team
 
-__all__ = ['request_course_creator', 'course_team_handler']
+__all__ = ['request_course_creator', 'course_team_handler', 'search_users', 'get_user_role', 'get_professional_fields']
 
 
 @require_POST
@@ -186,3 +189,101 @@ def _course_team_user(request, course_key, email):
         CourseEnrollment.enroll(user, course_key)
 
     return JsonResponse()
+
+
+@login_required
+@require_http_methods(["GET"])
+def search_users(request):
+    """
+    Search for users by username, email, or full name.
+    Used for instructor/teacher assignment autocomplete.
+    
+    GET parameters:
+        q: search query string
+        limit: maximum number of results (default: 10)
+    
+    Returns:
+        JSON response with list of matching users
+    """
+    from django.db.models import Q
+    
+    query = request.GET.get('q', '').strip()
+    limit = int(request.GET.get('limit', 10))
+    
+    if len(query) < 2:
+        return JsonResponse({'users': []})
+    
+    # Search users by username, email, or profile name
+    # Only return active users
+    try:
+        users = User.objects.filter(
+            Q(username__icontains=query) |
+            Q(email__icontains=query) |
+            Q(profile__name__icontains=query),
+            is_active=True
+        ).select_related('profile')[:limit]
+    except Exception:
+        # If profile lookup fails, just search by username and email
+        users = User.objects.filter(
+            Q(username__icontains=query) |
+            Q(email__icontains=query),
+            is_active=True
+        )[:limit]
+    
+    user_data = []
+    for user in users:
+        user_info = {
+            'username': user.username,
+            'email': user.email,
+        }
+        
+        # Add full name from profile if available
+        if hasattr(user, 'profile') and user.profile:
+            user_info['full_name'] = user.profile.name
+        
+        user_data.append(user_info)
+    
+    return JsonResponse({'users': user_data})
+
+
+@require_http_methods(["GET"])
+def get_user_role(request):
+    """
+    Get the current user's primary role for role-based UI features.
+    
+    Returns:
+        JSON response with user's role
+        Example: {"role": "bo"} or {"role": "co_quan"} or {"role": null}
+    """
+    from cms.djangoapps.contentstore.chalix_roles import get_user_primary_role
+    
+    try:
+        primary_role = get_user_primary_role(request.user)
+        role_name = primary_role.role if primary_role else None
+        return JsonResponse({'role': role_name})
+    except Exception as e:
+        logger.exception(f"Error getting user role: {e}")
+        return JsonResponse({'role': None})
+
+
+@require_http_methods(["GET"])
+def get_professional_fields(request):
+    """
+    Get list of all professional fields for course creation.
+    
+    Returns:
+        JSON response with list of professional fields
+        Example: {"fields": [{"id": 1, "name": "Toán học"}, ...]}
+    """
+    from cms.djangoapps.contentstore.models import ProfessionalField
+    
+    try:
+        fields = ProfessionalField.objects.all().order_by('name')
+        field_data = [
+            {'id': field.id, 'name': field.name}
+            for field in fields
+        ]
+        return JsonResponse({'fields': field_data})
+    except Exception as e:
+        logger.exception(f"Error getting professional fields: {e}")
+        return JsonResponse({'fields': []}, status=500)

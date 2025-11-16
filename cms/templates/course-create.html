@@ -156,6 +156,22 @@
                                                     <span class="tip tip-error is-hidden"></span>
                                                 </li>
 
+                                                <!-- Instructor/Teacher Assignment -->
+                                                <li class="field text" id="field-course-instructor">
+                                                    <label for="new-course-instructor">${_("Chỉ định giảng viên")}</label>
+                                                    <div class="instructor-autocomplete-wrapper">
+                                                        <input class="new-course-instructor" id="new-course-instructor" type="text"
+                                                            name="new-course-instructor" autocomplete="off"
+                                                            placeholder="${_('Nhập tên người dùng để tìm kiếm...')}" />
+                                                        <div class="instructor-autocomplete-results" style="display: none;"></div>
+                                                    </div>
+                                                    <input type="hidden" class="new-course-instructor-username" id="new-course-instructor-username" name="new-course-instructor-username" />
+                                                    <span class="tip">
+                                                        ${_("Nhập tên người dùng để tìm kiếm và chỉ định giảng viên cho khóa học. Chỉ những người dùng có tài khoản trên hệ thống mới có thể được chỉ định.")}
+                                                    </span>
+                                                    <span class="tip tip-error is-hidden"></span>
+                                                </li>
+
                                                 <li class="row">
                                                     <!-- Organization -->
                                                     <div class="column field text required">
@@ -400,6 +416,66 @@
 
             .action-secondary:hover {
                 background: #f8f9fa;
+            }
+
+            /* Instructor autocomplete styling */
+            .instructor-autocomplete-wrapper {
+                position: relative;
+            }
+
+            .instructor-autocomplete-results {
+                position: absolute;
+                top: 100%;
+                left: 0;
+                right: 0;
+                background: white;
+                border: 1px solid #d0d0d0;
+                border-top: none;
+                border-radius: 0 0 4px 4px;
+                max-height: 200px;
+                overflow-y: auto;
+                z-index: 1000;
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            }
+
+            .instructor-autocomplete-item {
+                padding: 0.75rem;
+                cursor: pointer;
+                border-bottom: 1px solid #f0f0f0;
+                transition: background-color 0.2s ease;
+            }
+
+            .instructor-autocomplete-item:hover {
+                background-color: #f8f9fa;
+            }
+
+            .instructor-autocomplete-item:last-child {
+                border-bottom: none;
+            }
+
+            .instructor-autocomplete-item .username {
+                font-weight: 600;
+                color: #1a1a1a;
+                display: block;
+            }
+
+            .instructor-autocomplete-item .details {
+                font-size: 0.875rem;
+                color: #666;
+                margin-top: 0.25rem;
+            }
+
+            .instructor-autocomplete-loading {
+                padding: 0.75rem;
+                text-align: center;
+                color: #666;
+                font-style: italic;
+            }
+
+            .instructor-autocomplete-no-results {
+                padding: 0.75rem;
+                text-align: center;
+                color: #999;
             }
         </style>
     </%block>

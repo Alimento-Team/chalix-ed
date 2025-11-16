@@ -71,6 +71,77 @@ function(domReady, $, _, CancelOnEscape, CreateCourseUtilsFactory, CreateLibrary
         });
     };
 
+    var setupInstructorAutocomplete = function() {
+        var $input = $('.new-course-instructor');
+        var $results = $('.instructor-autocomplete-results');
+        var $hiddenInput = $('.new-course-instructor-username');
+        var searchTimeout;
+
+        $input.on('input', function() {
+            var query = $(this).val().trim();
+            
+            // Clear previous timeout
+            clearTimeout(searchTimeout);
+            
+            if (query.length < 2) {
+                $results.hide();
+                return;
+            }
+
+            // Show loading state
+            $results.html('<div class="instructor-autocomplete-loading">Đang tìm kiếm...</div>').show();
+
+            // Debounce search
+            searchTimeout = setTimeout(function() {
+                $.ajax({
+                    url: '/api/v1/users/search/',
+                    method: 'GET',
+                    data: { q: query },
+                    success: function(response) {
+                        if (response.users && response.users.length > 0) {
+                            var html = '';
+                            response.users.forEach(function(user) {
+                                var details = [];
+                                if (user.email) details.push(user.email);
+                                if (user.full_name) details.push(user.full_name);
+                                
+                                html += '<div class="instructor-autocomplete-item" data-username="' + 
+                                        user.username + '" data-fullname="' + (user.full_name || '') + '">' +
+                                        '<span class="username">' + user.username + '</span>' +
+                                        (details.length > 0 ? '<span class="details">' + details.join(' • ') + '</span>' : '') +
+                                        '</div>';
+                            });
+                            $results.html(html).show();
+                        } else {
+                            $results.html('<div class="instructor-autocomplete-no-results">Không tìm thấy người dùng</div>').show();
+                        }
+                    },
+                    error: function() {
+                        $results.html('<div class="instructor-autocomplete-no-results">Lỗi khi tìm kiếm</div>').show();
+                    }
+                });
+            }, 300);
+        });
+
+        // Handle item selection
+        $results.on('click', '.instructor-autocomplete-item', function() {
+            var username = $(this).data('username');
+            var fullname = $(this).data('fullname');
+            var displayName = fullname ? fullname + ' (' + username + ')' : username;
+            
+            $input.val(displayName);
+            $hiddenInput.val(username);
+            $results.hide();
+        });
+
+        // Hide results when clicking outside
+        $(document).on('click', function(e) {
+            if (!$(e.target).closest('.instructor-autocomplete-wrapper').length) {
+                $results.hide();
+            }
+        });
+    };
+
     var saveNewCourse = function(e) {
         e.preventDefault();
 
@@ -85,6 +156,7 @@ function(domReady, $, _, CancelOnEscape, CreateCourseUtilsFactory, CreateLibrary
         var run = $newCourseForm.find('.new-course-run').val();
         var course_category = $newCourseForm.find('.new-course-category').val();
         var professional_field_id = $newCourseForm.find('.new-course-professional-field').val();
+        var instructor_username = $newCourseForm.find('.new-course-instructor-username').val();
 
         // Check if course_category field exists and is required (for 'bộ' role)
         var $courseCategoryField = $newCourseForm.find('#field-course-category');
@@ -121,6 +193,11 @@ function(domReady, $, _, CancelOnEscape, CreateCourseUtilsFactory, CreateLibrary
         // Add professional_field_id if selected
         if (professional_field_id) {
             course_info.professional_field_id = professional_field_id;
+        }
+
+        // Add instructor_username if selected
+        if (instructor_username) {
+            course_info.instructor_username = instructor_username;
         }
 
         analytics.track('Created a Course', course_info);
@@ -182,6 +259,9 @@ function(domReady, $, _, CancelOnEscape, CreateCourseUtilsFactory, CreateLibrary
         
         // Load professional fields for dropdown
         loadProfessionalFields();
+        
+        // Setup instructor autocomplete
+        setupInstructorAutocomplete();
     };
 
     var saveNewLibrary = function(e) {

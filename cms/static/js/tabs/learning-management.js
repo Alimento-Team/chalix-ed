@@ -461,6 +461,62 @@
                 resize: vertical;
             }
             
+            /* Instructor autocomplete */
+            .instructor-autocomplete-wrapper {
+                position: relative;
+            }
+            
+            .instructor-autocomplete-results {
+                position: absolute;
+                top: 100%;
+                left: 0;
+                right: 0;
+                background: white;
+                border: 1px solid #d1d5db;
+                border-top: none;
+                border-radius: 0 0 8px 8px;
+                max-height: 200px;
+                overflow-y: auto;
+                z-index: 1000;
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            }
+            
+            .instructor-autocomplete-item {
+                padding: 12px 16px;
+                cursor: pointer;
+                border-bottom: 1px solid #f0f0f0;
+                transition: background-color 0.2s ease;
+            }
+            
+            .instructor-autocomplete-item:hover {
+                background-color: #f8f9fa;
+            }
+            
+            .instructor-autocomplete-item:last-child {
+                border-bottom: none;
+            }
+            
+            .instructor-autocomplete-item .username {
+                font-weight: 600;
+                color: #1a1a1a;
+                display: block;
+            }
+            
+            .instructor-autocomplete-item .details {
+                font-size: 12px;
+                color: #666;
+                margin-top: 4px;
+                display: block;
+            }
+            
+            .instructor-autocomplete-loading,
+            .instructor-autocomplete-no-results {
+                padding: 12px 16px;
+                text-align: center;
+                color: #666;
+                font-style: italic;
+            }
+            
             /* Searchable dropdown */
             .lm-select-wrapper {
                 position: relative;
@@ -2973,6 +3029,126 @@
         setupCreateProgramModalHandlers(overlay, onSuccess);
     }
 
+    function loadProfessionalFieldsForCourse(overlay) {
+        const select = overlay.querySelector('#new-course-professional-field');
+        
+        fetch('/api/v1/professional_fields/')
+            .then(response => response.json())
+            .then(data => {
+                // Clear loading option
+                select.innerHTML = '<option value="">Chọn lĩnh vực chuyên môn...</option>';
+                
+                if (data.professional_fields && data.professional_fields.length > 0) {
+                    data.professional_fields.forEach(field => {
+                        const option = document.createElement('option');
+                        option.value = field.id;
+                        option.textContent = field.name;
+                        select.appendChild(option);
+                    });
+                } else {
+                    select.innerHTML = '<option value="">Chưa có lĩnh vực nào</option>';
+                }
+            })
+            .catch(error => {
+                console.error('Failed to load professional fields:', error);
+                select.innerHTML = '<option value="">Lỗi khi tải lĩnh vực</option>';
+            });
+    }
+    
+    function checkUserRoleAndShowCategoryField(overlay) {
+        // Get current user role from page data or API
+        fetch('/api/chalix/user-role/')
+            .then(response => response.json())
+            .then(data => {
+                // Show category field only for 'bo' (Bộ) role
+                if (data.role === 'bo') {
+                    const categoryField = overlay.querySelector('#course-category-field');
+                    if (categoryField) {
+                        categoryField.style.display = 'block';
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Failed to check user role:', error);
+                // If API fails, hide the field by default
+            });
+    }
+
+    function setupInstructorAutocomplete(overlay) {
+        const input = overlay.querySelector('#new-course-instructor');
+        const results = overlay.querySelector('.instructor-autocomplete-results');
+        const hiddenInput = overlay.querySelector('#new-course-instructor-username');
+        let searchTimeout;
+
+        input.addEventListener('input', function() {
+            const query = input.value.trim();
+            
+            // Clear previous timeout
+            clearTimeout(searchTimeout);
+            
+            if (query.length < 2) {
+                results.style.display = 'none';
+                return;
+            }
+
+            // Show loading state
+            results.innerHTML = '<div class="instructor-autocomplete-loading">Đang tìm kiếm...</div>';
+            results.style.display = 'block';
+
+            // Debounce search
+            searchTimeout = setTimeout(function() {
+                fetch('/api/v1/users/search/?q=' + encodeURIComponent(query))
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.users && data.users.length > 0) {
+                            let html = '';
+                            data.users.forEach(function(user) {
+                                const details = [];
+                                if (user.email) details.push(user.email);
+                                if (user.full_name) details.push(user.full_name);
+                                
+                                html += '<div class="instructor-autocomplete-item" data-username="' + 
+                                        user.username + '" data-fullname="' + (user.full_name || '') + '">' +
+                                        '<span class="username">' + user.username + '</span>';
+                                if (details.length > 0) {
+                                    html += '<span class="details">' + details.join(' • ') + '</span>';
+                                }
+                                html += '</div>';
+                            });
+                            results.innerHTML = html;
+                        } else {
+                            results.innerHTML = '<div class="instructor-autocomplete-no-results">Không tìm thấy người dùng</div>';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error searching users:', error);
+                        results.innerHTML = '<div class="instructor-autocomplete-no-results">Lỗi khi tìm kiếm</div>';
+                    });
+            }, 300);
+        });
+
+        // Handle item selection
+        results.addEventListener('click', function(e) {
+            const item = e.target.closest('.instructor-autocomplete-item');
+            if (item) {
+                const username = item.getAttribute('data-username');
+                const fullname = item.getAttribute('data-fullname');
+                const displayName = fullname ? fullname + ' (' + username + ')' : username;
+                
+                input.value = displayName;
+                hiddenInput.value = username;
+                results.style.display = 'none';
+            }
+        });
+
+        // Hide results when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!overlay.contains(e.target) || (!input.contains(e.target) && !results.contains(e.target))) {
+                results.style.display = 'none';
+            }
+        });
+    }
+
     function openCreateCourseModal(onSuccess) {
         ensureEditModalStyles();
         
@@ -3053,8 +3229,31 @@
                         
                         <div class="lm-form-group">
                             <label class="lm-form-label" for="new-course-instructor">Chỉ định giảng viên</label>
-                            <input type="text" id="new-course-instructor" name="instructor" class="lm-form-input"
-                                   placeholder="Tên giảng viên">
+                            <div class="instructor-autocomplete-wrapper">
+                                <input type="text" id="new-course-instructor" name="instructor" class="lm-form-input"
+                                       placeholder="Nhập tên người dùng để tìm kiếm..." autocomplete="off">
+                                <div class="instructor-autocomplete-results" style="display: none;"></div>
+                            </div>
+                            <input type="hidden" id="new-course-instructor-username" name="instructor_username">
+                            <small class="lm-form-help">Nhập tên người dùng để tìm kiếm và chỉ định giảng viên. Chỉ người dùng có tài khoản trên hệ thống mới được chỉ định.</small>
+                        </div>
+                        
+                        <div class="lm-form-group" id="course-category-field" style="display: none;">
+                            <label class="lm-form-label" for="new-course-category">Loại khoá học (cho CC, VC Bộ)</label>
+                            <select id="new-course-category" name="course_category" class="lm-form-input">
+                                <option value="">Chọn loại khoá học...</option>
+                                <option value="elective">Khoá học tự chọn CC, VC Bộ</option>
+                                <option value="mandatory">Khoá học bắt buộc cho CC, VC Bộ</option>
+                            </select>
+                            <small class="lm-form-help">Phân loại khoá học để quản lý cho cán bộ, công chức cấp Bộ.</small>
+                        </div>
+                        
+                        <div class="lm-form-group">
+                            <label class="lm-form-label" for="new-course-professional-field">Lĩnh vực chuyên môn *</label>
+                            <select id="new-course-professional-field" name="professional_field_id" class="lm-form-input" required>
+                                <option value="">Chọn lĩnh vực chuyên môn...</option>
+                            </select>
+                            <small class="lm-form-help">Chọn lĩnh vực chuyên môn mà khóa học này thuộc về.</small>
                         </div>
                         
                         <div class="lm-form-group">
@@ -3173,6 +3372,15 @@
         
         // Initialize with blank creation mode
         manualUnits.style.display = 'block';
+        
+        // Setup instructor autocomplete
+        setupInstructorAutocomplete(overlay);
+        
+        // Load professional fields
+        loadProfessionalFieldsForCourse(overlay);
+        
+        // Check user role and show/hide course category field
+        checkUserRoleAndShowCategoryField(overlay);
     }
 
     function setupCreateProgramModalHandlers(overlay, onSuccess) {
@@ -3527,6 +3735,12 @@
         // Collect form data
         const formData = new FormData(form);
         const creationType = formData.get('creation_type');
+        // Only include course_category if the field is visible (bo role only)
+        const categoryField = overlay.querySelector('#course-category-field');
+        const categoryValue = (categoryField && categoryField.style.display !== 'none') 
+            ? (formData.get('course_category') || '') 
+            : '';
+        
         const courseData = {
             title: formData.get('title'),
             short_description: formData.get('short_description'),
@@ -3536,6 +3750,9 @@
             estimated_hours: formData.get('estimated_hours') ? Number(formData.get('estimated_hours')) : null,
             online_course_link: formData.get('online_course_link') || '',
             instructor: formData.get('instructor') || '',
+            instructor_username: overlay.querySelector('#new-course-instructor-username').value || '',
+            course_category: categoryValue,
+            professional_field_id: formData.get('professional_field_id') || '',
             creation_type: creationType,
             units: []
         };
@@ -3543,6 +3760,12 @@
         // Validate required fields
         if (!courseData.title.trim()) {
             messageEl.innerHTML = '<div class="lm-message lm-error">Vui lòng nhập tên khóa học</div>';
+            createBtn.disabled = false;
+            return;
+        }
+        
+        if (!courseData.professional_field_id) {
+            messageEl.innerHTML = '<div class="lm-message lm-error">Vui lòng chọn lĩnh vực chuyên môn</div>';
             createBtn.disabled = false;
             return;
         }

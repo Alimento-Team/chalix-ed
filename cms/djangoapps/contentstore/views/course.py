@@ -972,6 +972,22 @@ def _create_or_rerun_course(request):
         course_category = request.json.get('course_category')  # Get course_category from request
         publish_type = request.json.get('publish_type')  # Legacy field, fallback
         professional_field_id = request.json.get('professional_field_id')  # Get professional field
+        instructor_username = request.json.get('instructor_username')  # Get instructor username
+        
+        # Validate course_category - only 'bo' role can set this
+        from cms.djangoapps.contentstore.chalix_roles import get_user_primary_role
+        if course_category:
+            primary_role = get_user_primary_role(request.user)
+            user_role = primary_role.role if primary_role else None
+            if user_role != 'bo':
+                # Reject if non-bo role tries to set course_category
+                course_category = None
+                log.warning(
+                    "User %s with role %s attempted to set course_category. Only 'bo' role can set this field.",
+                    request.user.username,
+                    user_role
+                )
+        
         # force the start date for reruns and allow us to override start via the client
         start = request.json.get('start', CourseFields.start.default)
         end = request.json.get('end', CourseFields.end.default)
@@ -1024,6 +1040,22 @@ def _create_or_rerun_course(request):
         else:
             try:
                 new_course = create_new_course(request.user, org, course, run, fields)
+                
+                # Assign instructor if provided
+                if instructor_username:
+                    try:
+                        instructor_user = User.objects.get(username=instructor_username, is_active=True)
+                        # Add instructor as course staff
+                        CourseStaffRole(new_course.id).add_users(instructor_user)
+                        # Also enroll the instructor in the course
+                        CourseEnrollment.enroll(instructor_user, new_course.id)
+                        log.info("Assigned instructor %s to course %s", instructor_username, new_course.id)
+                    except User.DoesNotExist:
+                        log.warning("Instructor user %s not found for course %s", instructor_username, new_course.id)
+                    except Exception as e:
+                        log.error("Failed to assign instructor %s to course %s: %s", 
+                                 instructor_username, new_course.id, str(e))
+                
                 return JsonResponse({
                     'url': reverse_course_url('course_handler', new_course.id),
                     'course_key': str(new_course.id),
