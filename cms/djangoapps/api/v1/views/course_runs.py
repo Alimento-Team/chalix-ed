@@ -9,6 +9,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from cms.djangoapps.contentstore.views.course import _accessible_courses_iter, get_course_and_check_access
+from ..permissions import IsBoUser
 
 from ..serializers.course_runs import (
     CourseCloneSerializer,
@@ -21,7 +22,7 @@ from ..serializers.course_runs import (
 
 class CourseRunViewSet(viewsets.GenericViewSet):  # lint-amnesty, pylint: disable=missing-class-docstring
     lookup_value_regex = settings.COURSE_KEY_REGEX
-    permission_classes = (permissions.IsAdminUser,)
+    permission_classes = (IsBoUser,)
     serializer_class = CourseRunSerializer
     queryset = []
 

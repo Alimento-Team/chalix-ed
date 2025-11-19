@@ -60,6 +60,7 @@ from common.djangoapps.student.roles import (
     OrgStaffRole,
 )
 from common.djangoapps.util.json_request import JsonResponse, JsonResponseBadRequest, expect_json
+from cms.djangoapps.contentstore.chalix_roles import get_user_primary_role
 from common.djangoapps.util.string_utils import _has_non_ascii_characters
 from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
 from openedx.core.djangoapps.credit.tasks import update_credit_course_requirements
@@ -2066,7 +2067,13 @@ def _get_course_creator_status(user):
     added with status 'unrequested' if the course creator group is in use.
     """
 
-    if user.is_staff:
+    # Check if user is Bộ (Ministry) - either GlobalStaff or Chalix 'bo' role
+    is_bo_user = GlobalStaff().has_user(user)
+    if not is_bo_user:
+        primary_role = get_user_primary_role(user)
+        is_bo_user = primary_role and primary_role.role == 'bo'
+    
+    if is_bo_user:
         course_creator_status = 'granted'
     elif settings.FEATURES.get('DISABLE_COURSE_CREATION', False):
         course_creator_status = 'disallowed_for_this_site'

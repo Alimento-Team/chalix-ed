@@ -21,6 +21,8 @@ from common.djangoapps.student.auth import (
     has_studio_read_access,
     has_studio_write_access,
 )
+from cms.djangoapps.contentstore.chalix_roles import get_user_primary_role
+from common.djangoapps.student.roles import GlobalStaff
 from common.djangoapps.util.json_request import JsonResponse, expect_json
 from openedx.core.lib.xblock_utils import (
     hash_resource,
@@ -419,7 +421,13 @@ def orphan_handler(request, course_key_string):
         else:
             raise PermissionDenied()
     if request.method == "DELETE":
-        if request.user.is_staff:
+        # Check if user is Bộ (Ministry) - either GlobalStaff or Chalix 'bo' role
+        is_bo_user = GlobalStaff().has_user(request.user)
+        if not is_bo_user:
+            primary_role = get_user_primary_role(request.user)
+            is_bo_user = primary_role and primary_role.role == 'bo'
+        
+        if is_bo_user:
             deleted_items = delete_orphans(
                 course_usage_key, request.user.id, commit=True
             )

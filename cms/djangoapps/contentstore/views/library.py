@@ -24,6 +24,8 @@ from xmodule.modulestore.django import modulestore
 from xmodule.modulestore.exceptions import DuplicateCourseError
 
 from cms.djangoapps.course_creators.views import get_course_creator_status
+from cms.djangoapps.contentstore.chalix_roles import get_user_primary_role
+from common.djangoapps.student.roles import GlobalStaff
 from common.djangoapps.edxmako.shortcuts import render_to_response
 from common.djangoapps.student.auth import (
     STUDIO_EDIT_ROLES,
@@ -70,7 +72,9 @@ def _user_can_create_library_for_org(user, org=None):
     """
     if not libraries_v1_enabled():
         return False
-    elif user.is_staff:
+    elif GlobalStaff().has_user(user):
+        return True
+    elif get_user_primary_role(user) and get_user_primary_role(user).role == 'bo':
         return True
     elif settings.FEATURES.get('ENABLE_CREATOR_GROUP', False):
         org_filter_params = {}

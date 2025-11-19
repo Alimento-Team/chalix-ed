@@ -39,6 +39,18 @@ from rest_framework.exceptions import ValidationError
 from openedx.core.djangoapps.models.course_details import CourseDetails
 
 
+def _is_bo_user(user):
+    """
+    Helper function to check if user is a Bộ (Ministry) user.
+    Checks both GlobalStaff and Chalix 'bo' role.
+    """
+    if GlobalStaff().has_user(user):
+        return True
+    
+    primary_role = get_user_primary_role(user)
+    return primary_role and primary_role.role == 'bo'
+
+
 def _create_course_structure_from_program(store, course_key, user_id, template_program, program_topics):
     """
     Create OpenEdX course structure from program topics.
@@ -1733,8 +1745,8 @@ def delete_course_api(request):
         except LocalCourse.DoesNotExist:
             return JsonResponse({'error': 'Course not found'}, status=404)
 
-        # Permission check: only creator or staff can delete LocalCourse
-        if not (request.user.is_staff or getattr(lc.created_by, 'id', None) == request.user.id):
+        # Permission check: only creator or Bộ user can delete LocalCourse
+        if not (_is_bo_user(request.user) or getattr(lc.created_by, 'id', None) == request.user.id):
             return JsonResponse({'error': 'Bạn không có quyền xóa khóa học này'}, status=403)
 
         lc.delete()
@@ -1793,8 +1805,8 @@ def delete_program_api(request):
     except LocalProgram.DoesNotExist:
         return JsonResponse({'error': 'Program not found'}, status=404)
 
-    # Permission check
-    if not (request.user.is_staff or getattr(prog.created_by, 'id', None) == request.user.id):
+    # Permission check: only creator or Bộ user can delete program
+    if not (_is_bo_user(request.user) or getattr(prog.created_by, 'id', None) == request.user.id):
         return JsonResponse({'error': 'Bạn không có quyền xóa chương trình này'}, status=403)
 
     try:
