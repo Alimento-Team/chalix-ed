@@ -629,12 +629,21 @@ class LocalProgram(models.Model):
         help_text="Allow learners to take multiple choice tests as end-of-course evaluation"
     )
 
+    organization = models.ForeignKey(
+        'contentstore.ChalixOrganization',
+        on_delete=models.CASCADE,
+        related_name='local_programs',
+        null=True,
+        blank=True,
+        help_text="Organization that owns this program (for visibility control)"
+    )
+    
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='local_programs'
+        related_name='created_local_programs'
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

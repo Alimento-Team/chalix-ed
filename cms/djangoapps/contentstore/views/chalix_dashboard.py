@@ -914,9 +914,26 @@ def create_program_api(request):
 
     # Use database transaction to ensure atomicity
     from django.db import transaction
+    from cms.djangoapps.contentstore.chalix_roles import get_user_organization
+    from cms.djangoapps.contentstore.models import ChalixOrganization
     
     try:
         with transaction.atomic():
+            # Get the user's organization
+            user_organization = get_user_organization(request.user)
+            
+            # If user has no organization, use the default Bộ organization
+            if not user_organization:
+                user_organization, _ = ChalixOrganization.objects.get_or_create(
+                    code='BO_DEFAULT',
+                    defaults={
+                        'name': 'bo_default',
+                        'display_name': 'Bộ (Mặc định)',
+                        'description': 'Tổ chức mặc định cho các chương trình học được tạo trước đây',
+                        'is_active': True,
+                    }
+                )
+            
             # Create the program
             program = LocalProgram.objects.create(
                 title=title,
@@ -925,6 +942,7 @@ def create_program_api(request):
                 update_topics=update_topics,
                 allow_practical_submission=allow_practical_submission,
                 allow_multiple_choice=allow_multiple_choice,
+                organization=user_organization,
                 created_by=request.user if request.user.is_authenticated else None,
             )
 
@@ -968,7 +986,12 @@ def create_program_api(request):
             'allow_practical_submission': program.allow_practical_submission,
             'allow_multiple_choice': program.allow_multiple_choice,
             'topics': topics_data,
-            'created_at': program.created_at.isoformat()
+            'created_at': program.created_at.isoformat(),
+            'organization': {
+                'id': program.organization.pk,
+                'name': program.organization.name,
+                'display_name': program.organization.display_name
+            } if program.organization else None,
         })
         
     except Exception as e:
@@ -1119,12 +1142,36 @@ def update_program_api(request):
 @login_required
 def list_local_programs_api(request):
     """Return a list of LocalProgram objects visible to the user as JSON."""
-    # Don't use prefetch_related since we need fresh data after updates
-    qs = LocalProgram.objects.all().order_by('-created_at')[:100]
-    programs = []
-    
+    from cms.djangoapps.contentstore.chalix_roles import get_user_organization, get_user_primary_role
+    from common.djangoapps.student.roles import GlobalStaff
     import logging
     logger = logging.getLogger(__name__)
+    
+    # Filter programs based on user's role and organization
+    if GlobalStaff().has_user(request.user):
+        # Global staff can see all programs
+        qs = LocalProgram.objects.all()
+    else:
+        user_org = get_user_organization(request.user)
+        user_role = get_user_primary_role(request.user)
+        
+        if user_org:
+            # Filter programs by user's organization
+            qs = LocalProgram.objects.filter(organization=user_org)
+            logger.info(f"User {request.user.username} with role {user_role.role if user_role else 'None'} in org {user_org.name} - filtering programs")
+        else:
+            # User has no organization - show programs from default Bộ organization
+            from cms.djangoapps.contentstore.models import ChalixOrganization
+            try:
+                default_org = ChalixOrganization.objects.get(code='BO_DEFAULT')
+                qs = LocalProgram.objects.filter(organization=default_org)
+                logger.info(f"User {request.user.username} has no organization - showing default Bộ programs")
+            except ChalixOrganization.DoesNotExist:
+                qs = LocalProgram.objects.none()
+                logger.warning(f"User {request.user.username} has no organization and default Bộ org doesn't exist - showing no programs")
+    
+    qs = qs.order_by('-created_at')[:100]
+    programs = []
     
     for p in qs:
         # Always fetch fresh topics data to avoid caching issues
@@ -1149,6 +1196,11 @@ def list_local_programs_api(request):
             'topics_count': len(topics_data),
             'created_at': p.created_at.isoformat(),
             'created_by': getattr(p.created_by, 'username', None),
+            'organization': {
+                'id': p.organization.pk,
+                'name': p.organization.name,
+                'display_name': p.organization.display_name
+            } if p.organization else None,
         })
     
     logger.info(f"Returning {len(programs)} programs in list_local_programs_api")
