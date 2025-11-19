@@ -908,7 +908,8 @@ def get_courses(user, org=None, filter_=None, permissions=None, active_only=Fals
         org=org,
         filter_=filter_,
         active_only=active_only,
-        course_keys=course_keys
+        course_keys=course_keys,
+        user=user  # Pass user for org-based filtering
     ).prefetch_related(
         'modes',
     ).select_related(
