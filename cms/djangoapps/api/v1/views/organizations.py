@@ -4,6 +4,8 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.decorators import action
 from ..serializers.organizations import OrganizationSerializer
+from cms.djangoapps.contentstore.chalix_roles import get_user_primary_role
+from common.djangoapps.student.roles import GlobalStaff
 
 
 class OrganizationViewSet(viewsets.ModelViewSet):
@@ -17,7 +19,13 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         or only the organization they admin for regular users.
         """
         user = self.request.user
-        if user.is_superuser or user.is_staff:
+        # Check if user is GlobalStaff or has 'bo' role
+        is_bo_user = GlobalStaff().has_user(user)
+        if not is_bo_user:
+            primary_role = get_user_primary_role(user)
+            is_bo_user = primary_role and primary_role.role == 'bo'
+        
+        if is_bo_user:
             # Bộ can see all active organizations
             return ChalixOrganization.objects.filter(is_active=True)
         else:
@@ -25,8 +33,13 @@ class OrganizationViewSet(viewsets.ModelViewSet):
             return ChalixOrganization.objects.filter(admin=user, is_active=True)
 
     def create(self, request, *args, **kwargs):
-        # Only superusers can create organizations
-        if not (request.user.is_superuser or request.user.is_staff):
+        # Only superusers or 'bo' role can create organizations
+        is_bo_user = GlobalStaff().has_user(request.user)
+        if not is_bo_user:
+            primary_role = get_user_primary_role(request.user)
+            is_bo_user = primary_role and primary_role.role == 'bo'
+        
+        if not is_bo_user:
             return Response(
                 {"error": "Only Bộ (superusers) can create organizations"},
                 status=status.HTTP_403_FORBIDDEN
@@ -45,8 +58,13 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
         user = request.user
         
-        # Bộ can edit all
-        if user.is_superuser or user.is_staff:
+        # Check if user is Bộ (can edit all)
+        is_bo_user = GlobalStaff().has_user(user)
+        if not is_bo_user:
+            primary_role = get_user_primary_role(user)
+            is_bo_user = primary_role and primary_role.role == 'bo'
+        
+        if is_bo_user:
             pass  # Allow
         # Admin can only edit their own organization
         elif instance.admin == user:
@@ -64,7 +82,12 @@ class OrganizationViewSet(viewsets.ModelViewSet):
 
     def destroy(self, request, *args, **kwargs):
         """Only Bộ (superusers) can delete organizations"""
-        if not (request.user.is_superuser or request.user.is_staff):
+        is_bo_user = GlobalStaff().has_user(request.user)
+        if not is_bo_user:
+            primary_role = get_user_primary_role(request.user)
+            is_bo_user = primary_role and primary_role.role == 'bo'
+        
+        if not is_bo_user:
             return Response(
                 {"error": "Only Bộ (superusers) can delete organizations"},
                 status=status.HTTP_403_FORBIDDEN
@@ -75,11 +98,17 @@ class OrganizationViewSet(viewsets.ModelViewSet):
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
         serializer = self.get_serializer(queryset, many=True)
+        # Check if user is Bộ
+        is_bo_user = GlobalStaff().has_user(request.user)
+        if not is_bo_user:
+            primary_role = get_user_primary_role(request.user)
+            is_bo_user = primary_role and primary_role.role == 'bo'
+        
         # Add user permission info to response
         data = {
             'organizations': serializer.data,
-            'can_create': request.user.is_superuser or request.user.is_staff,
-            'is_bo': request.user.is_superuser or request.user.is_staff
+            'can_create': is_bo_user,
+            'is_bo': is_bo_user
         }
         return Response(data)
 
@@ -89,7 +118,13 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         Return list of all active users that can be assigned as organization admins.
         Only accessible by Bộ (superusers/staff).
         """
-        if not (request.user.is_superuser or request.user.is_staff):
+        # Check if user is Bộ role
+        is_bo_user = GlobalStaff().has_user(request.user)
+        if not is_bo_user:
+            primary_role = get_user_primary_role(request.user)
+            is_bo_user = primary_role and primary_role.role == 'bo'
+        
+        if not is_bo_user:
             return Response(
                 {"error": "Permission denied"},
                 status=status.HTTP_403_FORBIDDEN
