@@ -482,7 +482,7 @@ def _get_approve_requests_data(request):
 def create_course_api(request):
     """Create a new OpenEDX course using the standard course creation logic.
     
-    Only users with giang_vien or co_quan roles can create courses.
+    Only users with giang_vien, co_quan, or bo roles can create courses.
     If template_program_id is provided, creates course structure based on program topics.
 
     Expects JSON: {
@@ -496,7 +496,7 @@ def create_course_api(request):
     """
     # Check role-based permission
     try:
-        require_role(request.user, ['giang_vien', 'co_quan'])
+        require_role(request.user, ['giang_vien', 'co_quan', 'bo'])
     except PermissionDenied:
         return JsonResponse({'errMsg': 'Bạn không có quyền tạo khóa học.'}, status=403)
     
@@ -878,7 +878,7 @@ def list_local_courses_api(request):
 def create_program_api(request):
     """Create a LocalProgram from dashboard POST data.
     
-    Only users with giang_vien or co_quan roles can create programs.
+    Only users with giang_vien, co_quan, or bo roles can create programs.
 
     Expects JSON: {
         "title": "...", 
@@ -890,7 +890,7 @@ def create_program_api(request):
     """
     # Check role-based permission
     try:
-        require_role(request.user, ['giang_vien', 'co_quan'])
+        require_role(request.user, ['giang_vien', 'co_quan', 'bo'])
     except PermissionDenied:
         return JsonResponse({'error': 'Bạn không có quyền tạo chương trình học'}, status=403)
     
@@ -985,7 +985,7 @@ def create_program_api(request):
 def update_program_api(request):
     """Update an existing LocalProgram from dashboard POST data.
     
-    Only users with giang_vien or co_quan roles can update programs.
+    Only users with giang_vien, co_quan, or bo roles can update programs.
 
     Expects JSON: {
         "id": 123,
@@ -998,7 +998,7 @@ def update_program_api(request):
     """
     # Check role-based permission
     try:
-        require_role(request.user, ['giang_vien', 'co_quan'])
+        require_role(request.user, ['giang_vien', 'co_quan', 'bo'])
     except PermissionDenied:
         return JsonResponse({'error': 'Bạn không có quyền cập nhật chương trình học'}, status=403)
     
