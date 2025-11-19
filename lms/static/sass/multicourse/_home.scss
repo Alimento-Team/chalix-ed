@@ -297,9 +297,9 @@ $course-search-input-height: (
     .features-container {
       display: grid !important;
       grid-template-columns: repeat(3, 1fr) !important;
-      gap: 40px 20px !important;
+      gap: 20px 20px !important;
       height: auto !important;
-      margin: 80px auto 60px auto !important;
+      margin: 20px auto 20px auto !important;
       max-width: 1200px !important;
       position: relative !important;
       background: transparent !important;
@@ -379,7 +379,7 @@ $course-search-input-height: (
       line-height: 24.2px;
       text-align: center;
       color: #0054a6;
-      margin: 60px auto 40px auto;
+      margin: 15px auto 15px auto;
       white-space: normal;
     }
 
@@ -392,9 +392,9 @@ $course-search-input-height: (
       width: 100% !important;
       max-width: 1200px !important;
       height: auto !important;
-      margin: 40px auto 60px auto !important;
-      padding: 20px 10px !important;
-      gap: 20px !important;
+      margin: 15px auto 40px auto !important;
+      padding: 10px 10px !important;
+      gap: 5px !important;
 
       // Common process step styling - responsive by default
       .process-step,
@@ -406,28 +406,28 @@ $course-search-input-height: (
         left: auto !important;
         top: auto !important;
         width: 100% !important;
-        max-width: 250px !important;
+        max-width: 200px !important;
         height: auto !important;
         display: flex !important;
         flex-direction: column !important;
         align-items: center !important;
         text-align: center !important;
-        flex: 1 1 200px !important;
+        flex: 1 1 150px !important;
 
         .step-circle {
           position: relative !important;
           left: auto !important;
           top: auto !important;
-          width: 60px !important;
-          height: 60px !important;
+          width: 50px !important;
+          height: 50px !important;
           background: #3494c8 !important;
           border-radius: 50% !important;
           display: flex !important;
           align-items: center !important;
           justify-content: center !important;
-          margin: 0 auto 20px auto !important;
+          margin: 0 auto 12px auto !important;
           font-family: 'Inter', sans-serif !important;
-          font-size: 24px !important;
+          font-size: 20px !important;
           font-weight: bold !important;
           color: white !important;
         }
@@ -450,11 +450,11 @@ $course-search-input-height: (
             width: 100% !important;
             height: auto !important;
             font-family: 'Inter', sans-serif !important;
-            font-size: 18px !important;
+            font-size: 15px !important;
             font-weight: 600 !important;
-            line-height: 22px !important;
+            line-height: 18px !important;
             color: #0054a6 !important;
-            margin-bottom: 12px !important;
+            margin-bottom: 8px !important;
           }
 
           .step-description {
@@ -464,9 +464,9 @@ $course-search-input-height: (
             width: 100% !important;
             height: auto !important;
             font-family: 'Inter', sans-serif !important;
-            font-size: 16px !important;
+            font-size: 13px !important;
             font-weight: 400 !important;
-            line-height: 20px !important;
+            line-height: 16px !important;
             color: #0674b0 !important;
             margin: 0 !important;
           }

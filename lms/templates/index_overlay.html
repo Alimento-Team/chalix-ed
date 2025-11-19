@@ -3,62 +3,99 @@
 <%! from django.utils.translation import gettext as _ 
 from openedx.core.djangolib.markup import HTML, Text %>
 
-<!-- Override heading-group constraints -->
+<!-- Override heading-group constraints and reduce top spacing -->
 <style>
 .home > header .title > .heading-group {
     width: 100vw !important;
     max-width: none !important;
     margin-left: calc(-50vw + 50%) !important;
     position: relative !important;
+    padding-bottom: 0 !important;
 }
-    /* Landing page specific inline styles */
-    .landing-page .process-title {
-        font-family: 'Inter', sans-serif;
-        font-size: 20px;
-        font-weight: 600;
-        color: #0054a6;
-        text-align: center;
-        margin: 60px auto 40px auto;
-    }
+.home > header .outer-wrapper {
+    padding: 0 !important;
+}
+.home > header .title {
+    min-height: 0 !important;
+    padding: 0 !important;
+}
+/* Ensure the page wrapper does not add extra top padding for this landing page */
+.home {
+    padding-top: 0 !important;
+}
+.home > header {
+    padding-bottom: 0 !important;
+}
+.home .landing-page {
+    margin-top: 0 !important;
+}
+.home header {
+    min-height: 0 !important;
+}
+/* Landing page specific inline styles */
+.landing-page {
+    padding: 10px 0 !important;
+}
+.landing-title {
+    margin: 10px auto 8px auto !important;
+}
+.features-container {
+    margin: 20px auto 20px auto !important;
+}
+.process-container {
+    margin-top: 0 !important;
+    gap: 5px !important;
+}
+.landing-page .process-title {
+    font-family: 'Inter', sans-serif;
+    font-size: 20px;
+    font-weight: 600;
+    color: #0054a6;
+    text-align: center;
+    margin: 15px auto 15px auto;
+}
+.landing-page .step-description {
+    font-style: italic;
+}
 </style>
 
     <!-- Main Landing Page Content -->
-    <div class="landing-page" style="width: 100%; margin: 0 auto; background: rgba(255, 255, 255, 0.3); padding: 40px 0;">
+    <div class="landing-page" style="width: 100%; margin: 0 auto; background: rgba(255, 255, 255, 0.3); padding: 10px 0;">
         <!-- Main title -->
-        <h2 class="landing-title" style="font-family: 'Inter', sans-serif; font-size: 20px; font-weight: 600; line-height: 24.2px; color: #0054a6; text-align: center; margin: 0 auto 20px auto; max-width: 1200px; padding: 0 20px;">Các tính năng nổi bật của phần mềm học tập thông minh dành cho CC, VC</h2>
+    <h2 class="landing-title" style="font-family: 'Inter', sans-serif; font-size: 20px; font-weight: 600; line-height: 24.2px; color: #0054a6; text-align: center; margin: 10px auto 8px auto; max-width: 1200px; padding: 0 20px;">Các tính năng nổi bật của phần mềm học tập thông minh dành cho CC, VC</h2>
 
         <!-- Features Container -->
-        <div class="features-container" style="display: grid !important; grid-template-columns: repeat(3, 1fr) !important; gap: 40px 20px !important; padding: 20px; margin: 80px auto 60px auto; max-width: 1200px; justify-items: center;">
+    <div class="features-container" style="display: grid !important; grid-template-columns: repeat(3, 1fr) !important; gap: 28px 12px !important; padding: 12px; margin: 20px auto 20px auto; max-width: 1200px; justify-items: center;">
             <!-- Feature 1: AI gợi ý khóa học phù hợp (center top) -->
-            <div class="feature-item feature-center-top" style="padding: 20px; text-align: center; display: flex; flex-direction: column; align-items: center;">
+            <div class="feature-item feature-center-top" style="padding: 12px; text-align: center; display: flex; flex-direction: column; align-items: center;">
                 <img src="/static/images/ai_khp.png"
                     alt="AI khóa học phù hợp" class="feature-image" style="width: 280px; height: 160px; margin-bottom: 14px; border-radius: 8px; box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25); object-fit: cover;" />
                 <div class="feature-text" style="font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 500; line-height: 19.36px; color: #0054a6; margin: 0;">AI gợi ý khóa học phù hợp<br />với năng lực của CC, VC</div>
             </div>
 
             <!-- Feature 2: AI nhận diện cảm xúc (right top) -->
-            <div class="feature-item feature-right-top" style="padding: 20px; text-align: center; display: flex; flex-direction: column; align-items: center;">
+            <div class="feature-item feature-right-top" style="padding: 12px; text-align: center; display: flex; flex-direction: column; align-items: center;">
                 <img src="/static/images/ai_cx.png"
                     alt="AI nhận diện cảm xúc" class="feature-image" style="width: 280px; height: 160px; margin-bottom: 14px; border-radius: 8px; box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25); object-fit: cover;" />
                 <div class="feature-text" style="font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 500; line-height: 19.36px; color: #0054a6; margin: 0;">AI nhận diện cảm xúc người học<br />dựa trên khuôn mặt</div>
             </div>
 
             <!-- Feature 3: AI dự đoán năng lực (left top) -->
-            <div class="feature-item feature-left-top" style="padding: 20px; text-align: center; display: flex; flex-direction: column; align-items: center;">
+            <div class="feature-item feature-left-top" style="padding: 12px; text-align: center; display: flex; flex-direction: column; align-items: center;">
                 <img src="/static/images/ai_dudo.png"
                     alt="AI dự đoán năng lực" class="feature-image" style="width: 280px; height: 160px; margin-bottom: 14px; border-radius: 8px; box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25); object-fit: cover;" />
                 <div class="feature-text" style="font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 500; line-height: 19.36px; color: #0054a6; margin: 0;">AI dự đoán năng lực<br />người học</div>
             </div>
 
             <!-- Feature 4: Cá nhân hóa người học (left bottom) -->
-            <div class="feature-item feature-left-bottom" style="padding: 20px; text-align: center; display: flex; flex-direction: column; align-items: center;">
+            <div class="feature-item feature-left-bottom" style="padding: 12px; text-align: center; display: flex; flex-direction: column; align-items: center;">
                 <img src="/static/images/ai_cnh.png"
                     alt="Cá nhân hóa người học" class="feature-image" style="width: 280px; height: 160px; margin-bottom: 14px; border-radius: 8px; box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25); object-fit: cover;" />
                 <div class="feature-text" style="font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 500; line-height: 19.36px; color: #0054a6; margin: 0;">Cá nhân hóa người học</div>
             </div>
 
             <!-- Feature 5: Hệ thống gợi ý xây dựng (center bottom) -->
-            <div class="feature-item feature-center-bottom" style="padding: 20px; text-align: center; display: flex; flex-direction: column; align-items: center;">
+            <div class="feature-item feature-center-bottom" style="padding: 12px; text-align: center; display: flex; flex-direction: column; align-items: center;">
                 <img src="/static/images/ai_cth.png"
                     alt="Hệ thống gợi ý" class="feature-image" style="width: 280px; height: 160px; margin-bottom: 14px; border-radius: 8px; box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25); object-fit: cover;" />
                 <div class="feature-text" style="font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 500; line-height: 19.36px; color: #0054a6; margin: 0;">Hệ thống gợi ý xây dựng, điều<br />chỉnh chương trình học,<br />bài giảng
@@ -66,7 +103,7 @@ from openedx.core.djangolib.markup import HTML, Text %>
             </div>
 
             <!-- Feature 6: Diễn đàn trao đổi (right bottom) -->
-            <div class="feature-item feature-right-bottom" style="padding: 20px; text-align: center; display: flex; flex-direction: column; align-items: center;">
+            <div class="feature-item feature-right-bottom" style="padding: 12px; text-align: center; display: flex; flex-direction: column; align-items: center;">
                 <img src="/static/images/ai_dida.png"
                     alt="Diễn đàn trao đổi" class="feature-image" style="width: 280px; height: 160px; margin-bottom: 14px; border-radius: 8px; box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25); object-fit: cover;" />
                 <div class="feature-text" style="font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 500; line-height: 19.36px; color: #0054a6; margin: 0;">Diễn đàn trao đổi, chia sẻ kiến thức</div>
@@ -91,9 +128,9 @@ from openedx.core.djangolib.markup import HTML, Text %>
 
             <!-- Arrow 1 -->
             <div class="process-arrow">
-                <svg viewBox="0 0 36 12" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                    <line x1="0" y1="6" x2="28" y2="6" stroke="#999" stroke-width="2" stroke-linecap="round" />
-                    <polyline points="22,0 36,6 22,12" fill="none" stroke="#999" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                <svg viewBox="0 0 48 12" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <line x1="0" y1="6" x2="38" y2="6" stroke="#0054a6" stroke-width="1.5" stroke-linecap="round" />
+                    <polyline points="32,0 48,6 32,12" fill="none" stroke="#0054a6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
                 </svg>
             </div>
 
@@ -110,9 +147,9 @@ from openedx.core.djangolib.markup import HTML, Text %>
 
             <!-- Arrow 2 -->
             <div class="process-arrow">
-                <svg viewBox="0 0 36 12" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                    <line x1="0" y1="6" x2="28" y2="6" stroke="#999" stroke-width="2" stroke-linecap="round" />
-                    <polyline points="22,0 36,6 22,12" fill="none" stroke="#999" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                <svg viewBox="0 0 48 12" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <line x1="0" y1="6" x2="38" y2="6" stroke="#0054a6" stroke-width="1.5" stroke-linecap="round" />
+                    <polyline points="32,0 48,6 32,12" fill="none" stroke="#0054a6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
                 </svg>
             </div>
 
@@ -129,9 +166,9 @@ from openedx.core.djangolib.markup import HTML, Text %>
 
             <!-- Arrow 3 -->
             <div class="process-arrow">
-                <svg viewBox="0 0 36 12" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                    <line x1="0" y1="6" x2="28" y2="6" stroke="#999" stroke-width="2" stroke-linecap="round" />
-                    <polyline points="22,0 36,6 22,12" fill="none" stroke="#999" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                <svg viewBox="0 0 48 12" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <line x1="0" y1="6" x2="38" y2="6" stroke="#0054a6" stroke-width="1.5" stroke-linecap="round" />
+                    <polyline points="32,0 48,6 32,12" fill="none" stroke="#0054a6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
                 </svg>
             </div>
 
