@@ -4,6 +4,7 @@ Dashboard views for Vietnamese CMS interface with role-based access control
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
 from django.http import JsonResponse, HttpResponse
+from django.utils.translation import gettext as _
 from django.views.decorators.http import require_POST, require_http_methods, require_GET
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
@@ -21,7 +22,8 @@ from cms.djangoapps.contentstore.chalix_roles import (
     get_available_tabs,
     get_user_organization_display_name,
     get_user_primary_role,
-    require_role
+    require_role,
+    is_bo_user
 )
 
 from common.djangoapps.edxmako.shortcuts import render_to_response
@@ -37,18 +39,6 @@ from xmodule.modulestore.exceptions import DuplicateCourseError
 from opaque_keys.edx.keys import CourseKey
 from rest_framework.exceptions import ValidationError
 from openedx.core.djangoapps.models.course_details import CourseDetails
-
-
-def _is_bo_user(user):
-    """
-    Helper function to check if user is a Bộ (Ministry) user.
-    Checks both GlobalStaff and Chalix 'bo' role.
-    """
-    if GlobalStaff().has_user(user):
-        return True
-    
-    primary_role = get_user_primary_role(user)
-    return primary_role and primary_role.role == 'bo'
 
 
 def _create_course_structure_from_program(store, course_key, user_id, template_program, program_topics):
@@ -244,7 +234,7 @@ def dashboard_api(request):
     API endpoint to get dashboard data via AJAX
     """
     if not request.user.is_authenticated:
-        return JsonResponse({'error': 'Authentication required'}, status=401)
+        return JsonResponse({'error': _('Yêu cầu đăng nhập')}, status=401)
     
     tab = request.GET.get('tab')
     
@@ -909,7 +899,7 @@ def create_program_api(request):
     try:
         payload = json.loads(request.body.decode('utf-8'))
     except Exception:
-        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+        return JsonResponse({'error': _('Dữ liệu JSON không hợp lệ')}, status=400)
 
     title = payload.get('title', '').strip()
     short_description = payload.get('short_description', '').strip()
@@ -922,7 +912,7 @@ def create_program_api(request):
     allow_multiple_choice = payload.get('allow_multiple_choice', False)
 
     if not title:
-        return JsonResponse({'error': 'Title is required'}, status=400)
+        return JsonResponse({'error': _('Tiêu đề là bắt buộc')}, status=400)
 
     # Use database transaction to ensure atomicity
     from django.db import transaction
@@ -1040,7 +1030,7 @@ def update_program_api(request):
     try:
         payload = json.loads(request.body.decode('utf-8'))
     except Exception:
-        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+        return JsonResponse({'error': _('Dữ liệu JSON không hợp lệ')}, status=400)
 
     program_id = payload.get('id')
     title = payload.get('title', '').strip()
@@ -1050,16 +1040,16 @@ def update_program_api(request):
     topics = payload.get('topics', [])
 
     if not program_id:
-        return JsonResponse({'error': 'Program ID is required'}, status=400)
+        return JsonResponse({'error': _('Mã chương trình là bắt buộc')}, status=400)
     
     if not title:
-        return JsonResponse({'error': 'Title is required'}, status=400)
+        return JsonResponse({'error': _('Tiêu đề là bắt buộc')}, status=400)
 
     # Get the program to update
     try:
         program = LocalProgram.objects.get(pk=program_id)
     except LocalProgram.DoesNotExist:
-        return JsonResponse({'error': 'Program not found'}, status=404)
+        return JsonResponse({'error': _('Không tìm thấy chương trình')}, status=404)
 
     # Use database transaction to ensure atomicity
     from django.db import transaction
@@ -1254,11 +1244,11 @@ def course_detail_api(request, course_key_string):
         logger.info(f"Parsed course_key: {course_key}")
     except Exception as e:
         logger.error(f"Failed to parse course key '{course_key_string}': {e}")
-        return JsonResponse({'error': 'Invalid course key'}, status=400)
+        return JsonResponse({'error': _('Mã khóa học không hợp lệ')}, status=400)
     
     # Check user access to the course
     if not has_studio_read_access(request.user, course_key):
-        return JsonResponse({'error': 'Access denied'}, status=403)
+        return JsonResponse({'error': _('Không có quyền truy cập')}, status=403)
     
     # Handle PATCH request to update course details
     if request.method == 'PATCH':
@@ -1303,18 +1293,18 @@ def course_detail_api_get(request, course_key):
         # course_key is already parsed, no need to parse again
         pass
     except Exception:
-        return JsonResponse({'error': 'Invalid course key'}, status=400)
+        return JsonResponse({'error': _('Mã khóa học không hợp lệ')}, status=400)
     
     # Check user access to the course
     if not has_studio_read_access(request.user, course_key):
-        return JsonResponse({'error': 'Access denied'}, status=403)
+        return JsonResponse({'error': _('Không có quyền truy cập')}, status=403)
     
     try:
         store = modulestore()
         course = store.get_course(course_key)
         
         if not course:
-            return JsonResponse({'error': 'Course not found'}, status=404)
+            return JsonResponse({'error': _('Không tìm thấy khóa học')}, status=404)
         
         # Get course overview for additional data
         try:
@@ -1746,7 +1736,7 @@ def delete_course_api(request):
             return JsonResponse({'error': 'Course not found'}, status=404)
 
         # Permission check: only creator or Bộ user can delete LocalCourse
-        if not (_is_bo_user(request.user) or getattr(lc.created_by, 'id', None) == request.user.id):
+        if not (is_bo_user(request.user) or getattr(lc.created_by, 'id', None) == request.user.id):
             return JsonResponse({'error': 'Bạn không có quyền xóa khóa học này'}, status=403)
 
         lc.delete()
@@ -1806,7 +1796,7 @@ def delete_program_api(request):
         return JsonResponse({'error': 'Program not found'}, status=404)
 
     # Permission check: only creator or Bộ user can delete program
-    if not (_is_bo_user(request.user) or getattr(prog.created_by, 'id', None) == request.user.id):
+    if not (is_bo_user(request.user) or getattr(prog.created_by, 'id', None) == request.user.id):
         return JsonResponse({'error': 'Bạn không có quyền xóa chương trình này'}, status=403)
 
     try:

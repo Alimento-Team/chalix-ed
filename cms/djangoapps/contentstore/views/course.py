@@ -60,7 +60,7 @@ from common.djangoapps.student.roles import (
     OrgStaffRole,
 )
 from common.djangoapps.util.json_request import JsonResponse, JsonResponseBadRequest, expect_json
-from cms.djangoapps.contentstore.chalix_roles import get_user_primary_role
+from cms.djangoapps.contentstore.chalix_roles import get_user_primary_role, is_bo_user
 from common.djangoapps.util.string_utils import _has_non_ascii_characters
 from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
 from openedx.core.djangoapps.credit.tasks import update_credit_course_requirements
@@ -2068,12 +2068,7 @@ def _get_course_creator_status(user):
     """
 
     # Check if user is Bộ (Ministry) - either GlobalStaff or Chalix 'bo' role
-    is_bo_user = GlobalStaff().has_user(user)
-    if not is_bo_user:
-        primary_role = get_user_primary_role(user)
-        is_bo_user = primary_role and primary_role.role == 'bo'
-    
-    if is_bo_user:
+    if is_bo_user(user):
         course_creator_status = 'granted'
     elif settings.FEATURES.get('DISABLE_COURSE_CREATION', False):
         course_creator_status = 'disallowed_for_this_site'
@@ -2157,9 +2152,7 @@ def course_create_view(request):
     course_types = CourseType.objects.filter(is_active=True).order_by('sort_order', 'name')
     
     # Get user's role to determine if publish type dropdown should be shown
-    from cms.djangoapps.contentstore.chalix_roles import get_user_primary_role
-    user_role = get_user_primary_role(request.user)
-    is_bo_role = user_role and user_role.role == 'bo'
+    is_bo_role = is_bo_user(request.user)
 
     context = {
         'course_types': course_types,

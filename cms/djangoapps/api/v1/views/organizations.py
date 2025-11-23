@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.decorators import action
 from ..serializers.organizations import OrganizationSerializer
-from cms.djangoapps.contentstore.chalix_roles import get_user_primary_role
+from cms.djangoapps.contentstore.chalix_roles import is_bo_user
 from common.djangoapps.student.roles import GlobalStaff
 
 
@@ -20,12 +20,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         """
         user = self.request.user
         # Check if user is GlobalStaff or has 'bo' role
-        is_bo_user = GlobalStaff().has_user(user)
-        if not is_bo_user:
-            primary_role = get_user_primary_role(user)
-            is_bo_user = primary_role and primary_role.role == 'bo'
-        
-        if is_bo_user:
+        if is_bo_user(user):
             # Bộ can see all active organizations
             return ChalixOrganization.objects.filter(is_active=True)
         else:
@@ -34,12 +29,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
 
     def create(self, request, *args, **kwargs):
         # Only superusers or 'bo' role can create organizations
-        is_bo_user = GlobalStaff().has_user(request.user)
-        if not is_bo_user:
-            primary_role = get_user_primary_role(request.user)
-            is_bo_user = primary_role and primary_role.role == 'bo'
-        
-        if not is_bo_user:
+        if not is_bo_user(request.user):
             return Response(
                 {"error": "Only Bộ (superusers) can create organizations"},
                 status=status.HTTP_403_FORBIDDEN
@@ -59,12 +49,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         user = request.user
         
         # Check if user is Bộ (can edit all)
-        is_bo_user = GlobalStaff().has_user(user)
-        if not is_bo_user:
-            primary_role = get_user_primary_role(user)
-            is_bo_user = primary_role and primary_role.role == 'bo'
-        
-        if is_bo_user:
+        if is_bo_user(user):
             pass  # Allow
         # Admin can only edit their own organization
         elif instance.admin == user:
@@ -82,12 +67,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
 
     def destroy(self, request, *args, **kwargs):
         """Only Bộ (superusers) can delete organizations"""
-        is_bo_user = GlobalStaff().has_user(request.user)
-        if not is_bo_user:
-            primary_role = get_user_primary_role(request.user)
-            is_bo_user = primary_role and primary_role.role == 'bo'
-        
-        if not is_bo_user:
+        if not is_bo_user(request.user):
             return Response(
                 {"error": "Only Bộ (superusers) can delete organizations"},
                 status=status.HTTP_403_FORBIDDEN
@@ -99,16 +79,13 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         queryset = self.get_queryset()
         serializer = self.get_serializer(queryset, many=True)
         # Check if user is Bộ
-        is_bo_user = GlobalStaff().has_user(request.user)
-        if not is_bo_user:
-            primary_role = get_user_primary_role(request.user)
-            is_bo_user = primary_role and primary_role.role == 'bo'
+        user_is_bo = is_bo_user(request.user)
         
         # Add user permission info to response
         data = {
             'organizations': serializer.data,
-            'can_create': is_bo_user,
-            'is_bo': is_bo_user
+            'can_create': user_is_bo,
+            'is_bo': user_is_bo
         }
         return Response(data)
 
@@ -119,12 +96,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         Only accessible by Bộ (superusers/staff).
         """
         # Check if user is Bộ role
-        is_bo_user = GlobalStaff().has_user(request.user)
-        if not is_bo_user:
-            primary_role = get_user_primary_role(request.user)
-            is_bo_user = primary_role and primary_role.role == 'bo'
-        
-        if not is_bo_user:
+        if not is_bo_user(request.user):
             return Response(
                 {"error": "Permission denied"},
                 status=status.HTTP_403_FORBIDDEN

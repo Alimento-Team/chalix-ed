@@ -8,6 +8,7 @@ from datetime import datetime
 
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
+from django.utils.translation import gettext as _
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from django.core.exceptions import ValidationError
@@ -72,7 +73,7 @@ def create_quiz_api(request):
         
         if not course_key_string or not parent_locator or not quiz_title:
             return JsonResponse({
-                'error': 'Missing required fields: course_key, parent_locator, quiz_title'
+                'error': _('Thiếu các trường bắt buộc: course_key, parent_locator, quiz_title')
             }, status=400)
         
         # Parse course key and validate access
@@ -80,21 +81,21 @@ def create_quiz_api(request):
             course_key = CourseKey.from_string(course_key_string)
             parent_key = UsageKey.from_string(parent_locator)
         except Exception as e:
-            return JsonResponse({'error': f'Invalid key format: {str(e)}'}, status=400)
+            return JsonResponse({'error': _('Định dạng key không hợp lệ: %(error)s') % {'error': str(e)}}, status=400)
         
         if not has_studio_write_access(request.user, course_key):
-            return JsonResponse({'error': 'Access denied'}, status=403)
+            return JsonResponse({'error': _('Không có quyền truy cập')}, status=403)
         
         # Verify parent block exists
         store = modulestore()
         try:
             parent_block = store.get_item(parent_key)
         except ItemNotFoundError:
-            return JsonResponse({'error': 'Parent block not found'}, status=404)
+            return JsonResponse({'error': _('Không tìm thấy khối cha')}, status=404)
         
         # Validate questions
         if not questions_data:
-            return JsonResponse({'error': 'At least one question is required'}, status=400)
+            return JsonResponse({'error': _('Cần có ít nhất một câu hỏi')}, status=400)
         
         with transaction.atomic():
             # Create quiz record
@@ -165,10 +166,10 @@ def create_quiz_api(request):
     except ValidationError as e:
         return JsonResponse({'error': str(e)}, status=400)
     except json.JSONDecodeError:
-        return JsonResponse({'error': 'Invalid JSON data'}, status=400)
+        return JsonResponse({'error': _('Dữ liệu JSON không hợp lệ')}, status=400)
     except Exception as e:
         logger.error(f'Error creating quiz: {str(e)}', exc_info=True)
-        return JsonResponse({'error': 'Internal server error'}, status=500)
+        return JsonResponse({'error': _('Lỗi hệ thống nội bộ')}, status=500)
 
 
 @login_required
@@ -184,7 +185,7 @@ def get_quiz_api(request, quiz_id):
         # Check access permissions
         course_key = CourseKey.from_string(str(quiz.course_key))
         if not has_studio_read_access(request.user, course_key):
-            return JsonResponse({'error': 'Access denied'}, status=403)
+            return JsonResponse({'error': _('Không có quyền truy cập')}, status=403)
         
         # Build quiz data with questions and choices
         questions = []
@@ -217,10 +218,10 @@ def get_quiz_api(request, quiz_id):
         return JsonResponse({'success': True, 'quiz': quiz_data})
         
     except ChalixQuiz.DoesNotExist:
-        return JsonResponse({'error': 'Quiz not found'}, status=404)
+        return JsonResponse({'error': _('Không tìm thấy bài quiz')}, status=404)
     except Exception as e:
         logger.error(f'Error getting quiz {quiz_id}: {str(e)}', exc_info=True)
-        return JsonResponse({'error': 'Internal server error'}, status=500)
+        return JsonResponse({'error': _('Lỗi hệ thống nội bộ')}, status=500)
 
 
 @login_required
@@ -235,7 +236,7 @@ def list_quizzes_api(request, course_key_string):
         course_key = CourseKey.from_string(course_key_string)
         
         if not has_studio_read_access(request.user, course_key):
-            return JsonResponse({'error': 'Access denied'}, status=403)
+            return JsonResponse({'error': _('Không có quyền truy cập')}, status=403)
         
         # Get query parameters
         parent_locator = request.GET.get('parent_locator')
@@ -271,7 +272,7 @@ def list_quizzes_api(request, course_key_string):
         
     except Exception as e:
         logger.error(f'Error listing quizzes for course {course_key_string}: {str(e)}', exc_info=True)
-        return JsonResponse({'error': 'Internal server error'}, status=500)
+        return JsonResponse({'error': _('Lỗi hệ thống nội bộ')}, status=500)
 
 
 @csrf_exempt
@@ -295,13 +296,13 @@ def update_quiz_api(request, quiz_id):
         # Check access permissions
         course_key = CourseKey.from_string(str(quiz.course_key))
         if not has_studio_write_access(request.user, course_key):
-            return JsonResponse({'error': 'Access denied'}, status=403)
+            return JsonResponse({'error': _('Không có quyền truy cập')}, status=403)
         
         if not quiz_title:
-            return JsonResponse({'error': 'Quiz title is required'}, status=400)
+            return JsonResponse({'error': _('Tiêu đề bài quiz là bắt buộc')}, status=400)
         
         if not questions_data:
-            return JsonResponse({'error': 'At least one question is required'}, status=400)
+            return JsonResponse({'error': _('Cần có ít nhất một câu hỏi')}, status=400)
         
         with transaction.atomic():
             # Update quiz metadata
@@ -367,14 +368,14 @@ def update_quiz_api(request, quiz_id):
         })
         
     except ChalixQuiz.DoesNotExist:
-        return JsonResponse({'error': 'Quiz not found'}, status=404)
+        return JsonResponse({'error': _('Không tìm thấy bài quiz')}, status=404)
     except ValidationError as e:
         return JsonResponse({'error': str(e)}, status=400)
     except json.JSONDecodeError:
-        return JsonResponse({'error': 'Invalid JSON data'}, status=400)
+        return JsonResponse({'error': _('Dữ liệu JSON không hợp lệ')}, status=400)
     except Exception as e:
         logger.error(f'Error updating quiz {quiz_id}: {str(e)}', exc_info=True)
-        return JsonResponse({'error': 'Internal server error'}, status=500)
+        return JsonResponse({'error': _('Lỗi hệ thống nội bộ')}, status=500)
 
 
 @csrf_exempt
@@ -393,7 +394,7 @@ def delete_quiz_api(request, quiz_id):
         # Check access permissions
         course_key = CourseKey.from_string(str(quiz.course_key))
         if not has_studio_write_access(request.user, course_key):
-            return JsonResponse({'error': 'Access denied'}, status=403)
+            return JsonResponse({'error': _('Không có quyền truy cập')}, status=403)
         
         # Soft delete
         quiz.is_active = False
@@ -401,13 +402,13 @@ def delete_quiz_api(request, quiz_id):
         
         return JsonResponse({
             'success': True,
-            'message': 'Quiz deleted successfully'
+            'message': _('Đã xóa bài quiz thành công')
         })
         
     except ChalixQuiz.DoesNotExist:
-        return JsonResponse({'error': 'Quiz not found'}, status=404)
+        return JsonResponse({'error': _('Không tìm thấy bài quiz')}, status=404)
     except json.JSONDecodeError:
-        return JsonResponse({'error': 'Invalid JSON data'}, status=400)
+        return JsonResponse({'error': _('Dữ liệu JSON không hợp lệ')}, status=400)
     except Exception as e:
         logger.error(f'Error deleting quiz {quiz_id}: {str(e)}', exc_info=True)
-        return JsonResponse({'error': 'Internal server error'}, status=500)
+        return JsonResponse({'error': _('Lỗi hệ thống nội bộ')}, status=500)

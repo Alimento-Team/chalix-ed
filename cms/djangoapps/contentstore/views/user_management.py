@@ -25,6 +25,13 @@ from openedx.core.lib.api.view_utils import view_auth_classes
 from common.djangoapps.student.helpers import do_create_account, AccountValidationError
 from openedx.core.djangoapps.user_authn.views.registration_form import AccountCreationForm
 from ..models import ChalixUserRole, ChalixOrganization
+from cms.djangoapps.contentstore.chalix_roles import (
+    is_bo_user,
+    is_co_quan_user,
+    is_giang_vien_user,
+    is_cong_chuc_user,
+    get_user_primary_role
+)
 
 log = logging.getLogger(__name__)
 User = get_user_model()
@@ -369,14 +376,14 @@ def get_user_organizations(request):
         
         # For bo role, can see all organizations
         # For co_quan role, can only see their own organization
-        if current_user_role.role == 'co_quan':
+        if is_co_quan_user(request.user):
             user_org = current_user_role.organization
             if user_org:
                 # Co quan admin can only see their own organization
                 organizations = organizations.filter(id=user_org.id)
             else:
                 organizations = organizations.none()
-        elif current_user_role.role not in ['bo', 'co_quan']:
+        elif not is_bo_user(request.user):
             # Other roles cannot create users
             organizations = organizations.none()
         
@@ -513,7 +520,7 @@ def list_users(request):
             )
 
         # Restrict visible users based on current role
-        if current_role.role == 'co_quan':
+        if is_co_quan_user(request.user):
             user_org = getattr(current_role, 'organization', None)
             if user_org:
                 org_ids = [user_org.id]
@@ -526,7 +533,7 @@ def list_users(request):
                 users_qs = users_qs.filter(id__in=user_ids)
             else:
                 users_qs = users_qs.none()
-        elif current_role.role == 'bo':
+        elif is_bo_user(request.user):
             # bo can see all users
             pass
         else:
@@ -737,10 +744,10 @@ def get_user_detail(request, user_id):
             )
         
         # Bo can see all users
-        if current_user_role.role == 'bo':
+        if is_bo_user(request.user):
             pass
         # Admin can only see users in their organization
-        elif current_user_role.role == 'co_quan':
+        elif is_co_quan_user(request.user):
             user_role = get_user_current_role(user)
             if not user_role or user_role.organization != current_user_role.organization:
                 return Response(
@@ -827,10 +834,10 @@ def update_user(request, user_id):
             )
         
         # Bo can edit all users
-        if current_user_role.role == 'bo':
+        if is_bo_user(request.user):
             pass
         # Admin can only edit users in their organization
-        elif current_user_role.role == 'co_quan':
+        elif is_co_quan_user(request.user):
             user_role = get_user_current_role(user)
             if not user_role or user_role.organization != current_user_role.organization:
                 return Response(
@@ -915,7 +922,7 @@ def update_user(request, user_id):
             pass
         
         # Update role and organization if provided (only Bo can do this)
-        if current_user_role.role == 'bo':
+        if is_bo_user(request.user):
             if 'user_role' in data or 'organization_id' in data:
                 user_role = get_user_current_role(user)
                 

@@ -142,9 +142,21 @@ def can_create_accounts(user: User) -> bool:
     return primary_role is not None and primary_role.role in ['bo', 'co_quan']
 
 
-def can_import_users(user: User) -> bool:
-    """Check if user can import users via Excel (only bo role)"""
-    if not user.is_authenticated:
+def is_bo_user(user: User) -> bool:
+    """
+    Check if user has Bộ (Ministry) role permissions.
+    Returns True if user is GlobalStaff or has Chalix 'bo' role.
+    
+    This is the centralized function for checking 'bo' role across the CMS.
+    Use this instead of inline checks to ensure consistency.
+    
+    Args:
+        user: The user to check
+        
+    Returns:
+        bool: True if user has 'bo' role or is GlobalStaff
+    """
+    if not user or not user.is_authenticated:
         return False
         
     if GlobalStaff().has_user(user):
@@ -152,6 +164,81 @@ def can_import_users(user: User) -> bool:
     
     primary_role = get_user_primary_role(user)
     return primary_role is not None and primary_role.role == 'bo'
+
+
+def is_co_quan_user(user: User) -> bool:
+    """
+    Check if user has Cơ quan (Organization) role permissions.
+    Returns True if user is GlobalStaff or has Chalix 'co_quan' role.
+    
+    This is the centralized function for checking 'co_quan' role across the CMS.
+    Use this instead of inline checks to ensure consistency.
+    
+    Args:
+        user: The user to check
+        
+    Returns:
+        bool: True if user has 'co_quan' role or is GlobalStaff
+    """
+    if not user or not user.is_authenticated:
+        return False
+        
+    if GlobalStaff().has_user(user):
+        return True
+    
+    primary_role = get_user_primary_role(user)
+    return primary_role is not None and primary_role.role == 'co_quan'
+
+
+def is_giang_vien_user(user: User) -> bool:
+    """
+    Check if user has Giảng viên (Teacher/Instructor) role permissions.
+    Returns True if user is GlobalStaff or has Chalix 'giang_vien' role.
+    
+    This is the centralized function for checking 'giang_vien' role across the CMS.
+    Use this instead of inline checks to ensure consistency.
+    
+    Args:
+        user: The user to check
+        
+    Returns:
+        bool: True if user has 'giang_vien' role or is GlobalStaff
+    """
+    if not user or not user.is_authenticated:
+        return False
+        
+    if GlobalStaff().has_user(user):
+        return True
+    
+    primary_role = get_user_primary_role(user)
+    return primary_role is not None and primary_role.role == 'giang_vien'
+
+
+def is_cong_chuc_user(user: User) -> bool:
+    """
+    Check if user has Công chức (Learner/Student) role permissions.
+    Returns True if user has Chalix 'cong_chuc' role.
+    Note: GlobalStaff does NOT automatically have cong_chuc role.
+    
+    This is the centralized function for checking 'cong_chuc' role across the CMS.
+    Use this instead of inline checks to ensure consistency.
+    
+    Args:
+        user: The user to check
+        
+    Returns:
+        bool: True if user has 'cong_chuc' role
+    """
+    if not user or not user.is_authenticated:
+        return False
+    
+    primary_role = get_user_primary_role(user)
+    return primary_role is not None and primary_role.role == 'cong_chuc'
+
+
+def can_import_users(user: User) -> bool:
+    """Check if user can import users via Excel (only bo role)"""
+    return is_bo_user(user)
 
 
 def can_manage_courses(user: User) -> bool:
