@@ -1209,16 +1209,18 @@ def create_new_course(user, org, number, run, fields):
             except ProfessionalField.DoesNotExist:
                 log.warning("Professional field with ID %s not found", professional_field_id)
         
-        ChalixCourseMetadata.objects.create(
+        ChalixCourseMetadata.objects.get_or_create(
             course_id=new_course.id,
-            creator=user,
-            creator_role=creator_role,
-            creator_organization=creator_org,
-            is_public=is_public_course,
-            is_mandatory_course=is_mandatory,
-            course_category=category,  # Save course_category
-            publish_type=category,  # Keep publish_type for backwards compatibility
-            professional_field=professional_field  # Save professional field
+            defaults={
+                'creator': user,
+                'creator_role': creator_role,
+                'creator_organization': creator_org,
+                'is_public': is_public_course,
+                'is_mandatory_course': is_mandatory,
+                'course_category': category,  # Save course_category
+                'publish_type': category,  # Keep publish_type for backwards compatibility
+                'professional_field': professional_field  # Save professional field
+            }
         )
         log.info("Created Chalix course metadata for %s - Public: %s, Role: %s, Category: %s, Field: %s", 
                  new_course.id, is_public_course, creator_role, category, 

@@ -626,13 +626,15 @@ def create_course_api(request):
             # Courses created by 'bo' (ministry level) are public
             is_public_course = (creator_role == 'bo')
         
-        ChalixCourseMetadata.objects.create(
+        ChalixCourseMetadata.objects.get_or_create(
             course_id=course_key,
-            creator=request.user,
-            creator_role=creator_role,
-            creator_organization=creator_org,
-            is_public=is_public_course,
-            is_mandatory_course=False  # Default to non-mandatory
+            defaults={
+                'creator': request.user,
+                'creator_role': creator_role,
+                'creator_organization': creator_org,
+                'is_public': is_public_course,
+                'is_mandatory_course': False  # Default to non-mandatory
+            }
         )
         logger.info(f"[CHALIX] Created course metadata - Public: {is_public_course}, Role: {creator_role}, Org: {creator_org}")
         
