@@ -31,8 +31,6 @@ def get_visible_courses(org=None, filter_=None, active_only=False, course_keys=N
     """
     # Import is placed here to avoid model import at project startup.
     from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
-    from cms.djangoapps.contentstore.models import ChalixCourseMetadata
-    from cms.djangoapps.contentstore.chalix_roles import get_user_primary_role
 
     current_site_orgs = configuration_helpers.get_current_site_orgs()
 
@@ -57,39 +55,64 @@ def get_visible_courses(org=None, filter_=None, active_only=False, course_keys=N
     # Apply Chalix-specific visibility filtering based on ChalixCourseMetadata
     if user and user.is_authenticated:
         try:
-            user_role = get_user_primary_role(user)
-            user_org = user_role.organization if user_role else None
+            # Use Django's app registry to get models - works in both CMS and LMS contexts
+            from django.apps import apps
             
-            # Get all course metadata
-            course_metadata = {
-                meta.course_id: meta 
-                for meta in ChalixCourseMetadata.objects.all()
-            }
-            
-            # Filter courses based on Chalix visibility rules
-            visible_course_ids = []
-            for course in courses:
-                course_id = course.id
-                metadata = course_metadata.get(course_id)
+            # Check if contentstore app is loaded (it should be in both CMS and LMS)
+            if not apps.is_installed('cms.djangoapps.contentstore'):
+                # Skip Chalix filtering if contentstore app not available
+                pass
+            else:
+                ChalixCourseMetadata = apps.get_model('contentstore', 'ChalixCourseMetadata')
+                ChalixUserRole = apps.get_model('contentstore', 'ChalixUserRole')
                 
-                if not metadata:
-                    # No metadata: show course (backwards compatibility)
-                    visible_course_ids.append(course_id)
-                    continue
+                # Get user's primary role
+                user_role = ChalixUserRole.objects.filter(
+                    user=user,
+                    is_active=True
+                ).select_related('organization').first()
                 
-                # Rule 1: Public courses (is_public=True, typically bo role courses) are visible to everyone
-                if metadata.is_public:
-                    visible_course_ids.append(course_id)
-                    continue
+                if user_role:
+                    # Get user's highest priority role (simplified version)
+                    role_priority = {'cong_chuc': 0, 'giang_vien': 1, 'co_quan': 2, 'bo': 3}
+                    user_roles = ChalixUserRole.objects.filter(
+                        user=user,
+                        is_active=True
+                    ).select_related('organization')
+                    user_role = max(user_roles, key=lambda r: role_priority.get(r.role, 0), default=None)
                 
-                # Rule 2: Private courses (is_public=False) are only visible to users from the same organization
-                if user_org and metadata.creator_organization:
-                    if user_org.pk == metadata.creator_organization.pk:
+                user_org = user_role.organization if user_role else None
+                
+                # Get all course metadata
+                course_metadata = {
+                    meta.course_id: meta 
+                    for meta in ChalixCourseMetadata.objects.select_related('creator_organization').all()
+                }
+                
+                # Filter courses based on Chalix visibility rules
+                visible_course_ids = []
+                for course in courses:
+                    course_id = course.id
+                    metadata = course_metadata.get(course_id)
+                    
+                    if not metadata:
+                        # No metadata: show course (backwards compatibility)
                         visible_course_ids.append(course_id)
                         continue
-            
-            # Filter the courses queryset to only include visible courses
-            courses = courses.filter(id__in=visible_course_ids)
+                    
+                    # Rule 1: Public courses (is_public=True, typically bo role courses) are visible to everyone
+                    if metadata.is_public:
+                        visible_course_ids.append(course_id)
+                        continue
+                    
+                    # Rule 2: Private courses (is_public=False) are only visible to users from the same organization
+                    if user_org and metadata.creator_organization:
+                        if user_org.pk == metadata.creator_organization.pk:
+                            visible_course_ids.append(course_id)
+                            continue
+                
+                # Filter the courses queryset to only include visible courses
+                courses = courses.filter(id__in=visible_course_ids)
             
         except Exception as e:
             # If there's an error with Chalix filtering, log it and show all courses
