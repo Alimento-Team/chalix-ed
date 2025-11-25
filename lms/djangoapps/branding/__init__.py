@@ -14,52 +14,6 @@ from opaque_keys.edx.keys import CourseKey
 from openedx.core.djangoapps.site_configuration import helpers as configuration_helpers
 
 
-def get_user_visible_course_orgs(user):
-    """
-    Get the list of organization codes that should be visible to this user.
-    
-    Rules:
-    - Courses from "Bộ" org are visible to everyone
-    - Courses from other orgs are only visible to users who belong to that org
-    - If user has no org, they only see "Bộ" courses
-    
-    Arguments:
-        user: Django User object (can be None for anonymous users)
-    
-    Returns:
-        list: List of org codes that should be visible to the user, or None to show all
-    """
-    if not user or not user.is_authenticated:
-        # Anonymous users only see "Bộ" courses
-        return ["Bộ"]
-    
-    # Import here to avoid circular dependencies
-    try:
-        from cms.djangoapps.contentstore.chalix_roles import get_user_current_role
-        
-        user_role = get_user_current_role(user)
-        
-        if not user_role or not user_role.organization:
-            # Users without organization only see "Bộ" courses
-            return ["Bộ"]
-        
-        # Users with an organization see:
-        # 1. Courses from "Bộ" (always visible)
-        # 2. Courses from their own organization
-        user_org_name = user_role.organization.name
-        
-        # "Bộ" users can see all courses
-        if user_org_name == "Bộ" or user_role.role == 'bo':
-            return None  # None means show all courses
-        
-        # Regular org users see Bộ courses + their org courses
-        return ["Bộ", user_org_name]
-        
-    except ImportError:
-        # If chalix_roles not available, fall back to showing all courses
-        return None
-
-
 def get_visible_courses(org=None, filter_=None, active_only=False, course_keys=None, user=None):
     """
     Yield the CourseOverviews that should be visible in this branded
@@ -77,11 +31,10 @@ def get_visible_courses(org=None, filter_=None, active_only=False, course_keys=N
     """
     # Import is placed here to avoid model import at project startup.
     from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
+    from cms.djangoapps.contentstore.models import ChalixCourseMetadata
+    from cms.djangoapps.contentstore.chalix_roles import get_user_primary_role
 
     current_site_orgs = configuration_helpers.get_current_site_orgs()
-    
-    # Get user-specific visible orgs (for Chalix org-based visibility)
-    user_visible_orgs = get_user_visible_course_orgs(user) if user else None
 
     courses = CourseOverview.objects.none()
 
@@ -91,11 +44,6 @@ def get_visible_courses(org=None, filter_=None, active_only=False, course_keys=N
             courses = CourseOverview.get_all_courses(
                 orgs=[org], filter_=filter_, active_only=active_only, course_keys=course_keys
             )
-    elif user_visible_orgs is not None:
-        # Apply Chalix org-based filtering for authenticated users
-        courses = CourseOverview.get_all_courses(
-            orgs=user_visible_orgs, filter_=filter_, active_only=active_only, course_keys=course_keys
-        )
     elif current_site_orgs:
         # Only display courses that should be displayed on this site
         courses = CourseOverview.get_all_courses(
@@ -106,8 +54,52 @@ def get_visible_courses(org=None, filter_=None, active_only=False, course_keys=N
 
     courses = courses.order_by('id')
 
-    # Filtering can stop here.
-    if current_site_orgs or user_visible_orgs is not None:
+    # Apply Chalix-specific visibility filtering based on ChalixCourseMetadata
+    if user and user.is_authenticated:
+        try:
+            user_role = get_user_primary_role(user)
+            user_org = user_role.organization if user_role else None
+            
+            # Get all course metadata
+            course_metadata = {
+                meta.course_id: meta 
+                for meta in ChalixCourseMetadata.objects.all()
+            }
+            
+            # Filter courses based on Chalix visibility rules
+            visible_course_ids = []
+            for course in courses:
+                course_id = course.id
+                metadata = course_metadata.get(course_id)
+                
+                if not metadata:
+                    # No metadata: show course (backwards compatibility)
+                    visible_course_ids.append(course_id)
+                    continue
+                
+                # Rule 1: Public courses (is_public=True, typically bo role courses) are visible to everyone
+                if metadata.is_public:
+                    visible_course_ids.append(course_id)
+                    continue
+                
+                # Rule 2: Private courses (is_public=False) are only visible to users from the same organization
+                if user_org and metadata.creator_organization:
+                    if user_org.pk == metadata.creator_organization.pk:
+                        visible_course_ids.append(course_id)
+                        continue
+            
+            # Filter the courses queryset to only include visible courses
+            courses = courses.filter(id__in=visible_course_ids)
+            
+        except Exception as e:
+            # If there's an error with Chalix filtering, log it and show all courses
+            # (fail open rather than fail closed)
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Error applying Chalix course visibility filtering: {e}")
+    
+    # Filtering can stop here for org-filtered courses
+    if current_site_orgs:
         return courses
 
     # See if we have filtered course listings in this domain
