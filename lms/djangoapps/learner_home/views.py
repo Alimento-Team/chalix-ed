@@ -105,9 +105,10 @@ def filter_enrollments_by_chalix_metadata(enrollments, user, filter_type=None):
         enrollments: List of CourseEnrollment objects
         user: The learner user
         filter_type: Type of filter to apply:
-            - 'mandatory': Return only mandatory courses (is_mandatory_course=True)
+            - 'mandatory': Return courses with course_category='mandatory' or is_mandatory_course=True
+            - 'elective': Return courses with course_category='elective'
             - 'organization': Return organization-specific courses (is_public=False, same org)
-            - 'ministry': Return public/ministry courses (is_public=True, created by 'bo')
+            - 'ministry': Return public ministry courses (is_public=True)
             - 'teaching': Return courses where user is instructor/staff
             - None or 'all': Return all enrollments (no filter)
     
@@ -136,8 +137,13 @@ def filter_enrollments_by_chalix_metadata(enrollments, user, filter_type=None):
                 metadata = ChalixCourseMetadata.objects.get(course_id=enrollment.course_id)
                 
                 if filter_type == 'mandatory':
-                    # Filter: only mandatory courses
-                    if metadata.is_mandatory_course:
+                    # Filter: mandatory courses (course_category='mandatory' or is_mandatory_course=True)
+                    if metadata.course_category == 'mandatory' or metadata.is_mandatory_course:
+                        filtered_enrollments.append(enrollment)
+                
+                elif filter_type == 'elective':
+                    # Filter: elective courses (course_category='elective')
+                    if metadata.course_category == 'elective' or metadata.publish_type == 'elective':
                         filtered_enrollments.append(enrollment)
                 
                 elif filter_type == 'organization':
@@ -147,7 +153,7 @@ def filter_enrollments_by_chalix_metadata(enrollments, user, filter_type=None):
                             filtered_enrollments.append(enrollment)
                 
                 elif filter_type == 'ministry':
-                    # Filter: public courses (created by 'bo' ministry role)
+                    # Filter: public ministry courses (is_public=True)
                     if metadata.is_public:
                         filtered_enrollments.append(enrollment)
                 
@@ -161,8 +167,8 @@ def filter_enrollments_by_chalix_metadata(enrollments, user, filter_type=None):
                 
             except ChalixCourseMetadata.DoesNotExist:
                 # Course has no metadata - include it by default for backward compatibility
-                if filter_type in ['all', 'ministry']:
-                    # Assume courses without metadata are public/ministry courses
+                if filter_type in ['all', 'ministry', None]:
+                    # Assume courses without metadata are visible to all
                     filtered_enrollments.append(enrollment)
             except Exception as e:
                 logger.warning(f"Error filtering enrollment {enrollment.course_id}: {str(e)}")
@@ -665,3 +671,72 @@ class InitializeView(APIView):  # pylint: disable=unused-argument
         response_data = serialize_learner_home_data(learner_dash_data, context)
 
         return Response(response_data)
+
+
+class AvailableCoursesView(APIView):
+    """
+    API endpoint to get available courses for the learner based on Chalix visibility rules.
+    Returns courses that the user CAN see but is NOT enrolled in.
+    """
+    
+    authentication_classes = (
+        JwtAuthentication,
+        BearerAuthenticationAllowInactiveUser,
+        SessionAuthenticationAllowInactiveUser,
+    )
+    permission_classes = (IsAuthenticated, NotJwtRestrictedApplication)
+
+    def get(self, request, *args, **kwargs):
+        """Get available courses filtered by Chalix visibility rules"""
+        user = request.user
+        
+        try:
+            # Import branding to use get_visible_courses with Chalix filtering
+            from lms.djangoapps import branding
+            
+            # Get all visible courses for this user (applies Chalix filtering)
+            all_visible_courses = branding.get_visible_courses(user=user)
+            
+            # Get user's enrolled course IDs
+            site_org_whitelist, site_org_blacklist = get_org_block_and_allow_lists()
+            enrolled_courses = list(get_course_enrollments(user, site_org_whitelist, site_org_blacklist))
+            enrolled_course_ids = {enrollment.course_id for enrollment in enrolled_courses}
+            
+            # Filter out enrolled courses - only show unenrolled courses
+            available_courses = [
+                course for course in all_visible_courses 
+                if course.id not in enrolled_course_ids
+            ]
+            
+            # Serialize course data
+            courses_data = []
+            for course in available_courses:
+                course_data = {
+                    'course_id': str(course.id),
+                    'course_key': str(course.id),
+                    'display_name': course.display_name,
+                    'org': course.org,
+                    'start': course.start,
+                    'end': course.end,
+                    'enrollment_start': course.enrollment_start,
+                    'enrollment_end': course.enrollment_end,
+                    'effort': course.effort,
+                    'short_description': course.short_description,
+                    'overview': getattr(course, 'overview', ''),
+                    'course_image_url': course.course_image_url,
+                    'marketing_url': get_link_for_about_page(course),
+                }
+                courses_data.append(course_data)
+            
+            return Response({
+                'courses': courses_data,
+                'count': len(courses_data),
+            })
+            
+        except Exception as e:
+            logger.error(f"Error getting available courses for user {user.username}: {e}")
+            return Response({
+                'courses': [],
+                'count': 0,
+                'error': str(e)
+            }, status=500)
