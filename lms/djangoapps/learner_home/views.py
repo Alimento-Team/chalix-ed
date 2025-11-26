@@ -744,12 +744,20 @@ class AvailableCoursesView(APIView):
                         'lastEnrolled': None,
                         'mode': None,
                         'isVerified': False,
+                        'coursewareAccess': {
+                            'hasAccess': True,
+                            'isStaff': False,
+                            'hasUnmetPrereqs': False,
+                            'isTooEarly': False,
+                        },
                     },
                     'entitlements': [],
                     'gradeData': {
                         'isPassing': False,
                     },
-                    'programs': [],
+                    'programs': {
+                        'relatedPrograms': [],
+                    },
                     'isAvailable': True,  # Custom flag to identify available courses
                 }
                 courses_data.append(course_data)
