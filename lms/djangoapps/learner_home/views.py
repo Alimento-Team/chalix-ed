@@ -676,7 +676,7 @@ class InitializeView(APIView):  # pylint: disable=unused-argument
 class AvailableCoursesView(APIView):
     """
     API endpoint to get available courses for the learner based on Chalix visibility rules.
-    Returns courses that the user CAN see but is NOT enrolled in.
+    Returns courses that the user CAN see but is NOT enrolled in, along with platform settings.
     """
     
     authentication_classes = (
@@ -708,35 +708,72 @@ class AvailableCoursesView(APIView):
                 if course.id not in enrolled_course_ids
             ]
             
-            # Serialize course data
+            # Serialize course data with enrollment-like structure
             courses_data = []
             for course in available_courses:
+                # Create a mock enrollment structure for available (unenrolled) courses
                 course_data = {
-                    'course_id': str(course.id),
-                    'course_key': str(course.id),
-                    'display_name': course.display_name,
-                    'org': course.org,
-                    'start': course.start,
-                    'end': course.end,
-                    'enrollment_start': course.enrollment_start,
-                    'enrollment_end': course.enrollment_end,
-                    'effort': course.effort,
-                    'short_description': course.short_description,
-                    'overview': getattr(course, 'overview', ''),
-                    'course_image_url': course.course_image_url,
-                    'marketing_url': get_link_for_about_page(course),
+                    'auditAccessExpirationDate': None,
+                    'certificate': {},
+                    'courseProvider': None,
+                    'courseRun': {
+                        'courseId': str(course.id),
+                        'displayName': course.display_name,
+                        'homeUrl': f'/courses/{course.id}/course/',
+                        'marketingUrl': get_link_for_about_page(course),
+                        'endDate': course.end,
+                        'startDate': course.start,
+                        'courseImageUrl': course.course_image_url,
+                        'progressUrl': f'/learning-mfe/progress/{course.id}/',
+                        'resumeUrl': f'/courses/{course.id}/course/',
+                    },
+                    'course': {
+                        'bannerImgSrc': '',
+                        'courseName': course.display_name,
+                        'courseNumber': course.number if hasattr(course, 'number') else '',
+                        'org': course.org,
+                    },
+                    'enrollment': {
+                        'accessExpirationDate': None,
+                        'canUpgrade': False,
+                        'created': None,
+                        'isAudit': True,
+                        'isAuditAccessExpired': False,
+                        'isEmailEnabled': False,
+                        'isEnrolled': False,  # Mark as not enrolled for available courses
+                        'lastEnrolled': None,
+                        'mode': None,
+                        'isVerified': False,
+                    },
+                    'entitlements': [],
+                    'gradeData': {
+                        'isPassing': False,
+                    },
+                    'programs': [],
+                    'isAvailable': True,  # Custom flag to identify available courses
                 }
                 courses_data.append(course_data)
             
-            return Response({
-                'courses': courses_data,
-                'count': len(courses_data),
-            })
+            # Include platform settings and other required data for compatibility
+            learner_dash_data = {
+                'enrollments': courses_data,  # Use enrollments structure for compatibility
+                'emailConfirmation': get_user_account_confirmation_info(user),
+                'platformSettings': get_platform_settings(),
+                'unfulfilledEntitlements': [],
+                'socialShareSettings': get_social_share_settings(),
+                'suggestedCourses': [],
+            }
+            
+            return Response(learner_dash_data)
             
         except Exception as e:
             logger.error(f"Error getting available courses for user {user.username}: {e}")
             return Response({
-                'courses': [],
-                'count': 0,
+                'enrollments': [],
+                'emailConfirmation': get_user_account_confirmation_info(user),
+                'platformSettings': get_platform_settings(),
+                'unfulfilledEntitlements': [],
+                'socialShareSettings': get_social_share_settings(),
+                'suggestedCourses': [],
                 'error': str(e)
             }, status=500)
