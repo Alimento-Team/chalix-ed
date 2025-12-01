@@ -170,11 +170,6 @@
                         </div>
                     </div>
 
-                    <!-- Success/Error Messages -->
-                    <div id="user-creation-messages" style="display: none; margin-top: 20px;">
-                        <div class="message success" id="success-message" style="display: none; padding: 12px; border-radius: 8px; background: #d4edda; color: #155724; border: 1px solid #c3e6cb;"></div>
-                        <div class="message error" id="error-message" style="display: none; padding: 12px; border-radius: 8px; background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb;"></div>
-                    </div>
                 </div>
             </div>
 
@@ -184,6 +179,12 @@
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
                         <h3 style="font-family: 'Inter', sans-serif; font-weight: 600; font-size: 20px; color: #1e1e1e; margin: 0;">Tạo người dùng mới</h3>
                         <button type="button" id="close-user-modal" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666; line-height: 1;">&times;</button>
+                    </div>
+                    
+                    <!-- Success/Error Messages (inside modal) -->
+                    <div id="user-creation-messages" style="display: none; margin-bottom: 20px;">
+                        <div class="message success" id="success-message" style="display: none; padding: 12px; border-radius: 8px; background: #d4edda; color: #155724; border: 1px solid #c3e6cb;"></div>
+                        <div class="message error" id="error-message" style="display: none; padding: 12px; border-radius: 8px; background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb;"></div>
                     </div>
                     
                     <form class="chalix-form" id="user-creation-form" style="max-width: none;">

@@ -75,11 +75,36 @@ def create_user_account(request):
         
         # Validate role assignment permissions - default to cong_chuc if not provided
         target_role = data.get('role', 'cong_chuc')
-        if not can_assign_role(current_user_role, target_role):
+        target_org_id = data.get('organization_id')
+        
+        # Extract role string from current_user_role object
+        current_role_str = current_user_role.role if current_user_role else None
+        
+        if not can_assign_role(current_role_str, target_role):
             return Response({
                 'success': False,
                 'message': _('Bạn không có quyền gán vai trò này.')
             }, status=status.HTTP_403_FORBIDDEN)
+        
+        # For co_quan users, validate organization restrictions
+        if current_role_str == 'co_quan':
+            current_org = getattr(current_user_role, 'organization', None)
+            if not current_org:
+                return Response({
+                    'success': False,
+                    'message': _('Không thể xác định tổ chức của bạn.')
+                }, status=status.HTTP_403_FORBIDDEN)
+            
+            # co_quan can only create users in their own organization
+            if target_org_id:
+                if str(current_org.id) != str(target_org_id):
+                    return Response({
+                        'success': False,
+                        'message': _('Bạn chỉ có thể tạo tài khoản cho tổ chức của mình.')
+                    }, status=status.HTTP_403_FORBIDDEN)
+            else:
+                # If no org specified, use current user's org
+                data['organization_id'] = current_org.id
         
         # Validate email
         email = data.get('email').strip()
@@ -255,7 +280,8 @@ def bulk_create_users(request):
                     continue
                 
                 # Validate role permissions
-                if not can_assign_role(current_user_role, user_data['role']):
+                current_role_str = current_user_role.role if current_user_role else None
+                if not can_assign_role(current_role_str, user_data['role']):
                     validation_errors.append(f"Dòng {row_num}: Không có quyền gán vai trò {user_data['role']}")
                     continue
                 
@@ -627,14 +653,17 @@ def can_create_user_accounts(current_role: Optional[ChalixUserRole]) -> bool:
 
 def can_assign_role(current_role_value: str, target_role: str) -> bool:
     """Check if current role can assign the target role."""
+    if not current_role_value:
+        return False
+    
     if current_role_value == 'bo':
-        # Ministry level can assign all other roles
+        # Ministry level can assign all roles except bo itself
         return target_role in ['co_quan', 'giang_vien', 'cong_chuc']
     elif current_role_value == 'co_quan':
-        # Organization level can assign teacher and learner roles
+        # Organization level can assign teacher and learner roles within their org
         return target_role in ['giang_vien', 'cong_chuc']
     
-    # Other roles cannot assign roles
+    # Other roles (giang_vien, cong_chuc) cannot assign roles
     return False
 
 
