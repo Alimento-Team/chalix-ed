@@ -762,7 +762,7 @@ def do_create_account(form, custom_form=None):
             log.error(f"Failed to set Vietnamese default language for user {user.username}: {e}")
 
     # Use transaction.on_commit to ensure this runs after user creation is complete
-    from django.db import transaction
+    # Note: transaction is already imported at the top of the file
     transaction.on_commit(set_vietnamese_after_commit)
 
     return user, profile, registration
