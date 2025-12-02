@@ -75,7 +75,8 @@ def create_user_account(request):
         
         # Validate role assignment permissions - default to cong_chuc if not provided
         target_role = data.get('role', 'cong_chuc')
-        target_org_id = data.get('organization_id')
+        # Accept both 'organization' and 'organization_id' field names
+        target_org_id = data.get('organization') or data.get('organization_id')
         
         # Extract role string from current_user_role object
         current_role_str = current_user_role.role if current_user_role else None
@@ -104,7 +105,7 @@ def create_user_account(request):
                     }, status=status.HTTP_403_FORBIDDEN)
             else:
                 # If no org specified, use current user's org
-                data['organization_id'] = current_org.id
+                target_org_id = current_org.id
         
         # Validate email
         email = data.get('email').strip()
@@ -128,10 +129,10 @@ def create_user_account(request):
         
         # Get organization
         organization = None
-        if data.get('organization_id'):
+        if target_org_id:
             try:
                 organization = ChalixOrganization.objects.get(
-                    id=data['organization_id'], 
+                    id=target_org_id, 
                     is_active=True
                 )
             except ChalixOrganization.DoesNotExist:
@@ -952,35 +953,38 @@ def update_user(request, user_id):
         
         # Update role and organization if provided (only Bo can do this)
         if is_bo_user(request.user):
-            if 'user_role' in data or 'organization_id' in data:
+            # Accept both 'role' and 'user_role' field names
+            new_role = data.get('role') or data.get('user_role')
+            # Accept both 'organization' and 'organization_id' field names
+            new_org_id = data.get('organization') or data.get('organization_id')
+            
+            if new_role or new_org_id is not None:
                 user_role = get_user_current_role(user)
                 
-                if 'user_role' in data and data['user_role']:
-                    if user_role:
-                        user_role.role = data['user_role']
-                    else:
-                        user_role = ChalixUserRole(user=user, role=data['user_role'])
+                # Create new role object if it doesn't exist
+                if not user_role:
+                    user_role = ChalixUserRole(user=user)
                 
-                if 'organization_id' in data:
-                    if data['organization_id']:
+                # Update role if provided
+                if new_role:
+                    user_role.role = new_role
+                
+                # Update organization if provided
+                if new_org_id is not None:
+                    if new_org_id:
                         try:
-                            org = ChalixOrganization.objects.get(id=data['organization_id'])
-                            if user_role:
-                                user_role.organization = org
-                            else:
-                                # Create role if doesn't exist
-                                user_role = ChalixUserRole(user=user, organization=org)
+                            org = ChalixOrganization.objects.get(id=new_org_id)
+                            user_role.organization = org
                         except ChalixOrganization.DoesNotExist:
                             return Response(
                                 {'error': 'Không tìm thấy cơ quan'},
                                 status=status.HTTP_400_BAD_REQUEST
                             )
                     else:
-                        if user_role:
-                            user_role.organization = None
+                        user_role.organization = None
                 
-                if user_role:
-                    user_role.save()
+                # Save the role
+                user_role.save()
         
         return Response({
             'success': True,
