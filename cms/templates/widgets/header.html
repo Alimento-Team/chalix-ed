@@ -15,6 +15,11 @@
   # Get user organization name from profile
   user_organization = getattr(user, 'organization', None) if hasattr(user, 'organization') else None
   org_name = user_organization or ''
+  
+  # Get MFE URLs from settings for navigation
+  mfe_config = getattr(settings, 'MFE_CONFIG', {})
+  lms_base_url = mfe_config.get('LMS_BASE_URL') or getattr(settings, 'LMS_ROOT_URL', '')
+  learner_dashboard_url = mfe_config.get('LEARNER_DASHBOARD_URL', f'{lms_base_url}/dashboard')
   %>
   <div class="chalix-header-wrapper" id="view-top">
     <header class="chalix-header" role="banner">
@@ -56,7 +61,7 @@
               <i class="fa fa-graduation-cap nav-icon" aria-hidden="true"></i>
               <span class="nav-label">Học tập</span>
             </a>
-            <a href="#" class="nav-item">
+            <a href="${learner_dashboard_url}?tab=personalized" class="nav-item">
               <i class="fa fa-user-circle nav-icon" aria-hidden="true"></i>
               <span class="nav-label">Cá nhân hóa</span>
             </a>
