@@ -8,13 +8,13 @@
   get_grading_url, get_advanced_settings_url, get_import_url, get_export_url, get_studio_home_url, get_course_team_url,
   get_optimizer_url from openedx.core.djangoapps.discussions.config.waffle import
   ENABLE_PAGES_AND_RESOURCES_MICROFRONTEND from openedx.core.djangoapps.lang_pref.api import
-  header_language_selector_is_enabled, released_languages %>
+  header_language_selector_is_enabled, released_languages from cms.djangoapps.contentstore.chalix_roles import
+  get_user_organization_display_name %>
 
   <!-- Vietnamese CMS Header based on Figma Design -->
   <%
-  # Get user organization name from profile
-  user_organization = getattr(user, 'organization', None) if hasattr(user, 'organization') else None
-  org_name = user_organization or ''
+  # Get user organization name from ChalixUserRole
+  org_name = get_user_organization_display_name(user) or ''
   
   # Get MFE URLs from settings for navigation
   mfe_config = getattr(settings, 'MFE_CONFIG', {})

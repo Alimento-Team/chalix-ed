@@ -22,6 +22,7 @@ class UserPopupSerializer(serializers.Serializer):
     bio = serializers.SerializerMethodField()
     is_staff = serializers.BooleanField(read_only=True)
     is_superuser = serializers.BooleanField(read_only=True)
+    organization = serializers.SerializerMethodField()
     
     def get_full_name(self, obj):
         """Get user's full name from first and last name."""
@@ -48,6 +49,17 @@ class UserPopupSerializer(serializers.Serializer):
         try:
             if hasattr(obj, 'profile') and obj.profile:
                 return obj.profile.bio or None
+        except Exception:
+            pass
+        return None
+    
+    def get_organization(self, obj):
+        """Get user's organization display name from ChalixUserRole."""
+        try:
+            # Import here to avoid circular dependencies
+            from cms.djangoapps.contentstore.chalix_roles import get_user_organization_display_name
+            org_name = get_user_organization_display_name(obj)
+            return org_name if org_name else None
         except Exception:
             pass
         return None
