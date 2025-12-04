@@ -55,28 +55,33 @@ class UserPopupSerializer(serializers.Serializer):
     
     def get_organization(self, obj):
         """Get user's organization display name from ChalixUserRole."""
+        import logging
+        from django.db import connection
+        
+        logger = logging.getLogger(__name__)
+        
         try:
-            # Use Django's app registry to get the model (works in both LMS and CMS)
-            from django.apps import apps
-            
-            # Try to get the ChalixUserRole model
-            try:
-                ChalixUserRole = apps.get_model('contentstore', 'ChalixUserRole')
-            except LookupError:
-                # Model not available in this context
-                return ''
-            
-            # Get user's primary role
-            role = ChalixUserRole.objects.filter(
-                user=obj,
-                is_active=True
-            ).select_related('organization').first()
-            
-            if role and role.organization:
-                return role.organization.display_name or role.organization.name
+            # Query the database directly since contentstore app is not installed in LMS
+            # This queries the contentstore_chalixuserrole and contentstore_chalixorganization tables
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                    SELECT co.display_name, co.name
+                    FROM contentstore_chalixuserrole cr
+                    JOIN contentstore_chalixorganization co ON cr.organization_id = co.id
+                    WHERE cr.user_id = %s AND cr.is_active = 1
+                    LIMIT 1
+                """, [obj.id])
                 
+                row = cursor.fetchone()
+                if row:
+                    display_name, name = row
+                    org_name = display_name or name
+                    logger.info(f"Found organization for user {obj.username}: {org_name}")
+                    return org_name
+                else:
+                    logger.info(f"No active role with organization found for user {obj.username}")
+                    
         except Exception as e:
-            import logging
-            logging.getLogger(__name__).debug(f"Could not get organization for user {obj.username}: {e}")
+            logger.error(f"Error getting organization for user {obj.username}: {e}", exc_info=True)
             
         return ''
