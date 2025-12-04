@@ -81,7 +81,7 @@ lms_base_url = _mfe_conf.get('LMS_BASE_URL') or getattr(settings, 'LMS_ROOT_URL'
             flex: 1;
         }
 
-        .organization-title {
+        .application-title {
             color: white;
             font-family: 'Roboto', sans-serif;
             font-size: 20px;
@@ -89,6 +89,7 @@ lms_base_url = _mfe_conf.get('LMS_BASE_URL') or getattr(settings, 'LMS_ROOT_URL'
             line-height: 24px;
             letter-spacing: 0.5px;
             margin: 0 0 4px 0;
+            text-transform: uppercase;
         }
 
         .organization-name {
@@ -459,10 +460,10 @@ lms_base_url = _mfe_conf.get('LMS_BASE_URL') or getattr(settings, 'LMS_ROOT_URL'
 <!-- Chalix MFE-style Header for CMS -->
 <%
 from django.conf import settings
+from cms.djangoapps.contentstore.chalix_roles import get_user_organization_display_name
 
-# Get user organization name from profile
-user_organization = getattr(user, 'organization', None) if hasattr(user, 'organization') else None
-org_name = user_organization or ''
+# Get user organization name from Chalix role
+user_org_name = get_user_organization_display_name(user) or ''
 %>
 
 <div class="chalix-header-wrapper" id="view-top">
@@ -471,9 +472,9 @@ org_name = user_organization or ''
         <div class="header-top">
             <div class="header-top-content">
                 <div class="organization-info">
-                    <h1 class="organization-title">PHẦN MỀM HỌC TẬP THÔNG MINH DÀNH CHO CÔNG CHỨC, VIÊN CHỨC</h1>
-                    % if org_name:
-                    <h2 class="organization-name">${org_name}</h2>
+                    <h1 class="application-title">PHẦN MỀM HỌC TẬP THÔNG MINH DÀNH CHO CÔNG CHỨC, VIÊN CHỨC</h1>
+                    % if user_org_name:
+                    <h2 class="organization-name">${user_org_name}</h2>
                     % endif
                 </div>
                 <div class="header-top-right">

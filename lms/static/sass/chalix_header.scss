@@ -62,13 +62,20 @@ $z-dropdown: 1010;
     .chalix-header-title {
         flex: 1;
 
-        .organization-title {
+        .application-title {
             margin: 0;
             font-size: 1.25rem;
             font-weight: 700;
             line-height: 1.4;
             text-transform: uppercase;
             letter-spacing: 0.02em;
+        }
+
+        .organization-name {
+            margin: 0.25rem 0 0;
+            font-size: 0.95rem;
+            font-weight: 500;
+            opacity: 0.95;
         }
 
         .department-name {
@@ -574,10 +581,11 @@ $z-dropdown: 1010;
         min-height: auto;
 
         .chalix-header-title {
-            .organization-title {
+            .application-title {
                 font-size: 1.1rem;
             }
 
+            .organization-name,
             .department-name {
                 font-size: 0.85rem;
             }
@@ -664,10 +672,11 @@ $z-dropdown: 1010;
 @media (max-width: 576px) {
     .chalix-header-top {
         .chalix-header-title {
-            .organization-title {
+            .application-title {
                 font-size: 0.95rem;
             }
 
+            .organization-name,
             .department-name {
                 font-size: 0.75rem;
             }

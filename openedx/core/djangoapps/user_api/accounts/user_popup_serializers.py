@@ -56,10 +56,29 @@ class UserPopupSerializer(serializers.Serializer):
     def get_organization(self, obj):
         """Get user's organization display name from ChalixUserRole."""
         try:
-            # Import here to avoid circular dependencies
-            from cms.djangoapps.contentstore.chalix_roles import get_user_organization_display_name
-            org_name = get_user_organization_display_name(obj)
-            return org_name if org_name else None
-        except Exception:
-            pass
-        return None
+            # Try importing from CMS (will work in Studio context)
+            try:
+                from cms.djangoapps.contentstore.chalix_roles import get_user_organization_display_name
+                org_name = get_user_organization_display_name(obj)
+                if org_name:
+                    return org_name
+            except ImportError:
+                pass
+            
+            # Fallback: Get directly from ChalixUserRole model
+            from cms.djangoapps.contentstore.models import ChalixUserRole
+            
+            # Get user's primary role
+            role = ChalixUserRole.objects.filter(
+                user=obj,
+                is_active=True
+            ).select_related('organization').first()
+            
+            if role and role.organization:
+                return role.organization.display_name or role.organization.name
+                
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).debug(f"Could not get organization for user {obj.username}: {e}")
+            
+        return ''
