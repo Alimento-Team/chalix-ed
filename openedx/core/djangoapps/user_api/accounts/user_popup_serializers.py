@@ -56,17 +56,15 @@ class UserPopupSerializer(serializers.Serializer):
     def get_organization(self, obj):
         """Get user's organization display name from ChalixUserRole."""
         try:
-            # Try importing from CMS (will work in Studio context)
-            try:
-                from cms.djangoapps.contentstore.chalix_roles import get_user_organization_display_name
-                org_name = get_user_organization_display_name(obj)
-                if org_name:
-                    return org_name
-            except ImportError:
-                pass
+            # Use Django's app registry to get the model (works in both LMS and CMS)
+            from django.apps import apps
             
-            # Fallback: Get directly from ChalixUserRole model
-            from cms.djangoapps.contentstore.models import ChalixUserRole
+            # Try to get the ChalixUserRole model
+            try:
+                ChalixUserRole = apps.get_model('contentstore', 'ChalixUserRole')
+            except LookupError:
+                # Model not available in this context
+                return ''
             
             # Get user's primary role
             role = ChalixUserRole.objects.filter(
