@@ -92,7 +92,7 @@ def get_available_tabs(user: User) -> List[str]:
     
     # Default fallback for users without Chalix roles but with OpenEdX roles
     if can_access_cms(user):
-        return ['statistics', 'learning-management']
+        return ['learning-management']
     
     return []
 

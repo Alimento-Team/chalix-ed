@@ -782,8 +782,8 @@ class ChalixUserRole(models.Model):
             return ['statistics', 'create-account', 'management', 'learning-management', 'approve-requests']
         elif self.role == 'co_quan':  # Organization level - multiple accounts with management access
             return ['statistics', 'management', 'learning-management']
-        elif self.role == 'giang_vien':  # Teacher/Instructor level - multiple accounts with teaching access
-            return ['statistics', 'learning-management']
+        elif self.role == 'giang_vien':  # Teacher/Instructor level - only learning management access
+            return ['learning-management']
         else:  # cong_chuc - Learner/Student level - no CMS access
             return []
 
