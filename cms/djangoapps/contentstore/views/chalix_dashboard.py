@@ -2726,6 +2726,7 @@ def preview_evaluation_quiz_api(request, course_key_string):
 
 @login_required
 @require_http_methods(["GET", "POST"])
+@ensure_csrf_cookie
 def download_user_template_api(request):
     """
     GET: Download Excel template for bulk user import (custom or default).
@@ -2741,116 +2742,132 @@ def download_user_template_api(request):
     import os
     from django.conf import settings
     
-    # Check permission
-    if not can_import_users(request.user):
-        return JsonResponse({
-            'error': 'Bạn không có quyền tải template import người dùng.'
-        }, status=403)
-    
-    # Define custom template path
-    custom_template_dir = os.path.join(settings.MEDIA_ROOT, 'chalix', 'templates')
-    custom_template_path = os.path.join(custom_template_dir, 'custom_user_import_template.xlsx')
-    
-    if request.method == 'GET':
-        # Download template (custom if exists, otherwise default)
-        try:
-            # Check if custom template exists
-            if os.path.exists(custom_template_path):
-                # Serve custom template
-                with open(custom_template_path, 'rb') as f:
-                    excel_content = f.read()
-                logger.info(f"[CHALIX] User {request.user.username} downloaded custom user import template")
-            else:
-                # Generate default Excel template
-                excel_content = generate_excel_template()
-                logger.info(f"[CHALIX] User {request.user.username} downloaded default user import template")
-            
-            # Create HTTP response with Excel file
-            response = HttpResponse(
-                excel_content,
-                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-            )
-            response['Content-Disposition'] = 'attachment; filename="template_import_nguoi_dung.xlsx"'
-            
-            return response
-            
-        except Exception as e:
-            logger.error(f"[CHALIX] Error downloading user import template: {str(e)}")
+    try:
+        # Check permission
+        if not can_import_users(request.user):
             return JsonResponse({
-                'error': 'Có lỗi xảy ra khi tải file template. Vui lòng thử lại.'
-            }, status=500)
-    
-    elif request.method == 'POST':
-        # Upload custom template (bo role only)
-        try:
-            # Check if file was uploaded
-            if 'file' not in request.FILES:
+                'error': 'Bạn không có quyền tải template import người dùng.'
+            }, status=403)
+        
+        # Define custom template path
+        custom_template_dir = os.path.join(settings.MEDIA_ROOT, 'chalix', 'templates')
+        custom_template_path = os.path.join(custom_template_dir, 'custom_user_import_template.xlsx')
+        
+        if request.method == 'GET':
+            # Check if this is just a status check (not a download)
+            if request.GET.get('check') == 'true':
+                has_custom = os.path.exists(custom_template_path)
                 return JsonResponse({
-                    'success': False,
-                    'message': 'Vui lòng chọn file Excel để tải lên.'
-                }, status=400)
+                    'success': True,
+                    'has_custom_template': has_custom
+                })
             
-            template_file = request.FILES['file']
-            
-            # Validate file extension
-            if not template_file.name.endswith(('.xlsx', '.xls')):
-                return JsonResponse({
-                    'success': False,
-                    'message': 'File phải có định dạng Excel (.xlsx hoặc .xls).'
-                }, status=400)
-            
-            # Validate file size (max 5MB for template)
-            max_size = 5 * 1024 * 1024  # 5MB
-            if template_file.size > max_size:
-                return JsonResponse({
-                    'success': False,
-                    'message': f'File quá lớn. Kích thước tối đa là {max_size / 1024 / 1024}MB.'
-                }, status=400)
-            
-            # Validate it's a valid Excel file by trying to open it
+            # Download template (custom if exists, otherwise default)
             try:
-                import openpyxl
-                from io import BytesIO
+                # Check if custom template exists
+                if os.path.exists(custom_template_path):
+                    # Serve custom template
+                    with open(custom_template_path, 'rb') as f:
+                        excel_content = f.read()
+                    logger.info(f"[CHALIX] User {request.user.username} downloaded custom user import template")
+                else:
+                    # Generate default Excel template
+                    excel_content = generate_excel_template()
+                    logger.info(f"[CHALIX] User {request.user.username} downloaded default user import template")
                 
-                # Try to load the workbook
-                wb = openpyxl.load_workbook(BytesIO(template_file.read()))
-                template_file.seek(0)  # Reset file pointer
+                # Create HTTP response with Excel file
+                response = HttpResponse(
+                    excel_content,
+                    content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                )
+                response['Content-Disposition'] = 'attachment; filename="template_import_nguoi_dung.xlsx"'
                 
-                # Basic validation: check if it has at least one sheet
-                if len(wb.sheetnames) == 0:
-                    return JsonResponse({
-                        'success': False,
-                        'message': 'File Excel không hợp lệ (không có sheet nào).'
-                    }, status=400)
+                return response
                 
             except Exception as e:
-                logger.error(f"[CHALIX] Error validating template file: {str(e)}")
+                logger.error(f"[CHALIX] Error downloading user import template: {str(e)}")
+                return JsonResponse({
+                    'error': 'Có lỗi xảy ra khi tải file template. Vui lòng thử lại.'
+                }, status=500)
+        
+        elif request.method == 'POST':
+            # Upload custom template (bo role only)
+            try:
+                # Check if file was uploaded
+                if 'file' not in request.FILES:
+                    return JsonResponse({
+                        'success': False,
+                        'message': 'Vui lòng chọn file Excel để tải lên.'
+                    }, status=400)
+                
+                template_file = request.FILES['file']
+                
+                # Validate file extension
+                if not template_file.name.endswith(('.xlsx', '.xls')):
+                    return JsonResponse({
+                        'success': False,
+                        'message': 'File phải có định dạng Excel (.xlsx hoặc .xls).'
+                    }, status=400)
+                
+                # Validate file size (max 5MB for template)
+                max_size = 5 * 1024 * 1024  # 5MB
+                if template_file.size > max_size:
+                    return JsonResponse({
+                        'success': False,
+                        'message': f'File quá lớn. Kích thước tối đa là {max_size / 1024 / 1024}MB.'
+                    }, status=400)
+                
+                # Validate it's a valid Excel file by trying to open it
+                try:
+                    import openpyxl
+                    from io import BytesIO
+                    
+                    # Try to load the workbook
+                    wb = openpyxl.load_workbook(BytesIO(template_file.read()))
+                    template_file.seek(0)  # Reset file pointer
+                    
+                    # Basic validation: check if it has at least one sheet
+                    if len(wb.sheetnames) == 0:
+                        return JsonResponse({
+                            'success': False,
+                            'message': 'File Excel không hợp lệ (không có sheet nào).'
+                        }, status=400)
+                    
+                except Exception as e:
+                    logger.error(f"[CHALIX] Error validating template file: {str(e)}")
+                    return JsonResponse({
+                        'success': False,
+                        'message': 'File Excel không hợp lệ hoặc bị hỏng. Vui lòng kiểm tra lại file.'
+                    }, status=400)
+                
+                # Create directory if it doesn't exist
+                os.makedirs(custom_template_dir, exist_ok=True)
+                
+                # Save the custom template
+                with open(custom_template_path, 'wb') as f:
+                    for chunk in template_file.chunks():
+                        f.write(chunk)
+                
+                logger.info(f"[CHALIX] User {request.user.username} uploaded custom user import template")
+                
+                return JsonResponse({
+                    'success': True,
+                    'message': 'Template đã được cập nhật thành công.',
+                    'has_custom_template': True
+                })
+                
+            except Exception as e:
+                logger.error(f"[CHALIX] Error uploading custom template: {str(e)}", exc_info=True)
                 return JsonResponse({
                     'success': False,
-                    'message': 'File Excel không hợp lệ hoặc bị hỏng. Vui lòng kiểm tra lại file.'
-                }, status=400)
-            
-            # Create directory if it doesn't exist
-            os.makedirs(custom_template_dir, exist_ok=True)
-            
-            # Save the custom template
-            with open(custom_template_path, 'wb') as f:
-                for chunk in template_file.chunks():
-                    f.write(chunk)
-            
-            logger.info(f"[CHALIX] User {request.user.username} uploaded custom user import template")
-            
-            return JsonResponse({
-                'success': True,
-                'message': 'Template đã được cập nhật thành công.'
-            })
-            
-        except Exception as e:
-            logger.error(f"[CHALIX] Error uploading custom template: {str(e)}")
-            return JsonResponse({
-                'success': False,
-                'message': 'Có lỗi xảy ra khi tải template lên. Vui lòng thử lại.'
-            }, status=500)
+                    'message': 'Có lỗi xảy ra khi tải template lên. Vui lòng thử lại.'
+                }, status=500)
+    
+    except Exception as e:
+        logger.error(f"[CHALIX] Error in download_user_template_api: {str(e)}", exc_info=True)
+        return JsonResponse({
+            'error': 'Có lỗi xảy ra. Vui lòng thử lại.'
+        }, status=500)
 
 
 @login_required

@@ -96,7 +96,7 @@ def generate_excel_template() -> bytes:
         'Email': 'nguyenvana@example.com',
         'CCCD': '001234567890',
         'Ngày cấp CCCD': '01/01/2020',
-        'Đơn vị công tác': 'Phòng Giáo dục',
+        'Đơn vị công tác': 'Tên tổ chức phải khớp chính xác với tổ chức đã tạo trong hệ thống',
         'Quê quán': 'Hà Nội',
         'Dân tộc': 'Kinh',
         'Ghi chú': '',
@@ -114,7 +114,7 @@ def generate_excel_template() -> bytes:
         'Nơi sinh': 'Hà Nội',
         'Địa chỉ': '123 Đường ABC, Hà Nội',
         'Số năm công tác': '5',
-        'Vai trò người dùng hệ thống': 'Học viên',  # Quản trị cơ quan | Giảng viên | Học viên
+        'Vai trò người dùng hệ thống': 'Quản trị cơ quan hoặc Giảng viên hoặc Học viên hoặc Công chức',
     }
     
     for col_num, header in enumerate(headers, 1):
@@ -313,38 +313,58 @@ def create_user_from_data(user_data: Dict[str, Any], created_by: User) -> Tuple[
             role_mapping = {
                 'Quản trị cơ quan': 'co_quan',
                 'Giảng viên': 'giang_vien',
-                'Học viên': 'hoc_vien',
+                'Học viên': 'cong_chuc',  # Changed from 'hoc_vien' to match model
+                'Công chức': 'cong_chuc',
+                'Viên chức': 'cong_chuc',
             }
             
             role_code = role_mapping.get(user_role)
             if role_code:
                 try:
-                    # Check if user already has a role for this organization
-                    existing_role = ChalixUserRole.objects.filter(
-                        user=user,
-                        organization_name=don_vi_cong_tac
-                    ).first()
+                    # Find organization by name (try exact match first, then case-insensitive)
+                    from cms.djangoapps.contentstore.models import ChalixOrganization
                     
-                    if existing_role:
-                        # Update existing role
-                        existing_role.role = role_code
-                        existing_role.is_active = True
-                        existing_role.save()
-                        warnings.append(f"Cập nhật vai trò '{user_role}' cho người dùng {username} tại '{don_vi_cong_tac}'")
+                    organization = ChalixOrganization.objects.filter(name=don_vi_cong_tac).first()
+                    if not organization:
+                        # Try case-insensitive match
+                        organization = ChalixOrganization.objects.filter(name__iexact=don_vi_cong_tac).first()
+                    
+                    if not organization:
+                        # Try display_name match
+                        organization = ChalixOrganization.objects.filter(display_name__iexact=don_vi_cong_tac).first()
+                    
+                    if not organization:
+                        warnings.append(f"Không tìm thấy tổ chức '{don_vi_cong_tac}' trong hệ thống. Vui lòng tạo tổ chức trước.")
+                        logger.warning(f"Organization '{don_vi_cong_tac}' not found for user {username}")
                     else:
-                        # Create new role
-                        ChalixUserRole.objects.create(
+                        # Check if user already has a role for this organization
+                        existing_role = ChalixUserRole.objects.filter(
                             user=user,
-                            role=role_code,
-                            organization_name=don_vi_cong_tac,
-                            is_active=True
-                        )
-                        logger.info(f"Assigned role '{role_code}' to user {username} at '{don_vi_cong_tac}'")
+                            organization=organization
+                        ).first()
+                        
+                        if existing_role:
+                            # Update existing role
+                            existing_role.role = role_code
+                            existing_role.is_active = True
+                            existing_role.created_by = created_by
+                            existing_role.save()
+                            warnings.append(f"Cập nhật vai trò '{user_role}' cho người dùng {username} tại '{organization.display_name}'")
+                        else:
+                            # Create new role
+                            ChalixUserRole.objects.create(
+                                user=user,
+                                role=role_code,
+                                organization=organization,
+                                is_active=True,
+                                created_by=created_by
+                            )
+                            logger.info(f"Assigned role '{role_code}' to user {username} at organization '{organization.display_name}'")
                 except Exception as e:
                     warnings.append(f"Không thể gán vai trò '{user_role}': {str(e)}")
-                    logger.warning(f"Failed to assign role to user {username}: {str(e)}")
+                    logger.error(f"Failed to assign role to user {username}: {str(e)}", exc_info=True)
             else:
-                warnings.append(f"Vai trò '{user_role}' không hợp lệ. Chỉ chấp nhận: Quản trị cơ quan, Giảng viên, Học viên")
+                warnings.append(f"Vai trò '{user_role}' không hợp lệ. Chỉ chấp nhận: Quản trị cơ quan, Giảng viên, Học viên, Công chức, Viên chức")
         
         logger.info(f"Created user: {username} ({email}) by {created_by.username}")
         

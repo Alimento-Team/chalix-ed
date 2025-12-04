@@ -505,6 +505,9 @@
 
     // Load organizations for the organization dropdown
     loadOrganizations();
+    
+    // Check if custom template exists and update button color
+    checkCustomTemplate();
         
         // Helper functions
         function validateUserData(userData, isEdit = false) {
@@ -1085,10 +1088,18 @@
                     body: formData
                 });
                 
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
                 const result = await response.json();
                 
                 if (result.success) {
                     showSuccess('Template đã được cập nhật thành công. File mẫu mới sẽ được sử dụng cho tất cả người dùng.');
+                    // Change download button color to green
+                    updateDownloadButtonStyle(true);
+                    // Store custom template state
+                    localStorage.setItem('hasCustomTemplate', 'true');
                 } else {
                     showError(result.message || 'Lỗi tải template lên');
                 }
@@ -1096,6 +1107,52 @@
             } catch (error) {
                 console.error('Error uploading template:', error);
                 showError('Lỗi tải template lên. Vui lòng thử lại.');
+            }
+        }
+        
+        function updateDownloadButtonStyle(hasCustomTemplate) {
+            const downloadBtn = document.getElementById('download-template-btn');
+            if (downloadBtn) {
+                if (hasCustomTemplate) {
+                    // Green color for custom template
+                    downloadBtn.style.background = '#28a745';
+                } else {
+                    // Grey color for default template
+                    downloadBtn.style.background = '#6c757d';
+                }
+            }
+        }
+        
+        async function checkCustomTemplate() {
+            // Check if custom template exists by querying the API
+            try {
+                const response = await fetch('/api/contentstore/v1/users/excel/template?check=true', {
+                    method: 'GET',
+                    credentials: 'include',
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result.has_custom_template) {
+                        updateDownloadButtonStyle(true);
+                        localStorage.setItem('hasCustomTemplate', 'true');
+                    } else {
+                        updateDownloadButtonStyle(false);
+                        localStorage.setItem('hasCustomTemplate', 'false');
+                    }
+                } else {
+                    // Fallback to localStorage
+                    const hasCustom = localStorage.getItem('hasCustomTemplate') === 'true';
+                    updateDownloadButtonStyle(hasCustom);
+                }
+            } catch (error) {
+                console.warn('Could not check custom template status:', error);
+                // Fallback to localStorage
+                const hasCustom = localStorage.getItem('hasCustomTemplate') === 'true';
+                updateDownloadButtonStyle(hasCustom);
             }
         }
         
