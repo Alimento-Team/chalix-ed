@@ -87,7 +87,7 @@ def create_user_account(request):
                 'message': _('Bạn không có quyền gán vai trò này.')
             }, status=status.HTTP_403_FORBIDDEN)
         
-        # For co_quan users, validate organization restrictions
+        # For co_quan users (org admins), automatically assign their organization
         if current_role_str == 'co_quan':
             current_org = getattr(current_user_role, 'organization', None)
             if not current_org:
@@ -96,16 +96,9 @@ def create_user_account(request):
                     'message': _('Không thể xác định tổ chức của bạn.')
                 }, status=status.HTTP_403_FORBIDDEN)
             
-            # co_quan can only create users in their own organization
-            if target_org_id:
-                if str(current_org.id) != str(target_org_id):
-                    return Response({
-                        'success': False,
-                        'message': _('Bạn chỉ có thể tạo tài khoản cho tổ chức của mình.')
-                    }, status=status.HTTP_403_FORBIDDEN)
-            else:
-                # If no org specified, use current user's org
-                target_org_id = current_org.id
+            # Org admins can only create users in their own organization
+            # Always use admin's org, ignore any org specified in the request
+            target_org_id = current_org.id
         
         # Validate email
         email = data.get('email').strip()

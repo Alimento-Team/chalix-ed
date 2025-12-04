@@ -238,13 +238,14 @@ def validate_user_data(user_data: Dict[str, Any]) -> Tuple[bool, List[str]]:
     return len(errors) == 0, errors
 
 
-def create_user_from_data(user_data: Dict[str, Any], created_by: User) -> Tuple[User, List[str]]:
+def create_user_from_data(user_data: Dict[str, Any], created_by: User, force_org: ChalixOrganization = None) -> Tuple[User, List[str]]:
     """
     Create a user account and profile from validated data.
     
     Args:
         user_data: Validated user data dictionary
         created_by: User who is creating this account
+        force_org: Optional organization to force for all created users (used by org admins)
         
     Returns:
         Tuple of (created_user, warning_messages)
@@ -308,7 +309,8 @@ def create_user_from_data(user_data: Dict[str, Any], created_by: User) -> Tuple[
         profile.save()
         
         # Assign user role if provided
-        if user_role and don_vi_cong_tac:
+        # If force_org is set (org admin uploading), use that instead of parsing from file
+        if user_role:
             # Map Vietnamese role names to role codes
             role_mapping = {
                 'Quản trị cơ quan': 'co_quan',
@@ -321,22 +323,30 @@ def create_user_from_data(user_data: Dict[str, Any], created_by: User) -> Tuple[
             role_code = role_mapping.get(user_role)
             if role_code:
                 try:
-                    # Find organization by name (try exact match first, then case-insensitive)
                     from cms.djangoapps.contentstore.models import ChalixOrganization
                     
-                    organization = ChalixOrganization.objects.filter(name=don_vi_cong_tac).first()
-                    if not organization:
-                        # Try case-insensitive match
-                        organization = ChalixOrganization.objects.filter(name__iexact=don_vi_cong_tac).first()
+                    organization = None
                     
-                    if not organization:
-                        # Try display_name match
-                        organization = ChalixOrganization.objects.filter(display_name__iexact=don_vi_cong_tac).first()
+                    # If force_org is provided (org admin), use it and ignore don_vi_cong_tac
+                    if force_org:
+                        organization = force_org
+                        logger.info(f"Using force_org '{organization.display_name}' for user {username}")
+                    elif don_vi_cong_tac:
+                        # Find organization by name (try exact match first, then case-insensitive)
+                        organization = ChalixOrganization.objects.filter(name=don_vi_cong_tac).first()
+                        if not organization:
+                            # Try case-insensitive match
+                            organization = ChalixOrganization.objects.filter(name__iexact=don_vi_cong_tac).first()
+                        
+                        if not organization:
+                            # Try display_name match
+                            organization = ChalixOrganization.objects.filter(display_name__iexact=don_vi_cong_tac).first()
+                        
+                        if not organization:
+                            warnings.append(f"Không tìm thấy tổ chức '{don_vi_cong_tac}' trong hệ thống. Vui lòng tạo tổ chức trước.")
+                            logger.warning(f"Organization '{don_vi_cong_tac}' not found for user {username}")
                     
-                    if not organization:
-                        warnings.append(f"Không tìm thấy tổ chức '{don_vi_cong_tac}' trong hệ thống. Vui lòng tạo tổ chức trước.")
-                        logger.warning(f"Organization '{don_vi_cong_tac}' not found for user {username}")
-                    else:
+                    if organization:
                         # Check if user already has a role for this organization
                         existing_role = ChalixUserRole.objects.filter(
                             user=user,
@@ -377,7 +387,8 @@ def create_user_from_data(user_data: Dict[str, Any], created_by: User) -> Tuple[
 
 def import_users_from_excel(
     file_content: bytes,
-    created_by: User
+    created_by: User,
+    force_org: ChalixOrganization = None
 ) -> Dict[str, Any]:
     """
     Import multiple users from an Excel file.
@@ -385,6 +396,7 @@ def import_users_from_excel(
     Args:
         file_content: Excel file content as bytes
         created_by: User who is importing
+        force_org: Optional organization to force for all created users (used by org admins)
         
     Returns:
         Dictionary with import results
@@ -423,7 +435,7 @@ def import_users_from_excel(
         with transaction.atomic():
             for user_data in users_data:
                 try:
-                    user, warnings = create_user_from_data(user_data, created_by)
+                    user, warnings = create_user_from_data(user_data, created_by, force_org)
                     result['successful_imports'] += 1
                     result['created_users'].append({
                         'username': user.username,

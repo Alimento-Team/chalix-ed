@@ -2925,12 +2925,22 @@ def import_users_from_excel_api(request):
         # Read file content
         file_content = excel_file.read()
         
+        # Determine if we need to force org for org admins
+        from cms.djangoapps.contentstore.chalix_roles import is_co_quan_user, get_user_primary_role
+        force_org = None
+        if is_co_quan_user(request.user):
+            # Org admins should assign all imported users to their org
+            primary_role = get_user_primary_role(request.user)
+            if primary_role and primary_role.organization:
+                force_org = primary_role.organization
+        
         # Import users
-        result = import_users_from_excel(file_content, request.user)
+        result = import_users_from_excel(file_content, request.user, force_org)
         
         # Log the import operation
+        org_info = f" to org '{force_org.display_name}'" if force_org else ""
         logger.info(
-            f"[CHALIX] User {request.user.username} imported users from Excel. "
+            f"[CHALIX] User {request.user.username} imported users from Excel{org_info}. "
             f"Success: {result['successful_imports']}, Failed: {result['failed_imports']}"
         )
         

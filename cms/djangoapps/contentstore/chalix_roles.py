@@ -237,8 +237,8 @@ def is_cong_chuc_user(user: User) -> bool:
 
 
 def can_import_users(user: User) -> bool:
-    """Check if user can import users via Excel (only bo role)"""
-    return is_bo_user(user)
+    """Check if user can import users via Excel (bo and co_quan roles)"""
+    return is_bo_user(user) or is_co_quan_user(user)
 
 
 def can_manage_courses(user: User) -> bool:

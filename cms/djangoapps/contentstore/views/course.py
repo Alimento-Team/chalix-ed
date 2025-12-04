@@ -2112,7 +2112,15 @@ def get_allowed_organizations_for_libraries(user):
 def user_can_create_organizations(user):
     """
     Returns True if the user can create organizations.
+    Only bo (ministry) users can create orgs, not co_quan (org admins).
     """
+    # Import here to avoid circular dependency
+    from cms.djangoapps.contentstore.chalix_roles import is_bo_user, is_co_quan_user
+    
+    # If user is org admin (co_quan), they cannot create orgs
+    if is_co_quan_user(user) and not is_bo_user(user):
+        return False
+    
     return user.is_staff or not settings.FEATURES.get('ENABLE_CREATOR_GROUP', False)
 
 
