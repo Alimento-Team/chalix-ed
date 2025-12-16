@@ -64,7 +64,7 @@ from openedx.features.enterprise_support.api import (
     get_enterprise_learner_data_from_db,
 )
 from openedx.features.course_experience import course_home_url
-from lms.djangoapps.courseware.courses import get_course_progress_url as course_progress_url
+from lms.djangoapps.learner_home.utils import course_progress_url
 
 logger = logging.getLogger(__name__)
 
