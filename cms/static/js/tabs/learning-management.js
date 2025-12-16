@@ -2229,6 +2229,12 @@
                                         <span class="lm-detail-label">Loại khóa học:</span>
                                         <span class="lm-detail-value">${escapeHtml(course.course_type || course.courseType || course.type || normalizedCourseType || 'Chưa phân loại')}</span>
                                     </div>
+                                    ${course.creator_role === 'bo' && course.course_category ? `
+                                    <div class="lm-detail-row">
+                                        <span class="lm-detail-label">Loại khoá học (CC, VC Bộ):</span>
+                                        <span class="lm-detail-value">${course.course_category === 'elective' ? 'Khóa học tự chọn CC, VC Bộ' : course.course_category === 'mandatory' ? 'Khóa học bắt buộc cho CC, VC Bộ' : escapeHtml(course.course_category)}</span>
+                                    </div>
+                                    ` : ''}
                                     <div class="lm-detail-row">
                                         <span class="lm-detail-label">Mô tả:</span>
                                         <span class="lm-detail-value">${escapeHtml(course.short_description || 'Chưa có mô tả')}</span>
@@ -2586,6 +2592,16 @@
                             </div>
                         </div>
 
+                        <div class="lm-form-group" id="course-category-group" style="${course.creator_role === 'bo' ? '' : 'display: none;'}">
+                            <label class="lm-form-label" for="course-category">Loại khoá học (cho CC, VC Bộ)</label>
+                            <select id="course-category" name="course_category" class="lm-form-input">
+                                <option value="">Chọn loại khoá học...</option>
+                                <option value="elective" ${course.course_category === 'elective' ? 'selected' : ''}>Khóa học tự chọn CC, VC Bộ</option>
+                                <option value="mandatory" ${course.course_category === 'mandatory' ? 'selected' : ''}>Khóa học bắt buộc cho CC, VC Bộ</option>
+                            </select>
+                            <small class="lm-form-help">Chọn loại để xác định khóa học hiển thị trong danh sách nào</small>
+                        </div>
+
                         <div class="lm-form-group">
                             <label class="lm-form-label" for="course-estimated-hours">Thời lượng ước tính (giờ)</label>
                             <input type="number" min="0" id="course-estimated-hours" name="estimated_hours" class="lm-form-input"
@@ -2720,6 +2736,7 @@
             short_description: formData.get('short_description'),
             course_type: formData.get('course_type'),
             course_level: formData.get('course_level'),
+            course_category: formData.get('course_category') || null,
             duration: formData.get('duration'),
             estimated_hours: formData.get('estimated_hours') ? Number(formData.get('estimated_hours')) : null,
             online_course_link: formData.get('online_course_link') || '',

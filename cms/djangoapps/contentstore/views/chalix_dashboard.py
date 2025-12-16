@@ -1396,92 +1396,127 @@ def course_detail_api_get(request, course_key):
                 'created_by': None,
                 'created_at': course_data.get('created', '')
             })
+        
+        # Try to get course_category and is_mandatory_course from ChalixCourseMetadata
+        try:
+            from cms.djangoapps.contentstore.models import ChalixCourseMetadata
+            chalix_metadata = ChalixCourseMetadata.objects.filter(course_id=course_key).first()
+            if chalix_metadata:
+                course_data.update({
+                    'course_category': chalix_metadata.course_category,
+                    'is_mandatory_course': chalix_metadata.is_mandatory_course,
+                    'creator_role': chalix_metadata.creator_role,
+                    'is_public': chalix_metadata.is_public
+                })
+                logger.info(f"ChalixCourseMetadata found for {course_key}: category={chalix_metadata.course_category}, mandatory={chalix_metadata.is_mandatory_course}")
+            else:
+                logger.info(f"No ChalixCourseMetadata found for {course_key}")
+                course_data.update({
+                    'course_category': None,
+                    'is_mandatory_course': False,
+                    'creator_role': None,
+                    'is_public': False
+                })
+        except Exception as e:
+            logger.error(f"Error getting ChalixCourseMetadata for {course_key}: {e}")
+            course_data.update({
+                'course_category': None,
+                'is_mandatory_course': False,
+                'creator_role': None,
+                'is_public': False
+            })
 
         
-        # Add course structure (chapters/sections as units)
+        # Add course structure (chapters/sections as topics/units)
         try:
             import logging
             logger = logging.getLogger(__name__)
             
-            # Get course structure more robustly
+            # Get course structure - chapters are the top level containers
             chapters = course.get_children() if hasattr(course, 'get_children') else []
-            units = []
+            topics = []  # Renamed from units to topics for clarity (these are subsections)
             
             logger.info(f"Course {course_key} - course type: {type(course)}")
             logger.info(f"Course {course_key} has {len(chapters)} chapters")
             
             if chapters:
                 for i, chapter in enumerate(chapters):
-                    logger.info(f"Chapter {i}: type={type(chapter)}, display_name={getattr(chapter, 'display_name', 'N/A')}, location={getattr(chapter, 'location', 'N/A')}")
+                    logger.info(f"Chapter {i}: type={type(chapter)}, display_name={getattr(chapter, 'display_name', 'N/A')}, location={getattr(chapter, 'location', 'N/A')}, category={getattr(chapter, 'category', 'N/A')}")
                     
-                    if hasattr(chapter, 'display_name') and chapter.display_name:
-                        # Check if this looks like template data but be less aggressive
-                        is_template_data = (
-                            'template' in chapter.display_name.lower() or
-                            chapter.display_name.lower().strip() in ['sample', 'example', 'demo']
-                        )
-                        
-                        if is_template_data:
-                            logger.warning(f"Skipping template chapter: {chapter.display_name}")
-                            continue
-                        
-                        # Get subsections and add them directly as units (skip the chapter level)
-                        if hasattr(chapter, 'get_children'):
-                            try:
-                                chapter_children = chapter.get_children()
-                                logger.info(f"Chapter '{chapter.display_name}' has {len(chapter_children)} subsections")
+                    # Skip chapters that don't have a display name or are template data
+                    if not hasattr(chapter, 'display_name') or not chapter.display_name:
+                        logger.warning(f"Skipping chapter without display_name")
+                        continue
+                    
+                    # Check if this looks like template data but be less aggressive
+                    is_template_data = (
+                        'template' in chapter.display_name.lower() or
+                        chapter.display_name.lower().strip() in ['sample', 'example', 'demo']
+                    )
+                    
+                    if is_template_data:
+                        logger.warning(f"Skipping template chapter: {chapter.display_name}")
+                        continue
+                    
+                    # Get subsections (sequentials) - these are the actual "topics" (Chuyên đề)
+                    if hasattr(chapter, 'get_children'):
+                        try:
+                            subsections = chapter.get_children()
+                            logger.info(f"Chapter '{chapter.display_name}' has {len(subsections)} subsections")
+                            
+                            for j, subsection in enumerate(subsections):
+                                logger.info(f"  Subsection {j}: type={type(subsection)}, display_name={getattr(subsection, 'display_name', 'N/A')}, category={getattr(subsection, 'category', 'N/A')}")
                                 
-                                for subsection in chapter_children:
-                                    if hasattr(subsection, 'display_name') and subsection.display_name:
-                                        # Add each subsection as a separate unit
-                                        unit_data = {
-                                            'title': subsection.display_name,
-                                            'name': subsection.display_name,
-                                            'description': getattr(subsection, 'short_description', '') or 'Chưa có mô tả',
-                                            'chapter': chapter.display_name  # Keep reference to parent chapter
-                                        }
-                                        units.append(unit_data)
-                                        logger.info(f"Added unit: {unit_data['title']} from chapter: {chapter.display_name}")
-                            except Exception as e:
-                                logger.error(f"Error getting subsections for chapter '{chapter.display_name}': {e}")
-                        else:
-                            # If no subsections, add the chapter itself as a unit
-                            unit_data = {
-                                'title': chapter.display_name,
-                                'name': chapter.display_name,
-                                'description': getattr(chapter, 'short_description', '') or 'Chưa có mô tả',
-                                'chapter': chapter.display_name
-                            }
-                            units.append(unit_data)
-                            logger.info(f"Added chapter as unit: {unit_data['title']}")
+                                # Subsections (sequentials) are the topics (Chuyên đề) that should appear in the list
+                                if hasattr(subsection, 'display_name') and subsection.display_name:
+                                    # Try to get description from multiple sources
+                                    description = ''
+                                    if hasattr(subsection, 'short_description') and subsection.short_description:
+                                        description = subsection.short_description
+                                    elif hasattr(subsection, 'description') and subsection.description:
+                                        description = subsection.description
+                                    else:
+                                        # Try to get description from metadata
+                                        try:
+                                            if hasattr(subsection, 'fields') and 'metadata' in subsection.fields:
+                                                metadata = subsection.fields.get('metadata', {})
+                                                description = metadata.get('short_description', '') or metadata.get('description', '')
+                                        except:
+                                            pass
+                                    
+                                    topic_data = {
+                                        'title': subsection.display_name,
+                                        'name': subsection.display_name,
+                                        'description': description or 'Chưa có mô tả',
+                                        'chapter': chapter.display_name,  # Keep reference to parent chapter
+                                        'category': getattr(subsection, 'category', 'sequential'),  # Should be 'sequential'
+                                        'location': str(getattr(subsection, 'location', ''))
+                                    }
+                                    topics.append(topic_data)
+                                    logger.info(f"  Added topic: '{topic_data['title']}' from chapter: '{chapter.display_name}'")
+                                else:
+                                    logger.warning(f"  Subsection has no display_name: {subsection}")
+                        except Exception as e:
+                            logger.error(f"Error getting subsections for chapter '{chapter.display_name}': {e}", exc_info=True)
+                    else:
+                        logger.warning(f"Chapter '{chapter.display_name}' has no get_children method")
             else:
                 # No chapters found - this might be a newly created course
-                logger.warning(f"Course {course_key} has no chapters. This might be a new course.")
-                units = []
+                logger.warning(f"Course {course_key} has no chapters. This might be a new course or an empty course.")
             
-            # If no real content found (empty or only template data), provide a helpful default
-            if not units:
-                logger.info(f"No real course content found for {course_key}, providing default structure")
-                units = [{
-                    'title': 'Chưa có nội dung',
-                    'name': 'Chưa có nội dung',
-                    'description': 'Khóa học này chưa có chương và bài học. Vui lòng vào Studio để thêm nội dung.',
-                    'chapter': 'Chưa có chương'
-                }]
+            # Set the units field with the topics
+            course_data['units'] = topics
+            logger.info(f"Course {course_key} topics/units loaded: {len(topics)} topics")
             
-            course_data['units'] = units
-            logger.info(f"Course {course_key} units loaded: {len(units)} units")
+            # If no topics found, provide empty array (don't add fake data)
+            if not topics:
+                logger.info(f"No topics found for course {course_key}. Course may be empty or have only chapters without subsections.")
             
         except Exception as e:
             import logging
             logger = logging.getLogger(__name__)
-            logger.error(f"Could not load course units for {course_key}: {str(e)}", exc_info=True)
-            course_data['units'] = [{
-                'title': 'Lỗi tải nội dung',
-                'name': 'Lỗi tải nội dung',
-                'description': f'Không thể tải danh sách chương: {str(e)}',
-                'subsections': []
-            }]
+            logger.error(f"Could not load course topics for {course_key}: {str(e)}", exc_info=True)
+            course_data['units'] = []
         
         return JsonResponse(course_data)
         
@@ -1687,6 +1722,32 @@ def update_course_api(request):
         # Log the successful update
         logger.info(f"Course updated successfully: course_type='{getattr(updated_block, 'course_type', '')}', course_level='{getattr(updated_block, 'course_level', '')}'")
         
+        # Update course_category in ChalixCourseMetadata if provided (for Bo role courses)
+        course_category = payload.get('course_category', None)
+        if course_category is not None:
+            try:
+                from cms.djangoapps.contentstore.models import ChalixCourseMetadata
+                chalix_metadata, created = ChalixCourseMetadata.objects.get_or_create(
+                    course_id=course_key,
+                    defaults={
+                        'creator': request.user,
+                        'creator_role': None,
+                        'creator_organization': None,
+                        'is_public': False
+                    }
+                )
+                
+                # Update course_category if it's different
+                if chalix_metadata.course_category != course_category:
+                    chalix_metadata.course_category = course_category
+                    # Update is_mandatory_course based on category
+                    chalix_metadata.is_mandatory_course = (course_category == 'mandatory')
+                    chalix_metadata.save()
+                    logger.info(f"Updated ChalixCourseMetadata for {course_key}: category={course_category}, mandatory={chalix_metadata.is_mandatory_course}")
+                    
+            except Exception as e:
+                logger.warning(f"Failed to update ChalixCourseMetadata course_category for {course_key}: {e}")
+        
         return JsonResponse({
             'course_key': str(course_key),
             'title': updated_course_details.title,
@@ -1696,6 +1757,7 @@ def update_course_api(request):
             'short_description': updated_course_details.short_description,
             'course_type': getattr(updated_block, 'course_type', ''),
             'course_level': getattr(updated_block, 'course_level', ''),
+            'course_category': course_category if course_category is not None else '',
             'online_course_link': getattr(updated_course_details, 'online_course_link', ''),
             'instructor': getattr(updated_course_details, 'instructor', ''),
             'estimated_hours': getattr(updated_course_details, 'estimated_hours', 0),

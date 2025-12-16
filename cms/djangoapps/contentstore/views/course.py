@@ -1197,6 +1197,12 @@ def create_new_course(user, org, number, run, fields):
         # Use course_category if available, otherwise fall back to publish_type
         category = course_category or publish_type
         
+        # For Bo role courses, default to 'elective' if no category specified
+        # This ensures they appear in the correct ministry/common courses section
+        if creator_role == 'bo' and not category:
+            category = 'elective'
+            log.info("Defaulting Bo role course %s to 'elective' category", new_course.id)
+        
         # Set is_mandatory_course based on category
         is_mandatory = (category == 'mandatory') if category else False
         

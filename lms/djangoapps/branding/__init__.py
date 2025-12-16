@@ -96,20 +96,27 @@ def get_visible_courses(org=None, filter_=None, active_only=False, course_keys=N
                     metadata = course_metadata.get(course_id)
                     
                     if not metadata:
-                        # No metadata: show course (backwards compatibility)
+                        # No metadata: show course to all users (backwards compatibility)
+                        # This ensures courses created before metadata system still appear
                         visible_course_ids.append(course_id)
+                        logger.debug(f"Course {course_id} has no metadata, showing to all users")
                         continue
                     
                     # Rule 1: Public courses (is_public=True, typically bo role courses) are visible to everyone
                     if metadata.is_public:
                         visible_course_ids.append(course_id)
+                        logger.debug(f"Course {course_id} is public, showing to all users")
                         continue
                     
                     # Rule 2: Private courses (is_public=False) are only visible to users from the same organization
                     if user_org and metadata.creator_organization:
                         if user_org.pk == metadata.creator_organization.pk:
                             visible_course_ids.append(course_id)
+                            logger.debug(f"Course {course_id} is private, showing to org {user_org.name} members")
                             continue
+                    
+                    # If no rules matched, course is not visible to this user
+                    logger.debug(f"Course {course_id} not visible to user {user.username}")
                 
                 # Filter the courses queryset to only include visible courses
                 courses = courses.filter(id__in=visible_course_ids)

@@ -63,6 +63,8 @@ from openedx.features.enterprise_support.api import (
     enterprise_customer_from_session_or_learner_data,
     get_enterprise_learner_data_from_db,
 )
+from openedx.features.course_experience import course_home_url
+from lms.djangoapps.courseware.courses import get_course_progress_url as course_progress_url
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +107,7 @@ def filter_enrollments_by_chalix_metadata(enrollments, user, filter_type=None):
         enrollments: List of CourseEnrollment objects
         user: The learner user
         filter_type: Type of filter to apply:
+            - 'all_visible': Return all visible courses (Bo public + same org courses) - for AI suggested
             - 'mandatory': Return courses with course_category='mandatory' or is_mandatory_course=True
             - 'elective': Return courses with course_category='elective'
             - 'organization': Return organization-specific courses (is_public=False, same org)
@@ -136,7 +139,19 @@ def filter_enrollments_by_chalix_metadata(enrollments, user, filter_type=None):
             try:
                 metadata = ChalixCourseMetadata.objects.get(course_id=enrollment.course_id)
                 
-                if filter_type == 'mandatory':
+                if filter_type == 'all_visible':
+                    # AI suggested: Show all visible courses
+                    # Rule 1: Public courses (Bo role) are visible to everyone
+                    if metadata.is_public:
+                        filtered_enrollments.append(enrollment)
+                        continue
+                    # Rule 2: Private courses are visible to same organization members
+                    if not metadata.is_public and user_org and metadata.creator_organization:
+                        if metadata.creator_organization.id == user_org.id:
+                            filtered_enrollments.append(enrollment)
+                            continue
+                
+                elif filter_type == 'mandatory':
                     # Filter: mandatory courses (course_category='mandatory' or is_mandatory_course=True)
                     if metadata.course_category == 'mandatory' or metadata.is_mandatory_course:
                         filtered_enrollments.append(enrollment)
@@ -148,14 +163,18 @@ def filter_enrollments_by_chalix_metadata(enrollments, user, filter_type=None):
                 
                 elif filter_type == 'organization':
                     # Filter: organization-specific courses (not public, same organization)
-                    if not metadata.is_public and user_org:
-                        if metadata.creator_organization_id == user_org.id:
+                    # This shows courses created by users from the same organization that are NOT public
+                    if not metadata.is_public and user_org and metadata.creator_organization:
+                        if metadata.creator_organization.id == user_org.id:
                             filtered_enrollments.append(enrollment)
+                            logger.debug(f"Including org course {enrollment.course_id} for user {user.username}")
                 
                 elif filter_type == 'ministry':
                     # Filter: public ministry courses (is_public=True)
+                    # These are courses created by Bo role (ministry level) visible to all learners
                     if metadata.is_public:
                         filtered_enrollments.append(enrollment)
+                        logger.debug(f"Including ministry course {enrollment.course_id} for user {user.username}")
                 
                 elif filter_type == 'teaching':
                     # Filter: courses where user is instructor or staff
@@ -167,7 +186,7 @@ def filter_enrollments_by_chalix_metadata(enrollments, user, filter_type=None):
                 
             except ChalixCourseMetadata.DoesNotExist:
                 # Course has no metadata - include it by default for backward compatibility
-                if filter_type in ['all', 'ministry', None]:
+                if filter_type in ['all', 'all_visible', 'ministry', None]:
                     # Assume courses without metadata are visible to all
                     filtered_enrollments.append(enrollment)
             except Exception as e:
@@ -673,115 +692,5 @@ class InitializeView(APIView):  # pylint: disable=unused-argument
         return Response(response_data)
 
 
-class AvailableCoursesView(APIView):
-    """
-    API endpoint to get available courses for the learner based on Chalix visibility rules.
-    Returns courses that the user CAN see but is NOT enrolled in, along with platform settings.
-    """
-    
-    authentication_classes = (
-        JwtAuthentication,
-        BearerAuthenticationAllowInactiveUser,
-        SessionAuthenticationAllowInactiveUser,
-    )
-    permission_classes = (IsAuthenticated, NotJwtRestrictedApplication)
-
-    def get(self, request, *args, **kwargs):
-        """Get available courses filtered by Chalix visibility rules"""
-        user = request.user
-        
-        try:
-            # Import branding to use get_visible_courses with Chalix filtering
-            from lms.djangoapps import branding
-            
-            # Get all visible courses for this user (applies Chalix filtering)
-            all_visible_courses = branding.get_visible_courses(user=user)
-            
-            # Get user's enrolled course IDs
-            site_org_whitelist, site_org_blacklist = get_org_block_and_allow_lists()
-            enrolled_courses = list(get_course_enrollments(user, site_org_whitelist, site_org_blacklist))
-            enrolled_course_ids = {enrollment.course_id for enrollment in enrolled_courses}
-            
-            # Filter out enrolled courses - only show unenrolled courses
-            available_courses = [
-                course for course in all_visible_courses 
-                if course.id not in enrolled_course_ids
-            ]
-            
-            # Serialize course data with enrollment-like structure
-            courses_data = []
-            for course in available_courses:
-                # Create a mock enrollment structure for available (unenrolled) courses
-                course_data = {
-                    'auditAccessExpirationDate': None,
-                    'certificate': {},
-                    'courseProvider': None,
-                    'courseRun': {
-                        'courseId': str(course.id),
-                        'displayName': course.display_name,
-                        'homeUrl': f'/courses/{course.id}/course/',
-                        'marketingUrl': get_link_for_about_page(course),
-                        'endDate': course.end,
-                        'startDate': course.start,
-                        'courseImageUrl': course.course_image_url,
-                        'progressUrl': f'/learning-mfe/progress/{course.id}/',
-                        'resumeUrl': f'/courses/{course.id}/course/',
-                    },
-                    'course': {
-                        'bannerImgSrc': '',
-                        'courseName': course.display_name,
-                        'courseNumber': course.number if hasattr(course, 'number') else '',
-                        'org': course.org,
-                    },
-                    'enrollment': {
-                        'accessExpirationDate': None,
-                        'canUpgrade': False,
-                        'created': None,
-                        'isAudit': True,
-                        'isAuditAccessExpired': False,
-                        'isEmailEnabled': False,
-                        'isEnrolled': False,  # Mark as not enrolled for available courses
-                        'lastEnrolled': None,
-                        'mode': None,
-                        'isVerified': False,
-                        'coursewareAccess': {
-                            'hasAccess': True,
-                            'isStaff': False,
-                            'hasUnmetPrereqs': False,
-                            'isTooEarly': False,
-                        },
-                    },
-                    'entitlements': [],
-                    'gradeData': {
-                        'isPassing': False,
-                    },
-                    'programs': {
-                        'relatedPrograms': [],
-                    },
-                    'isAvailable': True,  # Custom flag to identify available courses
-                }
-                courses_data.append(course_data)
-            
-            # Include platform settings and other required data for compatibility
-            learner_dash_data = {
-                'enrollments': courses_data,  # Use enrollments structure for compatibility
-                'emailConfirmation': get_user_account_confirmation_info(user),
-                'platformSettings': get_platform_settings(),
-                'unfulfilledEntitlements': [],
-                'socialShareSettings': get_social_share_settings(),
-                'suggestedCourses': [],
-            }
-            
-            return Response(learner_dash_data)
-            
-        except Exception as e:
-            logger.error(f"Error getting available courses for user {user.username}: {e}")
-            return Response({
-                'enrollments': [],
-                'emailConfirmation': get_user_account_confirmation_info(user),
-                'platformSettings': get_platform_settings(),
-                'unfulfilledEntitlements': [],
-                'socialShareSettings': get_social_share_settings(),
-                'suggestedCourses': [],
-                'error': str(e)
-            }, status=500)
+# Note: AvailableCoursesView removed - AI suggested section now uses 'all_visible' filter
+# which shows all visible courses regardless of enrollment status

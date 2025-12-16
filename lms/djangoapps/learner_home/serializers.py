@@ -74,6 +74,8 @@ class CourseSerializer(serializers.Serializer):
     socialShareUrl = serializers.SerializerMethodField()
     courseCategory = serializers.SerializerMethodField()
     publishType = serializers.SerializerMethodField()  # Keep for backwards compatibility
+    isPublic = serializers.SerializerMethodField()  # Added to help frontend identify course visibility
+    creatorRole = serializers.SerializerMethodField()  # Added to help frontend identify Bo vs org courses
 
     def get_socialShareUrl(self, instance):
         return self.context.get("course_share_urls", {}).get(instance.id)
@@ -94,6 +96,24 @@ class CourseSerializer(serializers.Serializer):
             metadata = ChalixCourseMetadata.objects.filter(course_id=instance.id).first()
             # Return course_category for backwards compatibility
             return metadata.course_category if metadata else None
+        except Exception:
+            return None
+    
+    def get_isPublic(self, instance):
+        """Check if course is public (Bo role) or private (org role)"""
+        try:
+            from cms.djangoapps.contentstore.models import ChalixCourseMetadata
+            metadata = ChalixCourseMetadata.objects.filter(course_id=instance.id).first()
+            return metadata.is_public if metadata else None
+        except Exception:
+            return None
+    
+    def get_creatorRole(self, instance):
+        """Get the creator role to identify Bo vs org courses"""
+        try:
+            from cms.djangoapps.contentstore.models import ChalixCourseMetadata
+            metadata = ChalixCourseMetadata.objects.filter(course_id=instance.id).first()
+            return metadata.creator_role if metadata else None
         except Exception:
             return None
 

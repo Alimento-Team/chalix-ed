@@ -14,7 +14,7 @@ app_name = "learner_home"
 # Learner Dashboard Routing
 urlpatterns = [
     re_path(r"^init/?", views.InitializeView.as_view(), name="initialize"),
-    re_path(r"^available_courses/?", views.AvailableCoursesView.as_view(), name="available_courses"),
+    # Note: available_courses endpoint removed - all filtering now done via init endpoint with filter_type parameter
     path("mock/", include("lms.djangoapps.learner_home.mock.urls")),
     path("", include(rest_api_urls)),
 ]
