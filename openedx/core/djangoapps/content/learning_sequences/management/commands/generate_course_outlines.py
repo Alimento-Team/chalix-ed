@@ -2,10 +2,10 @@
 Management command to generate LearningContext and CourseOutline for courses.
 """
 import logging
+import sys
 from django.core.management.base import BaseCommand
 from opaque_keys.edx.keys import CourseKey
 from xmodule.modulestore.django import modulestore
-from openedx.core.djangoapps.content.learning_sequences.api import replace_course_outline
 
 log = logging.getLogger(__name__)
 
@@ -81,17 +81,22 @@ class Command(BaseCommand):
                     self.stdout.write(f'✓ Skipping {course_key} (already has outline)')
                     continue
             
-            # Generate outline
+            # Generate outline by triggering course publish
             try:
-                replace_course_outline(course_key)
+                from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
+                # Regenerate the CourseOverview which triggers outline creation
+                CourseOverview.load_from_module_store(course_key)
                 self.stdout.write(self.style.SUCCESS(
                     f'✓ Generated outline for {course_key}'
                 ))
                 success_count += 1
             except Exception as e:
+                import traceback
                 self.stdout.write(self.style.ERROR(
                     f'✗ Failed to generate outline for {course_key}: {e}'
                 ))
+                if force or '--verbose' in sys.argv or '-v' in sys.argv:
+                    traceback.print_exc()
                 error_count += 1
         
         # Summary

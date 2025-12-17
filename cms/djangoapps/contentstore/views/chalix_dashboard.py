@@ -833,6 +833,9 @@ def list_local_courses_api(request):
                 'thumbnail': getattr(course_overview, 'course_image_url', ''),
                 'start_date': course_overview.start.isoformat() if hasattr(course_overview, 'start') and course_overview.start else None,
                 'end_date': course_overview.end.isoformat() if hasattr(course_overview, 'end') and course_overview.end else None,
+                'course_category': None,  # Will be populated from metadata
+                'creator_role': None,  # Will be populated from metadata
+                'is_public': None,  # Will be populated from metadata
             }
             # Try to enrich with additional fields stored on the modulestore course block
             try:
@@ -864,6 +867,17 @@ def list_local_courses_api(request):
                         formatted_course['course_level'] = getattr(block, 'course_level', '')
             except Exception:
                 # If enrichment fails, continue without the extra fields
+                pass
+            
+            # Get ChalixCourseMetadata fields
+            try:
+                metadata = ChalixCourseMetadata.objects.filter(course_id=course_key).first()
+                if metadata:
+                    formatted_course['course_category'] = metadata.course_category
+                    formatted_course['creator_role'] = metadata.creator_role
+                    formatted_course['is_public'] = metadata.is_public
+            except Exception:
+                # If metadata fetch fails, leave fields as None
                 pass
 
             formatted_courses.append(formatted_course)
