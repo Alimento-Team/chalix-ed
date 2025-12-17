@@ -871,13 +871,21 @@ def list_local_courses_api(request):
             
             # Get ChalixCourseMetadata fields
             try:
+                import logging
+                logger = logging.getLogger(__name__)
                 metadata = ChalixCourseMetadata.objects.filter(course_id=course_key).first()
                 if metadata:
                     formatted_course['course_category'] = metadata.course_category
                     formatted_course['creator_role'] = metadata.creator_role
                     formatted_course['is_public'] = metadata.is_public
-            except Exception:
+                    logger.debug(f"Found metadata for {course_key}: category={metadata.course_category}, role={metadata.creator_role}, public={metadata.is_public}")
+                else:
+                    logger.warning(f"No metadata found for {course_key}")
+            except Exception as e:
                 # If metadata fetch fails, leave fields as None
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"Error fetching metadata for {course_key}: {e}", exc_info=True)
                 pass
 
             formatted_courses.append(formatted_course)
@@ -1279,6 +1287,40 @@ def course_detail_api(request, course_key_string):
             # Use CourseDetails.update_from_json to handle the update properly
             # This method handles date parsing and all field updates correctly
             updated_details = CourseDetails.update_from_json(course_key, data, request.user)
+            
+            # Update ChalixCourseMetadata if metadata fields are provided
+            metadata_fields = ['course_category', 'creator_role', 'is_public', 'is_mandatory_course']
+            if any(field in data for field in metadata_fields):
+                try:
+                    metadata, created = ChalixCourseMetadata.objects.get_or_create(
+                        course_id=course_key,
+                        defaults={
+                            'creator': request.user,
+                            'creator_role': 'bo',
+                            'is_public': True,
+                            'course_category': 'elective',
+                        }
+                    )
+                    
+                    # Update metadata fields if provided
+                    if 'course_category' in data:
+                        metadata.course_category = data['course_category']
+                        logger.info(f"Updating course_category to: {data['course_category']}")
+                    if 'creator_role' in data:
+                        metadata.creator_role = data['creator_role']
+                        logger.info(f"Updating creator_role to: {data['creator_role']}")
+                    if 'is_public' in data:
+                        metadata.is_public = data['is_public']
+                        logger.info(f"Updating is_public to: {data['is_public']}")
+                    if 'is_mandatory_course' in data:
+                        metadata.is_mandatory_course = data['is_mandatory_course']
+                        logger.info(f"Updating is_mandatory_course to: {data['is_mandatory_course']}")
+                    
+                    metadata.save()
+                    logger.info(f"Successfully {'created' if created else 'updated'} metadata for {course_key_string}")
+                    
+                except Exception as e:
+                    logger.error(f"Error updating metadata for {course_key_string}: {e}", exc_info=True)
             
             logger.info(f"Successfully updated course details for {course_key_string}")
             
