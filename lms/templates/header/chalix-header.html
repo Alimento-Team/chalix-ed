@@ -6,6 +6,8 @@
 <%namespace file='../main.html' import="login_query" />
 <%! from django.urls import reverse
 from django.utils.translation import gettext as _
+from web_fragments.fragment import Fragment
+from openedx.core.djangolib.markup import HTML, Text
 import waffle
 from lms.djangoapps.ccx.overrides import get_current_ccx
 from openedx.core.djangoapps.lang_pref.api import header_language_selector_is_enabled, released_languages

@@ -85,8 +85,13 @@ class CourseSerializer(serializers.Serializer):
         try:
             from cms.djangoapps.contentstore.models import ChalixCourseMetadata
             metadata = ChalixCourseMetadata.objects.filter(course_id=instance.id).first()
-            return metadata.course_category if metadata else None
-        except Exception:
+            if metadata:
+                return metadata.course_category
+            return None
+        except Exception as e:
+            import logging
+            log = logging.getLogger(__name__)
+            log.warning(f"Failed to get course_category for {instance.id}: {e}")
             return None
     
     def get_publishType(self, instance):
@@ -94,9 +99,14 @@ class CourseSerializer(serializers.Serializer):
         try:
             from cms.djangoapps.contentstore.models import ChalixCourseMetadata
             metadata = ChalixCourseMetadata.objects.filter(course_id=instance.id).first()
-            # Return course_category for backwards compatibility
-            return metadata.course_category if metadata else None
-        except Exception:
+            if metadata:
+                # Return course_category for backwards compatibility
+                return metadata.course_category
+            return None
+        except Exception as e:
+            import logging
+            log = logging.getLogger(__name__)
+            log.warning(f"Failed to get publishType for {instance.id}: {e}")
             return None
     
     def get_isPublic(self, instance):
@@ -104,8 +114,13 @@ class CourseSerializer(serializers.Serializer):
         try:
             from cms.djangoapps.contentstore.models import ChalixCourseMetadata
             metadata = ChalixCourseMetadata.objects.filter(course_id=instance.id).first()
-            return metadata.is_public if metadata else None
-        except Exception:
+            if metadata:
+                return metadata.is_public
+            return None
+        except Exception as e:
+            import logging
+            log = logging.getLogger(__name__)
+            log.warning(f"Failed to get isPublic for {instance.id}: {e}")
             return None
     
     def get_creatorRole(self, instance):
@@ -113,8 +128,13 @@ class CourseSerializer(serializers.Serializer):
         try:
             from cms.djangoapps.contentstore.models import ChalixCourseMetadata
             metadata = ChalixCourseMetadata.objects.filter(course_id=instance.id).first()
-            return metadata.creator_role if metadata else None
-        except Exception:
+            if metadata:
+                return metadata.creator_role
+            return None
+        except Exception as e:
+            import logging
+            log = logging.getLogger(__name__)
+            log.warning(f"Failed to get creatorRole for {instance.id}: {e}")
             return None
 
 

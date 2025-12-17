@@ -1141,6 +1141,17 @@
             if (course.estimated_hours !== undefined && course.estimated_hours !== null) {
                 card.dataset.estimatedHours = course.estimated_hours;
             }
+            // Store metadata fields for edit modal
+            if (course.course_category) {
+                card.dataset.courseCategory = course.course_category;
+            }
+            if (course.creator_role) {
+                card.dataset.creatorRole = course.creator_role;
+            }
+            // Store units array as JSON string for edit modal
+            if (course.units && Array.isArray(course.units)) {
+                card.dataset.units = JSON.stringify(course.units);
+            }
             
             // Use course.id when available, otherwise fall back to course_key (OpenEDX identifier)
             const courseIdentifier = (course.id !== undefined && course.id !== null) ? course.id : course.course_key;
@@ -1869,6 +1880,13 @@
                     } else {
                         item.dataset.estimatedHours = '';
                     }
+                    // Update metadata fields for edit modal
+                    if (courseData.course_category !== undefined) item.dataset.courseCategory = courseData.course_category || '';
+                    if (courseData.creator_role !== undefined) item.dataset.creatorRole = courseData.creator_role || '';
+                    // Update units array as JSON string
+                    if (courseData.units !== undefined) {
+                        item.dataset.units = Array.isArray(courseData.units) ? JSON.stringify(courseData.units) : '[]';
+                    }
                 } catch (e) {
                     console.warn('Failed to update card dataset', e);
                 }
@@ -2142,6 +2160,19 @@
                 // Prefer course_type stored on the DOM dataset (set when rendering/updating cards)
                 const courseTypeFromDataset = card.dataset.courseType || '';
                 const courseLevel = card.dataset.courseLevel || '';
+                const courseCategory = card.dataset.courseCategory || '';
+                const creatorRole = card.dataset.creatorRole || '';
+                
+                // Parse units from JSON string if available
+                let unitsArray = [];
+                if (card.dataset.units) {
+                    try {
+                        unitsArray = JSON.parse(card.dataset.units);
+                    } catch (e) {
+                        console.warn('Failed to parse units from dataset:', e);
+                        unitsArray = [];
+                    }
+                }
                 
                 // meta format: "ID: <id> • <course_type> • <course_level>" (course_type/level optional)
                 const metaParts = meta.split('•').map(p => p.trim()).filter(Boolean);
@@ -2171,10 +2202,12 @@
                         short_description: desc === 'Chưa có mô tả' ? '' : desc,
                         course_type: courseTypeFromDataset || courseTypeFromMeta || '',
                         course_level: courseLevel || courseLevelFromMeta || '',
-                        units: [], // Initialize empty units array
+                        units: unitsArray,
                         online_course_link: onlineLink,
                         instructor: instructor,
-                        estimated_hours: estimatedHours
+                        estimated_hours: estimatedHours,
+                        course_category: courseCategory,
+                        creator_role: creatorRole
                     });
                 }
             }
@@ -2592,14 +2625,14 @@
                             </div>
                         </div>
 
-                        <div class="lm-form-group" id="course-category-group" style="${course.creator_role === 'bo' ? '' : 'display: none;'}">
+                        <div class="lm-form-group" id="course-category-group">
                             <label class="lm-form-label" for="course-category">Loại khoá học (cho CC, VC Bộ)</label>
                             <select id="course-category" name="course_category" class="lm-form-input">
                                 <option value="">Chọn loại khoá học...</option>
                                 <option value="elective" ${course.course_category === 'elective' ? 'selected' : ''}>Khóa học tự chọn CC, VC Bộ</option>
                                 <option value="mandatory" ${course.course_category === 'mandatory' ? 'selected' : ''}>Khóa học bắt buộc cho CC, VC Bộ</option>
                             </select>
-                            <small class="lm-form-help">Chọn loại để xác định khóa học hiển thị trong danh sách nào</small>
+                            <small class="lm-form-help">Chọn loại để xác định khóa học hiển thị trong danh sách nào. Áp dụng cho tài khoản Bộ.</small>
                         </div>
 
                         <div class="lm-form-group">
@@ -2634,14 +2667,14 @@
                             <label class="lm-form-label">Chuyên đề</label>
                             <div class="lm-topics-editor" id="units-editor">
                                 <div id="units-list">
-                                    ${(course.units || []).map((unit, index) => `
+                                    ${Array.isArray(course.units) && course.units.length > 0 ? course.units.map((unit, index) => `
                                         <div class="lm-edit-topic-item" data-index="${index}">
                                             <input type="text" class="lm-topic-input" 
                                                    value="${escapeHtml(unit.title || unit.name || '')}" 
                                                    placeholder="Tên chuyên đề">
                                             <button type="button" class="lm-remove-topic" onclick="removeUnit(${index})">&times;</button>
                                         </div>
-                                    `).join('')}
+                                    `).join('') : '<div class="lm-no-topics-placeholder" style="padding: 10px; color: #666; font-style: italic;">Chưa có mô tả</div>'}
                                 </div>
                                 <button type="button" class="lm-add-topic-btn" id="add-unit-btn">+ Thêm đơn vị</button>
                             </div>
