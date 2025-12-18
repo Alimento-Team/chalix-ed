@@ -82,25 +82,35 @@ class CourseSerializer(serializers.Serializer):
     
     def get_courseCategory(self, instance):
         """Get the course category from Chalix course metadata"""
+        import logging
+        log = logging.getLogger(__name__)
+        
         try:
             from cms.djangoapps.contentstore.models import ChalixCourseMetadata
+            log.info(f"[METADATA DEBUG] get_courseCategory called for course: {instance.id}")
+            
             # Some environments store CourseKey objects and some use strings; try both
             try:
                 key = CourseKey.from_string(str(instance.id)) if instance and instance.id else None
-            except Exception:
+                log.info(f"[METADATA DEBUG] Converted to CourseKey: {key}")
+            except Exception as e:
                 key = None
+                log.info(f"[METADATA DEBUG] CourseKey conversion failed: {e}")
 
             if key is not None:
                 metadata = ChalixCourseMetadata.objects.filter(course_id=key).first()
+                log.info(f"[METADATA DEBUG] Query by CourseKey result: {metadata}")
             else:
                 metadata = ChalixCourseMetadata.objects.filter(course_id=str(instance.id)).first()
+                log.info(f"[METADATA DEBUG] Query by string result: {metadata}")
+            
             if metadata:
+                log.info(f"[METADATA DEBUG] Found category: {metadata.course_category}")
                 return metadata.course_category
+            log.warning(f"[METADATA DEBUG] No metadata found for {instance.id}")
             return None
         except Exception as e:
-            import logging
-            log = logging.getLogger(__name__)
-            log.warning(f"Failed to get course_category for {instance.id}: {e}")
+            log.error(f"[METADATA DEBUG] Exception in get_courseCategory for {instance.id}: {e}", exc_info=True)
             return None
     
     def get_publishType(self, instance):
@@ -128,8 +138,13 @@ class CourseSerializer(serializers.Serializer):
     
     def get_isPublic(self, instance):
         """Check if course is public (Bo role) or private (org role)"""
+        import logging
+        log = logging.getLogger(__name__)
+        
         try:
             from cms.djangoapps.contentstore.models import ChalixCourseMetadata
+            log.info(f"[METADATA DEBUG] get_isPublic called for course: {instance.id}")
+            
             try:
                 key = CourseKey.from_string(str(instance.id)) if instance and instance.id else None
             except Exception:
@@ -139,13 +154,14 @@ class CourseSerializer(serializers.Serializer):
                 metadata = ChalixCourseMetadata.objects.filter(course_id=key).first()
             else:
                 metadata = ChalixCourseMetadata.objects.filter(course_id=str(instance.id)).first()
+            
             if metadata:
+                log.info(f"[METADATA DEBUG] Found is_public: {metadata.is_public}")
                 return metadata.is_public
+            log.warning(f"[METADATA DEBUG] No metadata found for isPublic on {instance.id}")
             return None
         except Exception as e:
-            import logging
-            log = logging.getLogger(__name__)
-            log.warning(f"Failed to get isPublic for {instance.id}: {e}")
+            log.error(f"[METADATA DEBUG] Exception in get_isPublic for {instance.id}: {e}", exc_info=True)
             return None
     
     def get_creatorRole(self, instance):
