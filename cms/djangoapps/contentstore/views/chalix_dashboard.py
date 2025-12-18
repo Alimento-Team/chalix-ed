@@ -869,11 +869,32 @@ def list_local_courses_api(request):
                 # If enrichment fails, continue without the extra fields
                 pass
             
-            # Get ChalixCourseMetadata fields
+            # Get units/sections from the course
+            units = []
+            try:
+                store = modulestore()
+                course_block = store.get_course(course_key, depth=2)  # depth=2 to get sections and sequences
+                if course_block and hasattr(course_block, 'get_children'):
+                    for section in course_block.get_children():
+                        if section.category == 'chapter':
+                            for sequence in section.get_children():
+                                if sequence.category == 'sequential':
+                                    units.append({
+                                        'title': sequence.display_name or 'Untitled',
+                                        'name': sequence.display_name or 'Untitled',
+                                        'usage_key': str(sequence.location)
+                                    })
+            except Exception:
+                pass
+            
+            formatted_course['units'] = units
+            
+            # Get ChalixCourseMetadata fields - use string instead of CourseKey
             try:
                 import logging
                 logger = logging.getLogger(__name__)
-                metadata = ChalixCourseMetadata.objects.filter(course_id=course_key).first()
+                course_id_str = str(course_key)
+                metadata = ChalixCourseMetadata.objects.filter(course_id=course_id_str).first()
                 if metadata:
                     formatted_course['course_category'] = metadata.course_category
                     formatted_course['creator_role'] = metadata.creator_role

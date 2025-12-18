@@ -81,19 +81,16 @@ class Command(BaseCommand):
                     self.stdout.write(f'✓ Skipping {course_key} (already has outline)')
                     continue
             
-            # Generate outline by triggering course publish signal
+            # Generate outline using the same method as publishing
             try:
-                from xmodule.modulestore.django import SignalHandler
                 from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
+                from cms.djangoapps.contentstore.outlines import update_outline_from_modulestore
                 
                 # First regenerate the CourseOverview
                 CourseOverview.load_from_module_store(course_key)
                 
-                # Then send the course_published signal to trigger learning sequences creation
-                SignalHandler.course_published.send_robust(
-                    sender=self.__class__,
-                    course_key=course_key
-                )
+                # Update the outline from modulestore (this creates LearningContext)
+                update_outline_from_modulestore(course_key)
                 
                 self.stdout.write(self.style.SUCCESS(
                     f'✓ Generated outline for {course_key}'
