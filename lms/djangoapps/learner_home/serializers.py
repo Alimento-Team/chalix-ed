@@ -84,7 +84,16 @@ class CourseSerializer(serializers.Serializer):
         """Get the course category from Chalix course metadata"""
         try:
             from cms.djangoapps.contentstore.models import ChalixCourseMetadata
-            metadata = ChalixCourseMetadata.objects.filter(course_id=instance.id).first()
+            # Some environments store CourseKey objects and some use strings; try both
+            try:
+                key = CourseKey.from_string(str(instance.id)) if instance and instance.id else None
+            except Exception:
+                key = None
+
+            if key is not None:
+                metadata = ChalixCourseMetadata.objects.filter(course_id=key).first()
+            else:
+                metadata = ChalixCourseMetadata.objects.filter(course_id=str(instance.id)).first()
             if metadata:
                 return metadata.course_category
             return None
@@ -98,7 +107,15 @@ class CourseSerializer(serializers.Serializer):
         """Get the publish type from Chalix course metadata (legacy field)"""
         try:
             from cms.djangoapps.contentstore.models import ChalixCourseMetadata
-            metadata = ChalixCourseMetadata.objects.filter(course_id=instance.id).first()
+            try:
+                key = CourseKey.from_string(str(instance.id)) if instance and instance.id else None
+            except Exception:
+                key = None
+
+            if key is not None:
+                metadata = ChalixCourseMetadata.objects.filter(course_id=key).first()
+            else:
+                metadata = ChalixCourseMetadata.objects.filter(course_id=str(instance.id)).first()
             if metadata:
                 # Return course_category for backwards compatibility
                 return metadata.course_category
@@ -113,7 +130,15 @@ class CourseSerializer(serializers.Serializer):
         """Check if course is public (Bo role) or private (org role)"""
         try:
             from cms.djangoapps.contentstore.models import ChalixCourseMetadata
-            metadata = ChalixCourseMetadata.objects.filter(course_id=instance.id).first()
+            try:
+                key = CourseKey.from_string(str(instance.id)) if instance and instance.id else None
+            except Exception:
+                key = None
+
+            if key is not None:
+                metadata = ChalixCourseMetadata.objects.filter(course_id=key).first()
+            else:
+                metadata = ChalixCourseMetadata.objects.filter(course_id=str(instance.id)).first()
             if metadata:
                 return metadata.is_public
             return None
@@ -127,7 +152,15 @@ class CourseSerializer(serializers.Serializer):
         """Get the creator role to identify Bo vs org courses"""
         try:
             from cms.djangoapps.contentstore.models import ChalixCourseMetadata
-            metadata = ChalixCourseMetadata.objects.filter(course_id=instance.id).first()
+            try:
+                key = CourseKey.from_string(str(instance.id)) if instance and instance.id else None
+            except Exception:
+                key = None
+
+            if key is not None:
+                metadata = ChalixCourseMetadata.objects.filter(course_id=key).first()
+            else:
+                metadata = ChalixCourseMetadata.objects.filter(course_id=str(instance.id)).first()
             if metadata:
                 return metadata.creator_role
             return None
