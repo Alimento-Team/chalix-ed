@@ -15,7 +15,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 # Local models
-from cms.djangoapps.contentstore.models import LocalCourse, LocalProgram, ProgramTopic
+from cms.djangoapps.contentstore.models import LocalCourse, LocalProgram, ProgramTopic, ChalixCourseMetadata
 from cms.djangoapps.contentstore.chalix_roles import (
     can_access_cms,
     require_cms_access,
@@ -612,7 +612,6 @@ def create_course_api(request):
         logger.info(f"[CHALIX] Created OpenEDX course with key: {course_key}")
         
         # Create Chalix course metadata for visibility and access control
-        from cms.djangoapps.contentstore.models import ChalixCourseMetadata
         from cms.djangoapps.contentstore.chalix_roles import get_user_primary_role
         
         primary_role = get_user_primary_role(request.user)
@@ -889,12 +888,10 @@ def list_local_courses_api(request):
             
             formatted_course['units'] = units
             
-            # Get ChalixCourseMetadata fields - use string instead of CourseKey
+            # Get ChalixCourseMetadata fields (local import to avoid NameError if module reload hasn't occurred)
             try:
-                import logging
-                logger = logging.getLogger(__name__)
-                course_id_str = str(course_key)
-                metadata = ChalixCourseMetadata.objects.filter(course_id=course_id_str).first()
+                from cms.djangoapps.contentstore.models import ChalixCourseMetadata
+                metadata = ChalixCourseMetadata.objects.filter(course_id=course_key).first()
                 if metadata:
                     formatted_course['course_category'] = metadata.course_category
                     formatted_course['creator_role'] = metadata.creator_role
@@ -904,8 +901,6 @@ def list_local_courses_api(request):
                     logger.warning(f"No metadata found for {course_key}")
             except Exception as e:
                 # If metadata fetch fails, leave fields as None
-                import logging
-                logger = logging.getLogger(__name__)
                 logger.error(f"Error fetching metadata for {course_key}: {e}", exc_info=True)
                 pass
 
@@ -1476,7 +1471,6 @@ def course_detail_api_get(request, course_key):
         
         # Try to get course_category and is_mandatory_course from ChalixCourseMetadata
         try:
-            from cms.djangoapps.contentstore.models import ChalixCourseMetadata
             chalix_metadata = ChalixCourseMetadata.objects.filter(course_id=course_key).first()
             if chalix_metadata:
                 course_data.update({
@@ -1803,7 +1797,6 @@ def update_course_api(request):
         course_category = payload.get('course_category', None)
         if course_category is not None:
             try:
-                from cms.djangoapps.contentstore.models import ChalixCourseMetadata
                 chalix_metadata, created = ChalixCourseMetadata.objects.get_or_create(
                     course_id=course_key,
                     defaults={
@@ -3111,7 +3104,6 @@ def update_course_metadata_api(request):
     
     Returns JSON with updated metadata.
     """
-    from cms.djangoapps.contentstore.models import ChalixCourseMetadata
     from cms.djangoapps.contentstore.chalix_roles import can_edit_course
     from opaque_keys.edx.keys import CourseKey
     
