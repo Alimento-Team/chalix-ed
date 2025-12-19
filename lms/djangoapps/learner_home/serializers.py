@@ -16,6 +16,7 @@ from common.djangoapps.course_modes.models import CourseMode
 from openedx.features.course_experience import course_home_url
 from xmodule.data import CertificatesDisplayBehaviors
 from lms.djangoapps.learner_home.utils import course_progress_url
+from lms.djangoapps.course_home_api.models import ChalixCourseMetadataLMS
 
 
 class LiteralField(serializers.Field):
@@ -86,23 +87,12 @@ class CourseSerializer(serializers.Serializer):
         log = logging.getLogger(__name__)
         
         try:
-            from cms.djangoapps.contentstore.models import ChalixCourseMetadata
             log.info(f"[METADATA DEBUG] get_courseCategory called for course: {instance.id}")
             
-            # Some environments store CourseKey objects and some use strings; try both
-            try:
-                key = CourseKey.from_string(str(instance.id)) if instance and instance.id else None
-                log.info(f"[METADATA DEBUG] Converted to CourseKey: {key}")
-            except Exception as e:
-                key = None
-                log.info(f"[METADATA DEBUG] CourseKey conversion failed: {e}")
-
-            if key is not None:
-                metadata = ChalixCourseMetadata.objects.filter(course_id=key).first()
-                log.info(f"[METADATA DEBUG] Query by CourseKey result: {metadata}")
-            else:
-                metadata = ChalixCourseMetadata.objects.filter(course_id=str(instance.id)).first()
-                log.info(f"[METADATA DEBUG] Query by string result: {metadata}")
+            # Query using string representation of course_id
+            course_id_str = str(instance.id)
+            metadata = ChalixCourseMetadataLMS.objects.filter(course_id=course_id_str).first()
+            log.info(f"[METADATA DEBUG] Query result for {course_id_str}: {metadata}")
             
             if metadata:
                 log.info(f"[METADATA DEBUG] Found category: {metadata.course_category}")
@@ -116,16 +106,8 @@ class CourseSerializer(serializers.Serializer):
     def get_publishType(self, instance):
         """Get the publish type from Chalix course metadata (legacy field)"""
         try:
-            from cms.djangoapps.contentstore.models import ChalixCourseMetadata
-            try:
-                key = CourseKey.from_string(str(instance.id)) if instance and instance.id else None
-            except Exception:
-                key = None
-
-            if key is not None:
-                metadata = ChalixCourseMetadata.objects.filter(course_id=key).first()
-            else:
-                metadata = ChalixCourseMetadata.objects.filter(course_id=str(instance.id)).first()
+            course_id_str = str(instance.id)
+            metadata = ChalixCourseMetadataLMS.objects.filter(course_id=course_id_str).first()
             if metadata:
                 # Return course_category for backwards compatibility
                 return metadata.course_category
@@ -142,18 +124,10 @@ class CourseSerializer(serializers.Serializer):
         log = logging.getLogger(__name__)
         
         try:
-            from cms.djangoapps.contentstore.models import ChalixCourseMetadata
             log.info(f"[METADATA DEBUG] get_isPublic called for course: {instance.id}")
             
-            try:
-                key = CourseKey.from_string(str(instance.id)) if instance and instance.id else None
-            except Exception:
-                key = None
-
-            if key is not None:
-                metadata = ChalixCourseMetadata.objects.filter(course_id=key).first()
-            else:
-                metadata = ChalixCourseMetadata.objects.filter(course_id=str(instance.id)).first()
+            course_id_str = str(instance.id)
+            metadata = ChalixCourseMetadataLMS.objects.filter(course_id=course_id_str).first()
             
             if metadata:
                 log.info(f"[METADATA DEBUG] Found is_public: {metadata.is_public}")
@@ -167,16 +141,8 @@ class CourseSerializer(serializers.Serializer):
     def get_creatorRole(self, instance):
         """Get the creator role to identify Bo vs org courses"""
         try:
-            from cms.djangoapps.contentstore.models import ChalixCourseMetadata
-            try:
-                key = CourseKey.from_string(str(instance.id)) if instance and instance.id else None
-            except Exception:
-                key = None
-
-            if key is not None:
-                metadata = ChalixCourseMetadata.objects.filter(course_id=key).first()
-            else:
-                metadata = ChalixCourseMetadata.objects.filter(course_id=str(instance.id)).first()
+            course_id_str = str(instance.id)
+            metadata = ChalixCourseMetadataLMS.objects.filter(course_id=course_id_str).first()
             if metadata:
                 return metadata.creator_role
             return None

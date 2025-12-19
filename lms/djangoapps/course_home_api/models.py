@@ -291,3 +291,47 @@ class FinalEvaluationProjectSubmission(models.Model):
     
     def __str__(self):
         return f"{self.learner.username} - {self.course_key} - {self.submitted_at}"
+
+
+class ChalixCourseMetadataLMS(models.Model):
+    """
+    Unmanaged model mapping to CMS contentstore ChalixCourseMetadata table so LMS can
+    read course metadata without depending on the CMS app being installed.
+    
+    NOTE: Do not create migrations for this model.
+    """
+    id = models.BigAutoField(primary_key=True)
+    course_id = models.CharField(max_length=255, db_index=True, unique=True)
+    
+    # Creator information
+    creator_id = models.IntegerField(null=True, blank=True)
+    creator_role = models.CharField(max_length=20, null=True, blank=True)
+    creator_organization_id = models.BigIntegerField(null=True, blank=True)
+    
+    # Visibility settings
+    is_public = models.BooleanField(default=False)
+    
+    # Course flags
+    is_mandatory_course = models.BooleanField(default=False)
+    
+    # Course category for 'bộ' role courses
+    course_category = models.CharField(max_length=20, null=True, blank=True)
+    
+    # Legacy field
+    publish_type = models.CharField(max_length=20, null=True, blank=True)
+    
+    # Professional field
+    professional_field_id = models.BigIntegerField(null=True, blank=True)
+    
+    created_at = models.DateTimeField()
+    updated_at = models.DateTimeField()
+    
+    class Meta:
+        managed = False
+        db_table = 'contentstore_chalixcoursemetadata'
+        indexes = [
+            models.Index(fields=['course_id']),
+        ]
+    
+    def __str__(self):
+        return f"{self.course_id} - {self.course_category or 'N/A'}"
