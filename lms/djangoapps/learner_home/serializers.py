@@ -715,8 +715,9 @@ class AvailableCourseSerializer(serializers.Serializer):
         # For unenrolled courses, use the MFE learning app URL
         # This will show the course home with enrollment prompt
         from django.conf import settings
-        lms_root = settings.LMS_ROOT_URL
-        course_home = f"{lms_root}/learning/course/{instance.id}/home"
+        mfe_root = getattr(settings, "LEARNING_MICROFRONTEND_URL", None) or settings.LMS_ROOT_URL
+        mfe_root = mfe_root.rstrip("/")
+        course_home = f"{mfe_root}/learning/course/{instance.id}/home"
         
         return {
             "courseId": str(instance.id),
