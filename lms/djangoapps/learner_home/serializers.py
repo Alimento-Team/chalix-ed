@@ -742,25 +742,43 @@ class LearnerDashboardSerializer(serializers.Serializer):
     def get_courses(self, instance):
         """
         Get a list of course cards by serializing enrollments and entitlements into
-        a single list.
+        a single list. When filter_type='all_visible', also includes available unenrolled courses.
         """
         courses = []
 
+        # Add enrolled courses
         for enrollment in instance.get("enrollments", []):
             courses.append(
                 LearnerEnrollmentSerializer(enrollment, context=self.context).data
             )
+        
+        # Add unfulfilled entitlements
         for entitlement in instance.get("unfulfilledEntitlements", []):
             courses.append(
                 UnfulfilledEntitlementSerializer(entitlement, context=self.context).data
             )
+        
+        # If filter_type is 'all_visible', add available (unenrolled) courses
+        filter_type = self.context.get('filter_type')
+        if filter_type == 'all_visible':
+            for course in instance.get("availableCourses", []):
+                courses.append(
+                    AvailableCourseSerializer(course).data
+                )
 
         return courses
     
     def get_availableCourses(self, instance):
-        """Serialize available (unenrolled) courses"""
-        available_courses = instance.get("availableCourses", [])
-        return [
-            AvailableCourseSerializer(course).data
-            for course in available_courses
-        ]
+        """
+        Serialize available (unenrolled) courses.
+        Note: When filter_type='all_visible', these are already included in 'courses' field.
+        This separate field is kept for API transparency and potential future use.
+        """
+        filter_type = self.context.get('filter_type')
+        if filter_type == 'all_visible':
+            available_courses = instance.get("availableCourses", [])
+            return [
+                AvailableCourseSerializer(course).data
+                for course in available_courses
+            ]
+        return []

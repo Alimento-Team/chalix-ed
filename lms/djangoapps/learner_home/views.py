@@ -755,7 +755,7 @@ class InitializeView(APIView):  # pylint: disable=unused-argument
             "unfulfilledEntitlements": unfulfilled_entitlements,
             "socialShareSettings": social_share_settings,
             "suggestedCourses": suggested_courses,
-            "availableCourses": available_courses if filter_type == 'all_visible' else [],
+            "availableCourses": available_courses,  # Pass available courses to serializer
         }
 
         context = {
@@ -775,6 +775,7 @@ class InitializeView(APIView):  # pylint: disable=unused-argument
             "unfulfilled_entitlement_pseudo_sessions": unfulfilled_entitlement_pseudo_sessions,
             "pseudo_session_course_overviews": pseudo_session_course_overviews,
             "programs": programs,
+            "filter_type": filter_type,  # Pass filter_type so serializer can merge available courses
         }
 
         response_data = serialize_learner_home_data(learner_dash_data, context)
