@@ -673,52 +673,112 @@ class EnterpriseDashboardSerializer(serializers.Serializer):
 
 
 class AvailableCourseSerializer(serializers.Serializer):
-    """Lightweight serializer for courses user can see but hasn't enrolled in"""
+    """
+    Lightweight serializer for courses user can see but hasn't enrolled in.
+    Matches the structure of LearnerEnrollmentSerializer with sensible defaults.
+    """
     
-    courseId = serializers.SerializerMethodField()
-    courseName = serializers.CharField(source="display_name")
-    courseImageUrl = serializers.SerializerMethodField()
-    courseOrg = serializers.CharField(source="display_org_with_default")
-    courseNumber = serializers.CharField(source="display_number_with_default")
-    courseCategory = serializers.SerializerMethodField()
-    isPublic = serializers.SerializerMethodField()
-    creatorRole = serializers.SerializerMethodField()
+    # Course information (nested structure to match LearnerEnrollmentSerializer)
+    course = serializers.SerializerMethodField()
+    courseProvider = serializers.SerializerMethodField()
+    courseRun = serializers.SerializerMethodField()
     
-    def get_courseId(self, instance):
-        return str(instance.id)
+    # Enrollment information (defaults for unenrolled courses)
+    enrollment = serializers.SerializerMethodField()
+    certificate = serializers.SerializerMethodField()
+    entitlement = serializers.SerializerMethodField()
+    gradeData = serializers.SerializerMethodField()
+    programs = serializers.SerializerMethodField()
+    credit = serializers.SerializerMethodField()
     
-    def get_courseImageUrl(self, instance):
-        return instance.course_image_url
+    def get_course(self, instance):
+        """Return course header info"""
+        return {
+            "bannerImgSrc": instance.course_image_url,
+            "courseName": instance.display_name,
+            "courseNumber": instance.display_number_with_default,
+            "socialShareUrl": None,
+            "courseCategory": self._get_metadata_field(instance, 'course_category'),
+            "publishType": self._get_metadata_field(instance, 'course_category'),  # Legacy
+            "isPublic": self._get_metadata_field(instance, 'is_public'),
+            "creatorRole": self._get_metadata_field(instance, 'creator_role'),
+        }
     
-    def get_courseCategory(self, instance):
-        """Get course category from metadata"""
+    def get_courseProvider(self, instance):
+        """Return course provider info"""
+        return {
+            "name": instance.display_org_with_default
+        }
+    
+    def get_courseRun(self, instance):
+        """Return course run info"""
+        return {
+            "courseId": str(instance.id),
+            "isStarted": instance.has_started(),
+            "isArchived": instance.has_ended(),
+            "minPassingGrade": instance.lowest_passing_grade,
+            "homeUrl": f"/courses/{instance.id}/course/",
+            "marketingUrl": None,
+            "progressUrl": f"/learning/course/{instance.id}/progress",
+            "unenrollUrl": None,
+            "upgradeUrl": None,
+            "resumeUrl": None,
+            "isRevoked": False,
+        }
+    
+    def get_enrollment(self, instance):
+        """Return default enrollment info for unenrolled courses"""
+        return {
+            "accessExpirationDate": None,
+            "isAudit": True,
+            "hasStarted": False,
+            "coursewareAccess": {
+                "hasUnmetPrerequisites": False,
+                "isTooEarly": False,
+                "isStaff": False,
+                "isEnabled": True,
+            },
+            "isVerified": False,
+            "canUpgrade": False,
+            "isAuditAccessExpired": False,
+            "isEmailEnabled": False,
+            "hasOptedOutOfEmail": False,
+            "lastEnrolled": None,  # This is the field the MFE was missing
+            "isEnrolled": False,  # Mark as not enrolled
+            "mode": "audit",
+        }
+    
+    def get_certificate(self, instance):
+        """Return empty certificate data"""
+        return {}
+    
+    def get_entitlement(self, instance):
+        """Return empty entitlement data"""
+        return {}
+    
+    def get_gradeData(self, instance):
+        """Return default grade data"""
+        return {
+            "isPassing": False,
+        }
+    
+    def get_programs(self, instance):
+        """Return empty programs data"""
+        return {
+            "relatedPrograms": []
+        }
+    
+    def get_credit(self, instance):
+        """Return empty credit data"""
+        return {}
+    
+    def _get_metadata_field(self, instance, field_name):
+        """Helper to get metadata field"""
         try:
             course_id_str = str(instance.id)
             metadata = ChalixCourseMetadataLMS.objects.filter(course_id=course_id_str).first()
             if metadata:
-                return metadata.course_category
-            return None
-        except Exception:
-            return None
-    
-    def get_isPublic(self, instance):
-        """Check if course is public"""
-        try:
-            course_id_str = str(instance.id)
-            metadata = ChalixCourseMetadataLMS.objects.filter(course_id=course_id_str).first()
-            if metadata:
-                return metadata.is_public
-            return None
-        except Exception:
-            return None
-    
-    def get_creatorRole(self, instance):
-        """Get creator role"""
-        try:
-            course_id_str = str(instance.id)
-            metadata = ChalixCourseMetadataLMS.objects.filter(course_id=course_id_str).first()
-            if metadata:
-                return metadata.creator_role
+                return getattr(metadata, field_name, None)
             return None
         except Exception:
             return None
