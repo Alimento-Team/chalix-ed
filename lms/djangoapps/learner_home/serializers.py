@@ -712,16 +712,19 @@ class AvailableCourseSerializer(serializers.Serializer):
     
     def get_courseRun(self, instance):
         """Return course run info"""
-        # For unenrolled courses, link to about page instead of courseware
-        about_url = f"/courses/{instance.id}/about"
+        # For unenrolled courses, use the MFE learning app URL
+        # This will show the course home with enrollment prompt
+        from django.conf import settings
+        lms_root = settings.LMS_ROOT_URL
+        course_home = f"{lms_root}/learning/course/{instance.id}/home"
         
         return {
             "courseId": str(instance.id),
             "isStarted": instance.has_started(),
             "isArchived": instance.has_ended(),
             "minPassingGrade": instance.lowest_passing_grade,
-            "homeUrl": about_url,  # Go to about page, not courseware
-            "marketingUrl": about_url,  # Same as homeUrl for consistency
+            "homeUrl": course_home,  # MFE learning app home page
+            "marketingUrl": course_home,
             "progressUrl": None,  # No progress for unenrolled courses
             "unenrollUrl": None,  # Can't unenroll if not enrolled
             "upgradeUrl": None,  # No upgrade for unenrolled courses
