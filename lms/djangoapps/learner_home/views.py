@@ -8,6 +8,7 @@ from collections import OrderedDict
 from completion.exceptions import UnavailableCompletionData
 from completion.utilities import get_key_to_last_completed_block
 from django.conf import settings
+from django.db import models
 from django.urls import reverse
 from edx_django_utils import monitoring as monitoring_utils
 from edx_django_utils.monitoring import function_trace
@@ -98,6 +99,95 @@ def get_user_account_confirmation_info(user):
     return email_confirmation
 
 
+@function_trace("_add_visible_courses_as_pseudo_enrollments")
+def _add_visible_courses_as_pseudo_enrollments(existing_enrollments, user):
+    """
+    Add pseudo-enrollments for courses the user can see but isn't enrolled in.
+    This allows the dashboard to show all available courses, not just enrolled ones.
+    
+    Args:
+        existing_enrollments: List of actual CourseEnrollment objects
+        user: The user to check visibility for
+        
+    Returns:
+        Combined list of actual enrollments + pseudo-enrollments for visible courses
+    """
+    try:
+        from lms.djangoapps.course_home_api.models import ChalixCourseMetadataLMS
+        from common.djangoapps.student.models import CourseEnrollment
+        from django.db import connection
+        from django.utils import timezone
+        
+        logger.info(f"[VISIBLE COURSES] Getting visible courses for user {user.username}")
+        
+        # Get user's organization ID
+        user_org_id = None
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT organization_id FROM contentstore_chalixuserrole WHERE user_id = %s AND is_active = TRUE LIMIT 1",
+                    [user.id]
+                )
+                row = cursor.fetchone()
+                if row:
+                    user_org_id = row[0]
+            logger.info(f"[VISIBLE COURSES] User organization_id: {user_org_id}")
+        except Exception as e:
+            logger.warning(f"[VISIBLE COURSES] Error getting user org: {e}")
+        
+        # Get IDs of courses user is already enrolled in
+        enrolled_course_ids = {str(enrollment.course_id) for enrollment in existing_enrollments}
+        logger.info(f"[VISIBLE COURSES] User already enrolled in {len(enrolled_course_ids)} courses")
+        
+        # Get all courses that user can see but isn't enrolled in
+        if user_org_id:
+            # Find visible courses: public courses OR courses from same organization
+            visible_metadata = ChalixCourseMetadataLMS.objects.filter(
+                models.Q(is_public=True) | models.Q(creator_organization_id=user_org_id)
+            ).exclude(course_id__in=enrolled_course_ids)
+        else:
+            # User has no org, only show public courses
+            visible_metadata = ChalixCourseMetadataLMS.objects.filter(
+                is_public=True
+            ).exclude(course_id__in=enrolled_course_ids)
+        
+        logger.info(f"[VISIBLE COURSES] Found {visible_metadata.count()} visible unenrolled courses")
+        
+        # Create pseudo-enrollments for visible courses
+        pseudo_enrollments = []
+        for metadata in visible_metadata:
+            try:
+                course_key = CourseKey.from_string(metadata.course_id)
+                # Check if course exists in CourseOverview
+                course_overview = CourseOverview.objects.filter(id=course_key).first()
+                if course_overview:
+                    # Create a pseudo-enrollment object (not saved to DB)
+                    pseudo_enrollment = CourseEnrollment(
+                        user=user,
+                        course_id=course_key,
+                        created=timezone.now(),
+                        is_active=False,  # Mark as inactive to distinguish from real enrollments
+                        mode='audit'  # Default mode for unenrolled courses
+                    )
+                    # Add a marker attribute so we can identify pseudo-enrollments
+                    pseudo_enrollment.is_pseudo_enrollment = True
+                    pseudo_enrollments.append(pseudo_enrollment)
+                    logger.debug(f"[VISIBLE COURSES] Added pseudo-enrollment for {metadata.course_id}")
+            except Exception as e:
+                logger.warning(f"[VISIBLE COURSES] Error creating pseudo-enrollment for {metadata.course_id}: {e}")
+        
+        logger.info(f"[VISIBLE COURSES] Created {len(pseudo_enrollments)} pseudo-enrollments")
+        
+        # Combine actual enrollments with pseudo-enrollments
+        all_enrollments = list(existing_enrollments) + pseudo_enrollments
+        logger.info(f"[VISIBLE COURSES] Total courses to show: {len(all_enrollments)}")
+        return all_enrollments
+        
+    except Exception as e:
+        logger.error(f"[VISIBLE COURSES] Error adding visible courses: {e}", exc_info=True)
+        return existing_enrollments
+
+
 @function_trace("filter_enrollments_by_chalix_metadata")
 def filter_enrollments_by_chalix_metadata(enrollments, user, filter_type=None):
     """
@@ -122,34 +212,52 @@ def filter_enrollments_by_chalix_metadata(enrollments, user, filter_type=None):
         return enrollments
     
     try:
-        from cms.djangoapps.contentstore.models import ChalixCourseMetadata, ChalixUserRole
+        from lms.djangoapps.course_home_api.models import ChalixCourseMetadataLMS
+        from django.db import connection
+        logger.info(f"[CHALIX FILTER] Filtering {len(enrollments)} enrollments for user {user.username} with filter_type={filter_type}")
         
-        # Get user's organization for filtering
-        user_org = None
+        # Get user's organization ID for filtering (query directly from DB)
+        user_org_id = None
         try:
-            user_role = ChalixUserRole.objects.filter(user=user, is_active=True).first()
-            if user_role:
-                user_org = user_role.organization
-        except Exception:
-            pass
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT organization_id FROM contentstore_chalixuserrole WHERE user_id = %s AND is_active = TRUE LIMIT 1",
+                    [user.id]
+                )
+                row = cursor.fetchone()
+                if row:
+                    user_org_id = row[0]
+            logger.info(f"[CHALIX FILTER] User {user.username} organization_id: {user_org_id}")
+        except Exception as e:
+            logger.warning(f"[CHALIX FILTER] Error getting user org: {e}")
         
         filtered_enrollments = []
         
         for enrollment in enrollments:
             try:
-                metadata = ChalixCourseMetadata.objects.get(course_id=enrollment.course_id)
+                course_id_str = str(enrollment.course_id)
+                metadata = ChalixCourseMetadataLMS.objects.filter(course_id=course_id_str).first()
+                
+                if not metadata:
+                    # Course has no metadata - include it by default for backward compatibility
+                    if filter_type in ['all', 'all_visible', 'ministry', None]:
+                        filtered_enrollments.append(enrollment)
+                    continue
                 
                 if filter_type == 'all_visible':
                     # AI suggested: Show all visible courses
                     # Rule 1: Public courses (Bo role) are visible to everyone
                     if metadata.is_public:
+                        logger.info(f"[CHALIX FILTER] Including public course {course_id_str}")
                         filtered_enrollments.append(enrollment)
                         continue
                     # Rule 2: Private courses are visible to same organization members
-                    if not metadata.is_public and user_org and metadata.creator_organization:
-                        if metadata.creator_organization.id == user_org.id:
+                    if not metadata.is_public and user_org_id and metadata.creator_organization_id:
+                        if metadata.creator_organization_id == user_org_id:
+                            logger.info(f"[CHALIX FILTER] Including org course {course_id_str} (org_id={user_org_id})")
                             filtered_enrollments.append(enrollment)
                             continue
+                    logger.debug(f"[CHALIX FILTER] Excluding course {course_id_str} (is_public={metadata.is_public}, user_org={user_org_id}, course_org={metadata.creator_organization_id})")
                 
                 elif filter_type == 'mandatory':
                     # Filter: mandatory courses (course_category='mandatory' or is_mandatory_course=True)
@@ -164,14 +272,14 @@ def filter_enrollments_by_chalix_metadata(enrollments, user, filter_type=None):
                 elif filter_type == 'organization':
                     # Filter: organization-specific courses (not public, same organization)
                     # This shows courses created by users from the same organization that are NOT public
-                    if not metadata.is_public and user_org and metadata.creator_organization:
-                        if metadata.creator_organization.id == user_org.id:
+                    if not metadata.is_public and user_org_id and metadata.creator_organization_id:
+                        if metadata.creator_organization_id == user_org_id:
                             filtered_enrollments.append(enrollment)
                             logger.debug(f"Including org course {enrollment.course_id} for user {user.username}")
                 
                 elif filter_type == 'ministry':
                     # Filter: public ministry courses (is_public=True)
-                    # These are courses created by Bo role (ministry level) visible to all learners
+                    # These are courses created by users from the same organization that are NOT public
                     if metadata.is_public:
                         filtered_enrollments.append(enrollment)
                         logger.debug(f"Including ministry course {enrollment.course_id} for user {user.username}")
@@ -184,33 +292,39 @@ def filter_enrollments_by_chalix_metadata(enrollments, user, filter_type=None):
                     if staff_access or instructor_access:
                         filtered_enrollments.append(enrollment)
                 
-            except ChalixCourseMetadata.DoesNotExist:
-                # Course has no metadata - include it by default for backward compatibility
-                if filter_type in ['all', 'all_visible', 'ministry', None]:
-                    # Assume courses without metadata are visible to all
-                    filtered_enrollments.append(enrollment)
             except Exception as e:
-                logger.warning(f"Error filtering enrollment {enrollment.course_id}: {str(e)}")
+                logger.warning(f"[CHALIX FILTER] Error filtering enrollment {enrollment.course_id}: {str(e)}")
                 # Include enrollment if there's an error to avoid hiding courses
                 filtered_enrollments.append(enrollment)
         
+        logger.info(f"[CHALIX FILTER] Filtered to {len(filtered_enrollments)} enrollments")
         return filtered_enrollments
         
-    except ImportError:
-        logger.warning("ChalixCourseMetadata not available, returning all enrollments")
+    except ImportError as e:
+        logger.warning(f"[CHALIX FILTER] ChalixCourseMetadataLMS not available: {e}, returning all enrollments")
         return enrollments
     except Exception as e:
-        logger.error(f"Error in filter_enrollments_by_chalix_metadata: {str(e)}")
+        logger.error(f"[CHALIX FILTER] Error in filter_enrollments_by_chalix_metadata: {str(e)}", exc_info=True)
         return enrollments
 
 
 @function_trace("get_enrollments")
 def get_enrollments(user, org_allow_list, org_block_list, course_limit=None, filter_type=None):
-    """Get enrollments and enrollment course modes for user"""
+    """Get enrollments and enrollment course modes for user
+    
+    Note: When filter_type='all_visible', this will also include pseudo-enrollments
+    for courses the user can see but isn't enrolled in yet.
+    """
 
     course_enrollments = list(
         get_course_enrollments(user, org_allow_list, org_block_list, course_limit)
     )
+    
+    # If filter_type is 'all_visible', add pseudo-enrollments for courses user can see
+    if filter_type == 'all_visible':
+        course_enrollments = _add_visible_courses_as_pseudo_enrollments(
+            course_enrollments, user
+        )
     
     # Apply Chalix metadata filtering if requested
     if filter_type:
