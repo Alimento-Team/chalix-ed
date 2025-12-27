@@ -672,6 +672,58 @@ class EnterpriseDashboardSerializer(serializers.Serializer):
         )
 
 
+class AvailableCourseSerializer(serializers.Serializer):
+    """Lightweight serializer for courses user can see but hasn't enrolled in"""
+    
+    courseId = serializers.SerializerMethodField()
+    courseName = serializers.CharField(source="display_name")
+    courseImageUrl = serializers.SerializerMethodField()
+    courseOrg = serializers.CharField(source="display_org_with_default")
+    courseNumber = serializers.CharField(source="display_number_with_default")
+    courseCategory = serializers.SerializerMethodField()
+    isPublic = serializers.SerializerMethodField()
+    creatorRole = serializers.SerializerMethodField()
+    
+    def get_courseId(self, instance):
+        return str(instance.id)
+    
+    def get_courseImageUrl(self, instance):
+        return instance.course_image_url
+    
+    def get_courseCategory(self, instance):
+        """Get course category from metadata"""
+        try:
+            course_id_str = str(instance.id)
+            metadata = ChalixCourseMetadataLMS.objects.filter(course_id=course_id_str).first()
+            if metadata:
+                return metadata.course_category
+            return None
+        except Exception:
+            return None
+    
+    def get_isPublic(self, instance):
+        """Check if course is public"""
+        try:
+            course_id_str = str(instance.id)
+            metadata = ChalixCourseMetadataLMS.objects.filter(course_id=course_id_str).first()
+            if metadata:
+                return metadata.is_public
+            return None
+        except Exception:
+            return None
+    
+    def get_creatorRole(self, instance):
+        """Get creator role"""
+        try:
+            course_id_str = str(instance.id)
+            metadata = ChalixCourseMetadataLMS.objects.filter(course_id=course_id_str).first()
+            if metadata:
+                return metadata.creator_role
+            return None
+        except Exception:
+            return None
+
+
 class LearnerDashboardSerializer(serializers.Serializer):
     """Serializer for all info required to render the Learner Dashboard"""
 
@@ -685,6 +737,7 @@ class LearnerDashboardSerializer(serializers.Serializer):
     suggestedCourses = serializers.ListField(
         child=SuggestedCourseSerializer(), allow_empty=True
     )
+    availableCourses = serializers.SerializerMethodField()
 
     def get_courses(self, instance):
         """
@@ -703,3 +756,11 @@ class LearnerDashboardSerializer(serializers.Serializer):
             )
 
         return courses
+    
+    def get_availableCourses(self, instance):
+        """Serialize available (unenrolled) courses"""
+        available_courses = instance.get("availableCourses", [])
+        return [
+            AvailableCourseSerializer(course).data
+            for course in available_courses
+        ]

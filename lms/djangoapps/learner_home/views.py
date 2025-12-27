@@ -99,26 +99,24 @@ def get_user_account_confirmation_info(user):
     return email_confirmation
 
 
-@function_trace("_add_visible_courses_as_pseudo_enrollments")
-def _add_visible_courses_as_pseudo_enrollments(existing_enrollments, user):
+@function_trace("get_available_courses_for_user")
+def get_available_courses_for_user(user, enrolled_course_ids):
     """
-    Add pseudo-enrollments for courses the user can see but isn't enrolled in.
-    This allows the dashboard to show all available courses, not just enrolled ones.
+    Get courses that are visible to the user but they haven't enrolled in yet.
+    Returns CourseOverview objects for these courses.
     
     Args:
-        existing_enrollments: List of actual CourseEnrollment objects
         user: The user to check visibility for
+        enrolled_course_ids: Set of course IDs user is already enrolled in
         
     Returns:
-        Combined list of actual enrollments + pseudo-enrollments for visible courses
+        List of CourseOverview objects for available unenrolled courses
     """
     try:
         from lms.djangoapps.course_home_api.models import ChalixCourseMetadataLMS
-        from common.djangoapps.student.models import CourseEnrollment
         from django.db import connection
-        from django.utils import timezone
         
-        logger.info(f"[VISIBLE COURSES] Getting visible courses for user {user.username}")
+        logger.info(f"[AVAILABLE COURSES] Getting available courses for user {user.username}")
         
         # Get user's organization ID
         user_org_id = None
@@ -131,13 +129,9 @@ def _add_visible_courses_as_pseudo_enrollments(existing_enrollments, user):
                 row = cursor.fetchone()
                 if row:
                     user_org_id = row[0]
-            logger.info(f"[VISIBLE COURSES] User organization_id: {user_org_id}")
+            logger.info(f"[AVAILABLE COURSES] User organization_id: {user_org_id}")
         except Exception as e:
-            logger.warning(f"[VISIBLE COURSES] Error getting user org: {e}")
-        
-        # Get IDs of courses user is already enrolled in
-        enrolled_course_ids = {str(enrollment.course_id) for enrollment in existing_enrollments}
-        logger.info(f"[VISIBLE COURSES] User already enrolled in {len(enrolled_course_ids)} courses")
+            logger.warning(f"[AVAILABLE COURSES] Error getting user org: {e}")
         
         # Get all courses that user can see but isn't enrolled in
         if user_org_id:
@@ -151,41 +145,26 @@ def _add_visible_courses_as_pseudo_enrollments(existing_enrollments, user):
                 is_public=True
             ).exclude(course_id__in=enrolled_course_ids)
         
-        logger.info(f"[VISIBLE COURSES] Found {visible_metadata.count()} visible unenrolled courses")
+        logger.info(f"[AVAILABLE COURSES] Found {visible_metadata.count()} visible unenrolled courses")
         
-        # Create pseudo-enrollments for visible courses
-        pseudo_enrollments = []
+        # Get CourseOverview objects for these courses
+        course_keys = []
         for metadata in visible_metadata:
             try:
                 course_key = CourseKey.from_string(metadata.course_id)
-                # Check if course exists in CourseOverview
-                course_overview = CourseOverview.objects.filter(id=course_key).first()
-                if course_overview:
-                    # Create a pseudo-enrollment object (not saved to DB)
-                    pseudo_enrollment = CourseEnrollment(
-                        user=user,
-                        course_id=course_key,
-                        created=timezone.now(),
-                        is_active=False,  # Mark as inactive to distinguish from real enrollments
-                        mode='audit'  # Default mode for unenrolled courses
-                    )
-                    # Add a marker attribute so we can identify pseudo-enrollments
-                    pseudo_enrollment.is_pseudo_enrollment = True
-                    pseudo_enrollments.append(pseudo_enrollment)
-                    logger.debug(f"[VISIBLE COURSES] Added pseudo-enrollment for {metadata.course_id}")
+                course_keys.append(course_key)
             except Exception as e:
-                logger.warning(f"[VISIBLE COURSES] Error creating pseudo-enrollment for {metadata.course_id}: {e}")
+                logger.warning(f"[AVAILABLE COURSES] Invalid course_id {metadata.course_id}: {e}")
         
-        logger.info(f"[VISIBLE COURSES] Created {len(pseudo_enrollments)} pseudo-enrollments")
+        # Fetch course overviews
+        available_courses = CourseOverview.get_from_ids(course_keys)
+        logger.info(f"[AVAILABLE COURSES] Returning {len(available_courses)} course overviews")
         
-        # Combine actual enrollments with pseudo-enrollments
-        all_enrollments = list(existing_enrollments) + pseudo_enrollments
-        logger.info(f"[VISIBLE COURSES] Total courses to show: {len(all_enrollments)}")
-        return all_enrollments
+        return list(available_courses.values())
         
     except Exception as e:
-        logger.error(f"[VISIBLE COURSES] Error adding visible courses: {e}", exc_info=True)
-        return existing_enrollments
+        logger.error(f"[AVAILABLE COURSES] Error getting available courses: {e}", exc_info=True)
+        return []
 
 
 @function_trace("filter_enrollments_by_chalix_metadata")
@@ -310,21 +289,11 @@ def filter_enrollments_by_chalix_metadata(enrollments, user, filter_type=None):
 
 @function_trace("get_enrollments")
 def get_enrollments(user, org_allow_list, org_block_list, course_limit=None, filter_type=None):
-    """Get enrollments and enrollment course modes for user
-    
-    Note: When filter_type='all_visible', this will also include pseudo-enrollments
-    for courses the user can see but isn't enrolled in yet.
-    """
+    """Get enrollments and enrollment course modes for user"""
 
     course_enrollments = list(
         get_course_enrollments(user, org_allow_list, org_block_list, course_limit)
     )
-    
-    # If filter_type is 'all_visible', add pseudo-enrollments for courses user can see
-    if filter_type == 'all_visible':
-        course_enrollments = _add_visible_courses_as_pseudo_enrollments(
-            course_enrollments, user
-        )
     
     # Apply Chalix metadata filtering if requested
     if filter_type:
@@ -734,6 +703,12 @@ class InitializeView(APIView):  # pylint: disable=unused-argument
         course_enrollments, course_mode_info = get_enrollments(
             user, site_org_whitelist, site_org_blacklist, filter_type=filter_type
         )
+        
+        # Get available courses (unenrolled but visible) when filter_type is all_visible
+        available_courses = []
+        if filter_type == 'all_visible':
+            enrolled_course_ids = {str(e.course_id) for e in course_enrollments}
+            available_courses = get_available_courses_for_user(user, enrolled_course_ids)
 
         # Get audit access deadlines
         audit_access_deadlines = get_audit_access_deadlines(user, course_enrollments)
@@ -780,6 +755,7 @@ class InitializeView(APIView):  # pylint: disable=unused-argument
             "unfulfilledEntitlements": unfulfilled_entitlements,
             "socialShareSettings": social_share_settings,
             "suggestedCourses": suggested_courses,
+            "availableCourses": available_courses if filter_type == 'all_visible' else [],
         }
 
         context = {
