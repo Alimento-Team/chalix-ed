@@ -712,17 +712,20 @@ class AvailableCourseSerializer(serializers.Serializer):
     
     def get_courseRun(self, instance):
         """Return course run info"""
+        # For unenrolled courses, link to about page instead of courseware
+        about_url = f"/courses/{instance.id}/about"
+        
         return {
             "courseId": str(instance.id),
             "isStarted": instance.has_started(),
             "isArchived": instance.has_ended(),
             "minPassingGrade": instance.lowest_passing_grade,
-            "homeUrl": f"/courses/{instance.id}/course/",
-            "marketingUrl": None,
-            "progressUrl": f"/learning/course/{instance.id}/progress",
-            "unenrollUrl": None,
-            "upgradeUrl": None,
-            "resumeUrl": None,
+            "homeUrl": about_url,  # Go to about page, not courseware
+            "marketingUrl": about_url,  # Same as homeUrl for consistency
+            "progressUrl": None,  # No progress for unenrolled courses
+            "unenrollUrl": None,  # Can't unenroll if not enrolled
+            "upgradeUrl": None,  # No upgrade for unenrolled courses
+            "resumeUrl": None,  # Can't resume if not enrolled
             "isRevoked": False,
         }
     
