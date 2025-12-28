@@ -717,7 +717,15 @@ class AvailableCourseSerializer(serializers.Serializer):
         from django.conf import settings
         mfe_root = getattr(settings, "LEARNING_MICROFRONTEND_URL", None) or settings.LMS_ROOT_URL
         mfe_root = mfe_root.rstrip("/")
-        course_home = f"{mfe_root}/learning/course/{instance.id}/home"
+
+        # LEARNING_MICROFRONTEND_URL is commonly configured either as:
+        #   - https://apps.example.com/learning
+        #   - https://apps.example.com
+        # Normalize so we don't end up with /learning/learning/...
+        if mfe_root.endswith("/learning"):
+            course_home = f"{mfe_root}/course/{instance.id}/home"
+        else:
+            course_home = f"{mfe_root}/learning/course/{instance.id}/home"
         
         return {
             "courseId": str(instance.id),
