@@ -99,6 +99,43 @@ def get_user_account_confirmation_info(user):
     return email_confirmation
 
 
+def get_user_organization_display_name(user):
+    """
+    Get the display name for user's organization for header display.
+    Uses direct SQL query to avoid CMS imports.
+    
+    Args:
+        user: The user to get organization for
+        
+    Returns:
+        Organization display name string or empty string
+    """
+    if not user or not user.is_authenticated:
+        return ''
+    
+    from django.db import connection
+    
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT co.display_name 
+                FROM contentstore_chalixorganization co
+                INNER JOIN contentstore_chalixuserrole ur ON ur.organization_id = co.id
+                WHERE ur.user_id = %s AND ur.is_active = TRUE
+                LIMIT 1
+                """,
+                [user.id]
+            )
+            row = cursor.fetchone()
+            if row and row[0]:
+                return row[0]
+    except Exception as e:
+        logger.warning(f"Error getting user organization display name: {e}")
+    
+    return ''
+
+
 @function_trace("get_available_courses_for_user")
 def get_available_courses_for_user(user, enrolled_course_ids):
     """

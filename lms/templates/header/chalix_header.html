@@ -6,6 +6,7 @@ from django.urls import reverse
 from django.utils.translation import gettext as _
 from urllib.parse import quote_plus
 from openedx.core.djangoapps.site_configuration import helpers as configuration_helpers
+from lms.djangoapps.learner_home.views import get_user_organization_display_name
 %>
 
 <%
@@ -13,6 +14,9 @@ from openedx.core.djangoapps.site_configuration import helpers as configuration_
   username = user.username if user and user.is_authenticated else None
   user_name = user.get_full_name() if user and user.is_authenticated else None
   display_name = user_name if user_name else username if username else 'User'
+  
+  # Get user's organization
+  user_organization = get_user_organization_display_name(user) if user and user.is_authenticated else ''
   
   # Get platform name
   platform_name = configuration_helpers.get_value('PLATFORM_NAME', settings.PLATFORM_NAME)
@@ -28,7 +32,7 @@ from openedx.core.djangoapps.site_configuration import helpers as configuration_
   
   # Organization info
   org_name = configuration_helpers.get_value('ORG_NAME', 'PHẦN MỀM HỌC TẬP THÔNG MINH DÀNH CHO CÔNG CHỨC, VIÊN CHỨC')
-  org_department = configuration_helpers.get_value('ORG_DEPARTMENT', '')
+  org_department = user_organization if user_organization else configuration_helpers.get_value('ORG_DEPARTMENT', '')
   org_label = configuration_helpers.get_value('ORG_LABEL', 'Cơ Quan 1')
 %>
 
@@ -48,8 +52,12 @@ from openedx.core.djangoapps.site_configuration import helpers as configuration_
         
         % if user and user.is_authenticated:
         <div class="chalix-header-user-section">
-          <span class="org-label">${org_label}</span>
-          <span class="user-name">${display_name}</span>
+          % if user_organization:
+            <span class="user-info">${display_name} - ${user_organization}</span>
+          % else:
+            <span class="org-label">${org_label}</span>
+            <span class="user-name">${display_name}</span>
+          % endif
           
           <!-- User Avatar with Dropdown -->
           <div class="user-avatar-wrapper">
