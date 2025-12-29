@@ -780,8 +780,8 @@ class ChalixUserRole(models.Model):
         """Get list of available tabs for this role"""
         if self.role == 'bo':  # Department level - single account with full access
             return ['statistics', 'create-account', 'management', 'learning-management', 'approve-requests']
-        elif self.role == 'co_quan':  # Organization level - multiple accounts with management access
-            return ['statistics', 'management', 'learning-management']
+        elif self.role == 'co_quan':  # Organization level - multiple accounts, can only manage courses
+            return ['statistics', 'learning-management']
         elif self.role == 'giang_vien':  # Teacher/Instructor level - only learning management access
             return ['learning-management']
         else:  # cong_chuc - Learner/Student level - no CMS access
