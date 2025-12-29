@@ -35,7 +35,12 @@
           <div class="header-top-right">
             <div class="header-actions">
               % if user.is_authenticated:
-              <span class="user-display-name">${user.get_full_name() or user.username}% if org_name: - ${org_name}% endif</span>
+              <span class="user-display-name">
+                ${user.get_full_name() or user.username}
+                % if org_name:
+                 - ${org_name}
+                % endif
+              </span>
               % endif
               <button class="notification-button" aria-label="Notifications">
                 <i class="fa fa-bell" aria-hidden="true"></i>
