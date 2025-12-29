@@ -886,7 +886,7 @@
         if (managementContainer && window.CMS_TABS && window.CMS_TABS['learning-management']) {
             // Render learning management content in the tab panel only
             window.CMS_TABS['learning-management'].render(managementContainer, {
-                contentTitle: 'Quản lý học tập',
+                contentTitle: 'Quản lý khóa học',
                 contentDescription: 'Tạo và quản lý các chương trình học và khóa học'
             });
         }

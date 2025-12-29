@@ -169,7 +169,7 @@ def cms_dashboard(request):
     - Thống kê (Statistics) - All roles
     - Tạo tài khoản cán bộ (Create Staff Account) - Cơ quan only
     - Quản lý (Management) - Bộ, Cơ quan
-    - Quản lý học tập (Learning Management) - Giảng viên, Cơ quan
+    - Quản lý khóa học (Course Management) - Giảng viên, Cơ quan
     - Phê duyệt yêu cầu (Approve Requests) - Cơ quan only
     """
     user = request.user

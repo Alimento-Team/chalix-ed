@@ -19,13 +19,13 @@
             contentDescription: 'Tạo và quản lý tài khoản cán bộ trong hệ thống.'
         },
         'management': {
-            label: 'Quản lý nền tảng',
-            contentTitle: 'Quản lý nền tảng',
+            label: 'Quản lý cơ quan',
+            contentTitle: 'Quản lý cơ quan',
             contentDescription: 'Quản lý các chức năng và cài đặt nền tảng.'
         },
         'learning-management': {
-            label: 'Quản lý học tập',
-            contentTitle: 'Quản lý học tập',
+            label: 'Quản lý khóa học',
+            contentTitle: 'Quản lý khóa học',
             contentDescription: 'Quản lý nội dung học tập, khóa học và tài liệu.'
         },
         'approve-requests': {
