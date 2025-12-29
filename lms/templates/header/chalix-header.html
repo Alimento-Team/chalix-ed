@@ -18,11 +18,12 @@ from lms.djangoapps.learner_home.views import get_user_organization_display_name
         ## Provide a hook for themes to inject branding on top.
         <%block name="navigation_top" />
 
-        <% unsupported_browser_alert_versions=configuration_helpers.get_value('UNSUPPORTED_BROWSER_ALERT_VERSIONS',
+        <%
+        unsupported_browser_alert_versions = configuration_helpers.get_value('UNSUPPORTED_BROWSER_ALERT_VERSIONS',
             settings.FEATURES.get('UNSUPPORTED_BROWSER_ALERT_VERSIONS'))
-            
-            # Get user's organization for display
-            user_organization = get_user_organization_display_name(user) if user.is_authenticated else ''
+        
+        # Get user's organization for display
+        user_organization = get_user_organization_display_name(user) if user.is_authenticated else ''
         %>
             % if waffle.switch_is_active('enable_unsupported_browser_alert'):
             <script>
