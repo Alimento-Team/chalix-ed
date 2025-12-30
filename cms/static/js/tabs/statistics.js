@@ -95,25 +95,95 @@
                             </div>
                         </div>
 
-                        <div class="statistics-table-container">
-                            <table class="table table-striped" id="statistics-table">
-                                <thead>
-                                    <tr>
-                                        <th>STT</th>
-                                        <th>Tên người học</th>
-                                        <th>Số điện thoại</th>
-                                        <th>Năm</th>
-                                        <th>Tổng giờ học</th>
-                                        <th>Tỷ lệ hoàn thành</th>
-                                        <th>Trạng thái</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr id="no-data-row">
-                                        <td colspan="7" class="text-center">Không có dữ liệu</td>
-                                    </tr>
-                                </tbody>
-                            </table>
+                        <div class="statistics-tables-container">
+                            <!-- Table 1: Course completion statistics -->
+                            <div class="statistics-table-section">
+                                <h3 class="table-section-title">Bảng thống kê 1: Thống kê mỗi khóa học có bao nhiều người học hoàn thành (Sắp xếp theo số học viên giảm dần)</h3>
+                                <div class="statistics-table-container">
+                                    <table class="table table-striped" id="course-completion-table">
+                                        <thead>
+                                            <tr>
+                                                <th>TT</th>
+                                                <th>Tên khóa học</th>
+                                                <th>Số học viên hoàn thành</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr id="no-data-row-1">
+                                                <td colspan="3" class="text-center">Không có dữ liệu</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- Table 2: Organization completion rate statistics -->
+                            <div class="statistics-table-section">
+                                <h3 class="table-section-title">Bảng thống kê 2: Thống kê mỗi cơ quan có bao nhiều người học hoàn thành khóa học (Sắp xếp thêm tỷ lệ % giảm dần)</h3>
+                                <div class="statistics-table-container">
+                                    <table class="table table-striped" id="organization-completion-table">
+                                        <thead>
+                                            <tr>
+                                                <th>TT</th>
+                                                <th>Tên cơ quan</th>
+                                                <th>Số học viên</th>
+                                                <th>Tỷ lệ % hoàn thành</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr id="no-data-row-2">
+                                                <td colspan="4" class="text-center">Không có dữ liệu</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- Table 3: Organization courses completed statistics -->
+                            <div class="statistics-table-section">
+                                <h3 class="table-section-title">Bảng thống kê 3: Thống kê mỗi cơ quan học được bao nhiều khóa học (Sắp xếp số khóa học giảm dần)</h3>
+                                <div class="statistics-table-container">
+                                    <table class="table table-striped" id="organization-courses-table">
+                                        <thead>
+                                            <tr>
+                                                <th>TT</th>
+                                                <th>Tên cơ quan</th>
+                                                <th>Số khóa học đã học</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr id="no-data-row-3">
+                                                <td colspan="3" class="text-center">Không có dữ liệu</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Table 4: Original learner statistics table -->
+                        <div class="statistics-table-section">
+                            <h3 class="table-section-title">Bảng thống kê 4: Thống kê chi tiết người học</h3>
+                            <div class="statistics-table-container">
+                                <table class="table table-striped" id="statistics-table">
+                                    <thead>
+                                        <tr>
+                                            <th>STT</th>
+                                            <th>Tên người học</th>
+                                            <th>Số điện thoại</th>
+                                            <th>Năm</th>
+                                            <th>Tổng giờ học</th>
+                                            <th>Tỷ lệ hoàn thành</th>
+                                            <th>Trạng thái</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr id="no-data-row">
+                                            <td colspan="7" class="text-center">Không có dữ liệu</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
 
                         <div class="pagination-container" id="pagination-container" style="display: none;">
@@ -302,6 +372,29 @@
                     font-size: 28px;
                     font-weight: bold;
                     color: #2c5aa0;
+                }
+
+                .statistics-tables-container {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 30px;
+                }
+
+                .statistics-table-section {
+                    background: white;
+                    padding: 20px;
+                    border-radius: 8px;
+                    border: 1px solid #dee2e6;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                }
+
+                .table-section-title {
+                    color: #2c5aa0;
+                    font-size: 16px;
+                    font-weight: 600;
+                    margin: 0 0 15px 0;
+                    padding-bottom: 10px;
+                    border-bottom: 2px solid #2c5aa0;
                 }
 
                 .statistics-table-container {
@@ -552,11 +645,83 @@
             // Animate numbers
             this.animateNumbers();
 
-            // Update table
+            // Update three tables
+            this.updateCourseCompletionTable(data.course_completions || []);
+            this.updateOrganizationCompletionTable(data.organization_completions || []);
+            this.updateOrganizationCoursesTable(data.organization_courses || []);
+
+            // Update the 4th table (original learner statistics)
             this.updateStatisticsTable(data.learners || []);
 
-            // Update pagination
+            // Update pagination for the 4th table
             this.updatePagination(data.pagination || {});
+        },
+
+        updateCourseCompletionTable: function(courses) {
+            const tableBody = document.querySelector('#course-completion-table tbody');
+            
+            if (!courses || courses.length === 0) {
+                tableBody.innerHTML = '<tr id="no-data-row-1"><td colspan="3" class="text-center">Không có dữ liệu</td></tr>';
+                return;
+            }
+
+            let html = '';
+            courses.forEach((course, index) => {
+                html += `
+                    <tr>
+                        <td>${index + 1}</td>
+                        <td>${course.course_name || 'N/A'}</td>
+                        <td>${course.completed_count || 0}</td>
+                    </tr>
+                `;
+            });
+
+            tableBody.innerHTML = html;
+        },
+
+        updateOrganizationCompletionTable: function(organizations) {
+            const tableBody = document.querySelector('#organization-completion-table tbody');
+            
+            if (!organizations || organizations.length === 0) {
+                tableBody.innerHTML = '<tr id="no-data-row-2"><td colspan="4" class="text-center">Không có dữ liệu</td></tr>';
+                return;
+            }
+
+            let html = '';
+            organizations.forEach((org, index) => {
+                html += `
+                    <tr>
+                        <td>${index + 1}</td>
+                        <td>${org.organization_name || 'N/A'}</td>
+                        <td>${org.learner_count || 0}</td>
+                        <td>${org.completion_percentage || 0}%</td>
+                    </tr>
+                `;
+            });
+
+            tableBody.innerHTML = html;
+        },
+
+        updateOrganizationCoursesTable: function(organizations) {
+            const tableBody = document.querySelector('#organization-courses-table tbody');
+            
+            if (!organizations || organizations.length === 0) {
+                tableBody.innerHTML = '<tr id="no-data-row-3"><td colspan="3" class="text-center">Không có dữ liệu</td></tr>';
+                return;
+            }
+
+            let html = '';
+            organizations.forEach((org, index) => {
+                html += `
+                    <tr>
+                        <td>${index + 1}</td>
+                        <td>${org.organization_name || 'N/A'}</td>
+                        <td>${org.courses_count || 0}</td>
+                    </tr>
+                `;
+            });
+
+            tableBody.innerHTML = html;
         },
 
         updateStatisticsTable: function(learners) {

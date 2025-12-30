@@ -2069,7 +2069,7 @@ def _get_statistics_data(request):
     year_filter = request.GET.get('year', '').strip()
     completion_filter = request.GET.get('completion', '').strip()
     page = int(request.GET.get('page', 1))
-    per_page = 20
+    per_page = 10
     
     # Base queryset - get all users with profiles and enrollments
     users_query = User.objects.select_related('profile').filter(
@@ -2215,10 +2215,144 @@ def _get_statistics_data(request):
             'per_page': per_page,
             'has_previous': page_obj.has_previous(),
             'has_next': page_obj.has_next()
-        }
+        },
+        # Add three new tables data
+        'course_completions': _get_course_completion_stats(request),
+        'organization_completions': _get_organization_completion_stats(request),
+        'organization_courses': _get_organization_courses_stats(request)
     }
     
     return JsonResponse(stats_data)
+
+
+def _get_course_completion_stats(request):
+    """
+    Table 1: Statistics on how many students completed each course
+    Returns list of courses sorted by completion count (descending)
+    """
+    from common.djangoapps.student.models import CourseEnrollment
+    from lms.djangoapps.grades.models import PersistentCourseGrade
+    from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
+    from django.db.models import Count
+    
+    # Get all courses with enrollments
+    courses = CourseOverview.objects.filter(
+        courseenrollment__is_active=True
+    ).distinct()
+    
+    course_stats = []
+    for course in courses:
+        # Count students who completed this course (grade >= 100% or passing)
+        completed_count = PersistentCourseGrade.objects.filter(
+            course_id=course.id,
+            percent_grade__gte=0.6  # 60% passing grade
+        ).count()
+        
+        course_stats.append({
+            'course_name': course.display_name,
+            'completed_count': completed_count
+        })
+    
+    # Sort by completed count (descending)
+    course_stats.sort(key=lambda x: x['completed_count'], reverse=True)
+    
+    return course_stats
+
+
+def _get_organization_completion_stats(request):
+    """
+    Table 2: Statistics on how many people from each organization completed courses
+    Returns list of organizations with learner count and completion percentage
+    Sorted by completion percentage (descending)
+    """
+    from cms.djangoapps.contentstore.models import ChalixOrganization, ChalixUserRole
+    from common.djangoapps.student.models import User
+    from lms.djangoapps.grades.models import PersistentCourseGrade
+    from common.djangoapps.student.models import CourseEnrollment
+    from django.db.models import Count, Q
+    
+    # Get all organizations
+    organizations = ChalixOrganization.objects.all()
+    
+    org_stats = []
+    for org in organizations:
+        # Get users in this organization
+        org_users = ChalixUserRole.objects.filter(
+            organization=org,
+            is_active=True
+        ).values_list('user_id', flat=True)
+        
+        if not org_users:
+            continue
+        
+        # Count total learners from this organization
+        learner_count = len(org_users)
+        
+        # Count how many completed at least one course
+        completed_learners = 0
+        for user_id in org_users:
+            # Check if user has any course with passing grade
+            has_completed = PersistentCourseGrade.objects.filter(
+                user_id=user_id,
+                percent_grade__gte=0.6  # 60% passing grade
+            ).exists()
+            
+            if has_completed:
+                completed_learners += 1
+        
+        # Calculate completion percentage
+        completion_percentage = round((completed_learners / learner_count * 100), 1) if learner_count > 0 else 0
+        
+        org_stats.append({
+            'organization_name': org.display_name,
+            'learner_count': learner_count,
+            'completion_percentage': completion_percentage
+        })
+    
+    # Sort by completion percentage (descending)
+    org_stats.sort(key=lambda x: x['completion_percentage'], reverse=True)
+    
+    return org_stats
+
+
+def _get_organization_courses_stats(request):
+    """
+    Table 3: Statistics on how many courses each organization has studied
+    Returns list of organizations with count of courses their members are enrolled in
+    Sorted by course count (descending)
+    """
+    from cms.djangoapps.contentstore.models import ChalixOrganization, ChalixUserRole
+    from common.djangoapps.student.models import CourseEnrollment
+    
+    # Get all organizations
+    organizations = ChalixOrganization.objects.all()
+    
+    org_stats = []
+    for org in organizations:
+        # Get users in this organization
+        org_users = ChalixUserRole.objects.filter(
+            organization=org,
+            is_active=True
+        ).values_list('user_id', flat=True)
+        
+        if not org_users:
+            continue
+        
+        # Count distinct courses that members of this organization are enrolled in
+        courses_count = CourseEnrollment.objects.filter(
+            user_id__in=org_users,
+            is_active=True
+        ).values('course_id').distinct().count()
+        
+        org_stats.append({
+            'organization_name': org.display_name,
+            'courses_count': courses_count
+        })
+    
+    # Sort by courses count (descending)
+    org_stats.sort(key=lambda x: x['courses_count'], reverse=True)
+    
+    return org_stats
 
 
 def _export_statistics_csv(request):
