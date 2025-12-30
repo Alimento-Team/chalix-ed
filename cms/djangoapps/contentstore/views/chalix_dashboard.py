@@ -1718,6 +1718,10 @@ def update_course_api(request):
     if not has_studio_write_access(request.user, course_key):
         return JsonResponse({'error': 'Bạn không có quyền chỉnh sửa khóa học này'}, status=403)
 
+    # Initialize units tracking
+    units_created = 0
+    units_updated = 0
+
     try:
         from openedx.core.djangoapps.models.course_details import CourseDetails
         
@@ -1818,6 +1822,81 @@ def update_course_api(request):
             except Exception as e:
                 logger.warning(f"Failed to update ChalixCourseMetadata course_category for {course_key}: {e}")
         
+        # Handle units (chapters/sections) if provided
+        units_data = payload.get('units', [])
+        
+        if units_data:
+            logger.info(f"Processing {len(units_data)} units for course {course_key}")
+            
+            # Get or create main chapter for organizing units
+            course = store.get_course(course_key)
+            main_chapter = None
+            
+            # Try to find existing main chapter (the first chapter)
+            if course.get_children():
+                for child in course.get_children():
+                    if child.category == 'chapter':
+                        main_chapter = child
+                        break
+            
+            # Create main chapter if it doesn't exist
+            if not main_chapter:
+                logger.info(f"Creating new main chapter for course {course_key}")
+                main_chapter = store.create_child(
+                    request.user.id,
+                    course.location,
+                    'chapter',
+                    fields={
+                        'display_name': title,  # Use course title as chapter name
+                    }
+                )
+            
+            # Process each unit - create subsection (sequential) with an empty vertical
+            for unit_data in units_data:
+                unit_title = unit_data.get('title', '').strip()
+                unit_name = unit_data.get('name', unit_title).strip()
+                unit_order = unit_data.get('order', 0)
+                
+                if not unit_title:
+                    logger.warning(f"Skipping unit with no title: {unit_data}")
+                    continue
+                
+                try:
+                    # Create subsection (sequential) for the unit
+                    sequential = store.create_child(
+                        request.user.id,
+                        main_chapter.location,
+                        'sequential',
+                        fields={
+                            'display_name': unit_title,
+                        }
+                    )
+                    
+                    # Create an empty unit (vertical) under the subsection
+                    vertical = store.create_child(
+                        request.user.id,
+                        sequential.location,
+                        'vertical',
+                        fields={
+                            'display_name': f'{unit_title} - Bài học',
+                        }
+                    )
+                    
+                    # Publish the components
+                    store.publish(sequential.location, request.user.id)
+                    store.publish(vertical.location, request.user.id)
+                    
+                    units_created += 1
+                    logger.info(f"Created unit '{unit_title}' for course {course_key}")
+                    
+                except Exception as unit_error:
+                    logger.error(f"Failed to create unit '{unit_title}': {unit_error}")
+            
+            # Publish the main chapter
+            if main_chapter and units_created > 0:
+                store.publish(main_chapter.location, request.user.id)
+                logger.info(f"Successfully created {units_created} units for course {course_key}")
+        
         return JsonResponse({
             'course_key': str(course_key),
             'title': updated_course_details.title,
@@ -1834,7 +1913,8 @@ def update_course_api(request):
             'final_evaluation_type': getattr(updated_course_details, 'final_evaluation_type', ''),
             'start_date': updated_course_details.start_date.isoformat() if updated_course_details.start_date else None,
             'end_date': updated_course_details.end_date.isoformat() if updated_course_details.end_date else None,
-            'message': 'Đã cập nhật khóa học thành công!'
+            'units_created': units_created,
+            'message': f'Đã cập nhật khóa học thành công! {units_created} chuyên đề đã được tạo.' if units_created > 0 else 'Đã cập nhật khóa học thành công!'
         })
 
     except Exception as e:

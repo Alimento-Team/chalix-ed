@@ -461,6 +461,36 @@ lms_base_url = _mfe_conf.get('LMS_BASE_URL') or getattr(settings, 'LMS_ROOT_URL'
         color: #6c757d;
         border: 1px solid #dee2e6;
     }
+
+    /* CMS Footer Styling */
+    .cms-footer {
+        background: #3563c1;
+        color: #ffffff;
+        padding: 40px 0;
+        margin-top: auto;
+        width: 100%;
+    }
+
+    .cms-footer .footer-content {
+        max-width: 1240px;
+        margin: 0 auto;
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+    }
+
+    .cms-footer .footer-content div {
+        font-family: 'Roboto', sans-serif;
+        font-weight: 400;
+        font-size: 16px;
+        line-height: 20px;
+        letter-spacing: 0.5px;
+        color: #ffffff;
+        margin: 0;
+    }
         </style>
 </%block>
 

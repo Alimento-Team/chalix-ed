@@ -30,8 +30,10 @@ $z-dropdown: 1010;
 // Chalix Header Wrapper
 .chalix-header-wrapper {
     width: 100%;
-    position: sticky;
+    position: fixed;
     top: 0;
+    left: 0;
+    right: 0;
     z-index: $z-header;
     background: $chalix-white;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);

@@ -25,9 +25,19 @@ class UserPopupSerializer(serializers.Serializer):
     organization = serializers.SerializerMethodField()
     
     def get_full_name(self, obj):
-        """Get user's full name from first and last name."""
+        """Get user's full name from profile.name or first and last name."""
+        # First try to get name from user profile
+        try:
+            if hasattr(obj, 'profile') and obj.profile and obj.profile.name:
+                return obj.profile.name
+        except Exception:
+            pass
+        
+        # Fallback to first_name and last_name
         if obj.first_name and obj.last_name:
             return f"{obj.first_name} {obj.last_name}"
+        
+        # Last resort: return username
         return obj.username
     
     def get_profile_image_url(self, obj):
