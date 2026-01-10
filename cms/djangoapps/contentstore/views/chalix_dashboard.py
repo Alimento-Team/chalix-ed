@@ -2050,6 +2050,7 @@ def _get_statistics_data(request):
     - Filter by learner name  
     - Filter by year
     - Filter by completion status (calculated as total estimated hours / 40 hours)
+    - Filter by organization for co_quan role (only show their organization's users)
     Column TT (row number) should be displayed as smaller column
     """
     from django.core.paginator import Paginator
@@ -2057,6 +2058,7 @@ def _get_statistics_data(request):
     from common.djangoapps.student.models import UserProfile, CourseEnrollment, User
     from lms.djangoapps.grades.models import PersistentCourseGrade
     from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
+    from cms.djangoapps.contentstore.chalix_roles import get_user_primary_role
     import csv
     from django.http import HttpResponse
     from datetime import datetime
@@ -2078,6 +2080,11 @@ def _get_statistics_data(request):
     users_query = User.objects.select_related('profile').filter(
         courseenrollment__is_active=True
     ).distinct()
+    
+    # Filter by organization for co_quan role
+    user_role = get_user_primary_role(request.user)
+    if user_role and user_role.role == 'co_quan' and user_role.organization:
+        users_query = users_query.filter(profile__ten_co_quan=user_role.organization)
     
     # Apply phone filter
     if phone_filter:
@@ -2233,31 +2240,61 @@ def _get_course_completion_stats(request):
     Table 1: THỐNG KÊ SỐ NGƯỜI HỌC CỦA CÁC KHÓA HỌC NĂM ...
     Statistics on how many learners completed each course
     Returns list of courses sorted by completion count (descending)
+    For co_quan role: only count learners from their organization
     Column TT (row number) should be displayed as smaller column
     """
     from common.djangoapps.student.models import CourseEnrollment
     from lms.djangoapps.grades.models import PersistentCourseGrade
     from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
-    from django.db.models import Count
+    from cms.djangoapps.contentstore.chalix_roles import get_user_primary_role
+    from django.db.models import Count, Q
+    
+    # Check user role for organization filtering
+    user_role = get_user_primary_role(request.user)
+    org_filter = None
+    if user_role and user_role.role == 'co_quan' and user_role.organization:
+        org_filter = user_role.organization
     
     # Get all courses with enrollments
-    courses = CourseOverview.objects.filter(
-        courseenrollment__is_active=True
-    ).distinct()
+    if org_filter:
+        # For co_quan: only courses with enrollments from their organization
+        courses = CourseOverview.objects.filter(
+            courseenrollment__is_active=True,
+            courseenrollment__user__profile__ten_co_quan=org_filter
+        ).distinct()
+    else:
+        courses = CourseOverview.objects.filter(
+            courseenrollment__is_active=True
+        ).distinct()
     
     course_stats = []
     for course in courses:
-        # Count total active learners (currently learning)
-        current_learners_count = CourseEnrollment.objects.filter(
-            course_id=course.id,
-            is_active=True
-        ).count()
+        # Base query for counting learners
+        if org_filter:
+            # For co_quan: only count learners from their organization
+            current_learners_query = CourseEnrollment.objects.filter(
+                course_id=course.id,
+                is_active=True,
+                user__profile__ten_co_quan=org_filter
+            )
+            completed_query = PersistentCourseGrade.objects.filter(
+                course_id=course.id,
+                percent_grade__gte=0.6,
+                user_id__in=current_learners_query.values_list('user_id', flat=True)
+            )
+        else:
+            # For other roles: count all learners
+            current_learners_query = CourseEnrollment.objects.filter(
+                course_id=course.id,
+                is_active=True
+            )
+            completed_query = PersistentCourseGrade.objects.filter(
+                course_id=course.id,
+                percent_grade__gte=0.6
+            )
         
-        # Count students who completed this course (grade >= 60% passing)
-        completed_count = PersistentCourseGrade.objects.filter(
-            course_id=course.id,
-            percent_grade__gte=0.6  # 60% passing grade
-        ).count()
+        current_learners_count = current_learners_query.count()
+        completed_count = completed_query.count()
         
         course_stats.append({
             'course_name': course.display_name,
@@ -2284,9 +2321,13 @@ def _get_organization_completion_stats(request):
     from lms.djangoapps.grades.models import PersistentCourseGrade
     from common.djangoapps.student.models import CourseEnrollment
     from django.db.models import Count, Q
+    import logging
+    
+    logger = logging.getLogger(__name__)
     
     # Get all organizations
     organizations = ChalixOrganization.objects.all()
+    logger.info(f"[Organization Stats] Found {organizations.count()} organizations")
     
     org_stats = []
     for org in organizations:
@@ -2295,6 +2336,8 @@ def _get_organization_completion_stats(request):
             organization=org,
             is_active=True
         ).values_list('user_id', flat=True)
+        
+        logger.info(f"[Organization Stats] Org: {org.display_name}, Users: {len(org_users)}")
         
         if not org_users:
             continue
@@ -2323,6 +2366,8 @@ def _get_organization_completion_stats(request):
             'completion_percentage': completion_percentage
         })
     
+    logger.info(f"[Organization Stats] Returning {len(org_stats)} organization stats")
+    
     # Sort by completion percentage (descending)
     org_stats.sort(key=lambda x: x['completion_percentage'], reverse=True)
     
@@ -2339,9 +2384,13 @@ def _get_organization_courses_stats(request):
     """
     from cms.djangoapps.contentstore.models import ChalixOrganization, ChalixUserRole
     from common.djangoapps.student.models import CourseEnrollment
+    import logging
+    
+    logger = logging.getLogger(__name__)
     
     # Get all organizations
     organizations = ChalixOrganization.objects.all()
+    logger.info(f"[Organization Courses Stats] Found {organizations.count()} organizations")
     
     org_stats = []
     for org in organizations:
@@ -2350,6 +2399,8 @@ def _get_organization_courses_stats(request):
             organization=org,
             is_active=True
         ).values_list('user_id', flat=True)
+        
+        logger.info(f"[Organization Courses Stats] Org: {org.display_name}, Users: {len(org_users)}")
         
         if not org_users:
             continue
@@ -2360,10 +2411,14 @@ def _get_organization_courses_stats(request):
             is_active=True
         ).values('course_id').distinct().count()
         
+        logger.info(f"[Organization Courses Stats] Org: {org.display_name}, Courses: {courses_count}")
+        
         org_stats.append({
             'organization_name': org.display_name,
             'courses_count': courses_count
         })
+    
+    logger.info(f"[Organization Courses Stats] Returning {len(org_stats)} organization stats")
     
     # Sort by courses count (descending)
     org_stats.sort(key=lambda x: x['courses_count'], reverse=True)

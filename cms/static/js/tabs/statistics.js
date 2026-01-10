@@ -25,6 +25,9 @@
             // Clear container
             container.innerHTML = '';
 
+            // Check user role
+            const userRole = options.user_role;
+
             // Create statistics interface
             const statisticsHTML = `
                 <div class="statistics-container">
@@ -32,78 +35,40 @@
                         <h2>${contentTitle}</h2>
                         <p class="statistics-description">${contentDescription}</p>
                     </div>
-                    
-                    <div class="statistics-filters">
-                        <div class="filter-row">
-                            <div class="filter-group">
-                                <label for="filter-phone">Lọc theo SĐT người học:</label>
-                                <input type="text" id="filter-phone" class="form-control" placeholder="Nhập số điện thoại">
-                            </div>
-                            <div class="filter-group">
-                                <label for="filter-name">Lọc theo tên người học:</label>
-                                <input type="text" id="filter-name" class="form-control" placeholder="Nhập tên người học">
-                            </div>
-                        </div>
-                        <div class="filter-row">
-                            <div class="filter-group">
-                                <label for="filter-year">Lọc theo năm:</label>
-                                <select id="filter-year" class="form-control">
-                                    <option value="">Tất cả năm</option>
-                                </select>
-                            </div>
-                            <div class="filter-group">
-                                <label for="filter-completion">Lọc theo tình trạng hoàn thành:</label>
-                                <select id="filter-completion" class="form-control">
-                                    <option value="">Tất cả</option>
-                                    <option value="completed">Đạt (100%)</option>
-                                    <option value="80">80%</option>
-                                    <option value="60">60%</option>
-                                    <option value="50">50%</option>
-                                    <option value="under_50">Ít hơn 50%</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="filter-actions">
-                            <button type="button" id="apply-filters" class="btn btn-primary">Áp dụng bộ lọc</button>
-                            <button type="button" id="reset-filters" class="btn btn-default">Đặt lại</button>
-                            <button type="button" id="export-data" class="btn btn-success">Xuất dữ liệu</button>
-                        </div>
-                    </div>
-
                     <div class="statistics-content">
-                        <div class="loading-indicator" id="loading-indicator" style="display: none;">
-                            <i class="fa fa-spinner fa-spin"></i>
-                            <span>Đang tải dữ liệu thống kê...</span>
-                        </div>
-
-                        <div class="statistics-summary" id="statistics-summary">
-                            <div class="summary-card">
-                                <h3>Tổng số người học</h3>
-                                <div class="stat-number" id="total-learners">0</div>
-                            </div>
-                            <div class="summary-card">
-                                <h3>Người học đã hoàn thành</h3>
-                                <div class="stat-number" id="completed-learners">0</div>
-                            </div>
-                            <div class="summary-card">
-                                <h3>Tỷ lệ hoàn thành</h3>
-                                <div class="stat-number" id="completion-rate">0%</div>
-                            </div>
-                            <div class="summary-card">
-                                <h3>Trung bình giờ học</h3>
-                                <div class="stat-number" id="average-hours">0</div>
-                            </div>
-                        </div>
-
                         <div class="statistics-tables-container">
-                            <!-- Table 1: Course completion statistics -->
+                            ${userRole === 'co_quan' ? `
+                            <!-- Co Quan sees only 2 tables for their organization -->
+                            <div class="statistics-table-section">
+                                <h3 class="table-section-title">THỐNG KÊ SỐ GIỜ HỌC CỦA CÔNG CHỨC, VIÊN CHỨC NĂM 2025</h3>
+                                <div class="statistics-table-container">
+                                    <table class="table table-striped" id="statistics-table">
+                                        <thead>
+                                            <tr>
+                                                <th style="width: 30px; padding: 12px 4px;">TT</th>
+                                                <th>Tên người học</th>
+                                                <th>Số điện thoại</th>
+                                                <th>Năm</th>
+                                                <th>Tổng giờ học</th>
+                                                <th>Tỷ lệ hoàn thành</th>
+                                                <th>Trạng thái</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr id="no-data-row">
+                                                <td colspan="7" class="text-center">Không có dữ liệu</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
                             <div class="statistics-table-section">
                                 <h3 class="table-section-title">THỐNG KÊ SỐ NGƯỜI HỌC CỦA CÁC KHÓA HỌC NĂM 2025</h3>
                                 <div class="statistics-table-container">
                                     <table class="table table-striped" id="course-completion-table">
                                         <thead>
                                             <tr>
-                                                <th>TT</th>
+                                                <th style="width: 30px; padding: 12px 4px;">TT</th>
                                                 <th>Tên khóa học</th>
                                                 <th>Số người đang học</th>
                                                 <th>Số học viên hoàn thành</th>
@@ -117,18 +82,18 @@
                                     </table>
                                 </div>
                             </div>
-
-                            <!-- Table 2: Organization completion rate statistics -->
+                            ` : `
+                            <!-- Bo and other roles see all 4 tables -->
                             <div class="statistics-table-section">
-                                <h3 class="table-section-title">THỐNG KÊ SỐ NGƯỜI HỌC CỦA CÁC CƠ QUAN NĂM 2025</h3>
+                                <h3 class="table-section-title">THỐNG KÊ SỐ NGƯỜI HỌC THEO CƠ QUAN NĂM 2025</h3>
                                 <div class="statistics-table-container">
                                     <table class="table table-striped" id="organization-completion-table">
                                         <thead>
                                             <tr>
-                                                <th>TT</th>
+                                                <th style="width: 30px; padding: 12px 4px;">TT</th>
                                                 <th>Tên cơ quan</th>
-                                                <th>Số học viên</th>
-                                                <th>Tỷ lệ % hoàn thành</th>
+                                                <th>Số người học</th>
+                                                <th>Tỷ lệ hoàn thành</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -139,17 +104,35 @@
                                     </table>
                                 </div>
                             </div>
-
-                            <!-- Table 3: Organization courses completed statistics -->
                             <div class="statistics-table-section">
-                                <h3 class="table-section-title">THỐNG KÊ SỐ KHÓA HỌC CỦA CÁC CƠ QUAN</h3>
+                                <h3 class="table-section-title">THỐNG KÊ SỐ NGƯỜI HỌC CỦA CÁC KHÓA HỌC NĂM 2025</h3>
+                                <div class="statistics-table-container">
+                                    <table class="table table-striped" id="course-completion-table">
+                                        <thead>
+                                            <tr>
+                                                <th style="width: 30px; padding: 12px 4px;">TT</th>
+                                                <th>Tên khóa học</th>
+                                                <th>Số người đang học</th>
+                                                <th>Số học viên hoàn thành</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr id="no-data-row-1">
+                                                <td colspan="4" class="text-center">Không có dữ liệu</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            <div class="statistics-table-section">
+                                <h3 class="table-section-title">THỐNG KÊ SỐ KHÓA HỌC THEO CƠ QUAN NĂM 2025</h3>
                                 <div class="statistics-table-container">
                                     <table class="table table-striped" id="organization-courses-table">
                                         <thead>
                                             <tr>
-                                                <th>TT</th>
+                                                <th style="width: 30px; padding: 12px 4px;">TT</th>
                                                 <th>Tên cơ quan</th>
-                                                <th>Số khóa học đã học</th>
+                                                <th>Số khóa học</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -160,38 +143,30 @@
                                     </table>
                                 </div>
                             </div>
-                        </div>
-
-                        <!-- Table 4: Original learner statistics table -->
-                        <div class="statistics-table-section">
-                            <h3 class="table-section-title">THỐNG KÊ SỐ GIờ HỌc CỦA CÔNG CHỨC, VIÊNCHỦC NĂM 2025</h3>
-                            <div class="statistics-table-container">
-                                <table class="table table-striped" id="statistics-table">
-                                    <thead>
-                                        <tr>
-                                            <th>STT</th>
-                                            <th>Tên người học</th>
-                                            <th>Số điện thoại</th>
-                                            <th>Năm</th>
-                                            <th>Tổng giờ học</th>
-                                            <th>Tỷ lệ hoàn thành</th>
-                                            <th>Trạng thái</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <tr id="no-data-row">
-                                            <td colspan="7" class="text-center">Không có dữ liệu</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
+                            <div class="statistics-table-section">
+                                <h3 class="table-section-title">THỐNG KÊ SỐ GIỜ HỌC CỦA CÔNG CHỨC, VIÊN CHỨC NĂM 2025</h3>
+                                <div class="statistics-table-container">
+                                    <table class="table table-striped" id="statistics-table">
+                                        <thead>
+                                            <tr>
+                                                <th style="width: 30px; padding: 12px 4px;">TT</th>
+                                                <th>Tên người học</th>
+                                                <th>Số điện thoại</th>
+                                                <th>Năm</th>
+                                                <th>Tổng giờ học</th>
+                                                <th>Tỷ lệ hoàn thành</th>
+                                                <th>Trạng thái</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr id="no-data-row">
+                                                <td colspan="7" class="text-center">Không có dữ liệu</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
-                        </div>
-
-                        <div class="pagination-container" id="pagination-container" style="display: none;">
-                            <nav aria-label="Statistics pagination">
-                                <ul class="pagination" id="pagination-list">
-                                </ul>
-                            </nav>
+                            `}
                         </div>
                     </div>
                 </div>
@@ -570,51 +545,74 @@
             const self = this;
 
             // Apply filters button
-            document.getElementById('apply-filters').addEventListener('click', function() {
-                self.loadStatisticsData();
-            });
+            const applyFiltersBtn = document.getElementById('apply-filters');
+            if (applyFiltersBtn) {
+                applyFiltersBtn.addEventListener('click', function() {
+                    self.loadStatisticsData();
+                });
+            }
 
             // Reset filters button
-            document.getElementById('reset-filters').addEventListener('click', function() {
-                document.getElementById('filter-phone').value = '';
-                document.getElementById('filter-name').value = '';
-                document.getElementById('filter-year').value = '';
-                document.getElementById('filter-completion').value = '';
-                self.loadStatisticsData();
-            });
+            const resetFiltersBtn = document.getElementById('reset-filters');
+            if (resetFiltersBtn) {
+                resetFiltersBtn.addEventListener('click', function() {
+                    const phoneInput = document.getElementById('filter-phone');
+                    const nameInput = document.getElementById('filter-name');
+                    const yearSelect = document.getElementById('filter-year');
+                    const completionSelect = document.getElementById('filter-completion');
+
+                    if (phoneInput) phoneInput.value = '';
+                    if (nameInput) nameInput.value = '';
+                    if (yearSelect) yearSelect.value = '';
+                    if (completionSelect) completionSelect.value = '';
+
+                    self.loadStatisticsData();
+                });
+            }
 
             // Export data button
-            document.getElementById('export-data').addEventListener('click', function() {
-                self.exportStatisticsData();
-            });
+            const exportBtn = document.getElementById('export-data');
+            if (exportBtn) {
+                exportBtn.addEventListener('click', function() {
+                    self.exportStatisticsData();
+                });
+            }
 
             // Enter key support for filters
-            document.getElementById('filter-phone').addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
-                    self.loadStatisticsData();
-                }
-            });
+            const phoneInput = document.getElementById('filter-phone');
+            if (phoneInput) {
+                phoneInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        self.loadStatisticsData();
+                    }
+                });
+            }
 
-            document.getElementById('filter-name').addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
-                    self.loadStatisticsData();
-                }
-            });
+            const nameInput = document.getElementById('filter-name');
+            if (nameInput) {
+                nameInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        self.loadStatisticsData();
+                    }
+                });
+            }
         },
 
         loadStatisticsData: function(page = 1) {
             const loadingIndicator = document.getElementById('loading-indicator');
             const statisticsContent = document.querySelector('.statistics-content');
             
-            // Show loading
-            loadingIndicator.style.display = 'block';
+            // Show loading when the indicator exists
+            if (loadingIndicator) {
+                loadingIndicator.style.display = 'block';
+            }
 
             // Collect filter values
             const filters = {
-                phone: document.getElementById('filter-phone').value.trim(),
-                name: document.getElementById('filter-name').value.trim(),
-                year: document.getElementById('filter-year').value,
-                completion: document.getElementById('filter-completion').value,
+                phone: (document.getElementById('filter-phone')?.value || '').trim(),
+                name: (document.getElementById('filter-name')?.value || '').trim(),
+                year: document.getElementById('filter-year')?.value || '',
+                completion: document.getElementById('filter-completion')?.value || '',
                 page: page
             };
 
@@ -657,24 +655,38 @@
                 return response.json();
             })
             .then(data => {
-                loadingIndicator.style.display = 'none';
+                if (loadingIndicator) {
+                    loadingIndicator.style.display = 'none';
+                }
                 this.renderStatisticsData(data);
             })
             .catch(error => {
-                loadingIndicator.style.display = 'none';
+                if (loadingIndicator) {
+                    loadingIndicator.style.display = 'none';
+                }
                 console.error('Error loading statistics:', error);
                 this.showError(error.message || 'Có lỗi xảy ra khi tải dữ liệu thống kê. Vui lòng thử lại.');
             });
         },
 
         renderStatisticsData: function(data) {
+            // Debug logging
+            console.log('[Statistics] Received data:', data);
+            console.log('[Statistics] Organization completions:', data.organization_completions);
+            console.log('[Statistics] Organization courses:', data.organization_courses);
+            
             // Update summary cards
-            document.getElementById('total-learners').textContent = data.summary.total_learners || 0;
-            document.getElementById('completed-learners').textContent = data.summary.completed_learners || 0;
-            document.getElementById('completion-rate').textContent = `${data.summary.completion_rate || 0}%`;
-            document.getElementById('average-hours').textContent = data.summary.average_hours || 0;
+            const totalLearners = document.getElementById('total-learners');
+            const completedLearners = document.getElementById('completed-learners');
+            const completionRate = document.getElementById('completion-rate');
+            const averageHours = document.getElementById('average-hours');
 
-            // Animate numbers
+            if (totalLearners) totalLearners.textContent = data.summary?.total_learners || 0;
+            if (completedLearners) completedLearners.textContent = data.summary?.completed_learners || 0;
+            if (completionRate) completionRate.textContent = `${data.summary?.completion_rate || 0}%`;
+            if (averageHours) averageHours.textContent = data.summary?.average_hours || 0;
+
+            // Animate numbers when summary cards exist
             this.animateNumbers();
 
             // Update three tables
@@ -691,6 +703,7 @@
 
         updateCourseCompletionTable: function(courses) {
             const tableBody = document.querySelector('#course-completion-table tbody');
+            if (!tableBody) return;
             
             if (!courses || courses.length === 0) {
                 tableBody.innerHTML = '<tr id="no-data-row-1"><td colspan="4" class="text-center">Không có dữ liệu</td></tr>';
@@ -714,6 +727,7 @@
 
         updateOrganizationCompletionTable: function(organizations) {
             const tableBody = document.querySelector('#organization-completion-table tbody');
+            if (!tableBody) return;
             
             if (!organizations || organizations.length === 0) {
                 tableBody.innerHTML = '<tr id="no-data-row-2"><td colspan="4" class="text-center">Không có dữ liệu</td></tr>';
@@ -737,6 +751,7 @@
 
         updateOrganizationCoursesTable: function(organizations) {
             const tableBody = document.querySelector('#organization-courses-table tbody');
+            if (!tableBody) return;
             
             if (!organizations || organizations.length === 0) {
                 tableBody.innerHTML = '<tr id="no-data-row-3"><td colspan="3" class="text-center">Không có dữ liệu</td></tr>';
@@ -759,6 +774,7 @@
 
         updateStatisticsTable: function(learners) {
             const tableBody = document.querySelector('#statistics-table tbody');
+            if (!tableBody) return;
             
             if (!learners || learners.length === 0) {
                 tableBody.innerHTML = '<tr id="no-data-row"><td colspan="7" class="text-center">Không có dữ liệu</td></tr>';
@@ -804,6 +820,7 @@
         updatePagination: function(pagination) {
             const paginationContainer = document.getElementById('pagination-container');
             const paginationList = document.getElementById('pagination-list');
+            if (!paginationContainer || !paginationList) return;
             
             if (!pagination.total_pages || pagination.total_pages <= 1) {
                 paginationContainer.style.display = 'none';

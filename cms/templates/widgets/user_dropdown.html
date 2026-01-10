@@ -6,29 +6,101 @@
   from django.utils.translation import gettext as _
   from edx_django_utils.monitoring import set_custom_attribute
   from common.djangoapps.student.roles import GlobalStaff
+  from cms.djangoapps.contentstore.chalix_roles import get_user_organization_display_name
+%>
+
+<%
+  mfe_config = getattr(settings, 'MFE_CONFIG', {})
+  lms_base_url = mfe_config.get('LMS_BASE_URL') or getattr(settings, 'LMS_ROOT_URL', '')
+  learner_dashboard_url = mfe_config.get('LEARNER_DASHBOARD_URL', f"{lms_base_url}/dashboard")
+  account_profile_url = mfe_config.get('ACCOUNT_PROFILE_URL', lms_base_url)
+  account_settings_url = f"{account_profile_url}/account"
+  profile_url = f"{account_profile_url}/u/{user.username}" if user.username else account_settings_url
+
+  personalization_url = None
+  if learner_dashboard_url:
+      personalization_url = (
+          f"{learner_dashboard_url}&tab=personalized" if '?' in learner_dashboard_url
+          else f"{learner_dashboard_url.rstrip('/')}/?tab=personalized"
+      )
+
+  org_name = get_user_organization_display_name(user) or ''
+  display_name = user.get_full_name() or user.username
 %>
 
 <h3 class="title">
   <span class="label">
     <span class="label-prefix sr-only">${_("Currently signed in as:")}</span>
-    <span class="account-username" title="${ user.username }">${ user.username }</span>
+    <span class="account-username" title="${ display_name }">${ display_name }</span>
   </span>
   <span class="icon fa fa-caret-down ui-toggle-dd" aria-hidden="true"></span>
 </h3>
 <div class="wrapper wrapper-nav-sub">
   <div class="nav-sub">
-    <ul>
-      <li class="nav-item nav-account-dashboard">
-        <a href="/">${_("{studio_name} Home").format(studio_name=settings.STUDIO_SHORT_NAME)}</a>
-      </li>
-      % if GlobalStaff().has_user(user):
-      <li class="nav-item">
-        <a href="${reverse('maintenance:maintenance_index')}">${_("Maintenance")}</a>
-      </li>
-      % endif
-      <li class="nav-item nav-account-signout">
-        <a class="action action-signout" href="${settings.FRONTEND_LOGOUT_URL}">${_("Sign Out")}</a>
-      </li>
-    </ul>
+    <div class="chalix-user-menu">
+      <div class="chalix-user-menu__header">
+        <div class="chalix-user-menu__avatar" aria-hidden="true">
+          <i class="fa fa-user"></i>
+        </div>
+        <div class="chalix-user-menu__info">
+          <div class="chalix-user-menu__name">${ display_name }</div>
+          <div class="chalix-user-menu__meta">
+            % if user.username:
+            <span class="chalix-user-menu__username">@${ user.username }</span>
+            % endif
+            % if org_name:
+            <span class="chalix-user-menu__dot">•</span>
+            <span class="chalix-user-menu__org">${ org_name }</span>
+            % endif
+          </div>
+        </div>
+      </div>
+
+      <nav class="chalix-user-menu__list">
+        <a class="chalix-user-menu__item" href="${ learner_dashboard_url }">
+          <i class="fa fa-book"></i>
+          <span>Khóa học</span>
+        </a>
+        <a class="chalix-user-menu__item" href="${ account_settings_url }">
+          <i class="fa fa-user"></i>
+          <span>Cập nhật thông tin</span>
+        </a>
+        % if personalization_url:
+        <a class="chalix-user-menu__item" href="${ personalization_url }">
+          <i class="fa fa-user"></i>
+          <span>Cá nhân hóa</span>
+        </a>
+        % endif
+        <a class="chalix-user-menu__item" href="${ lms_base_url }/requests">
+          <i class="fa fa-list-alt"></i>
+          <span>Danh sách yêu cầu</span>
+        </a>
+        <a class="chalix-user-menu__item" href="${ profile_url }">
+          <i class="fa fa-bar-chart"></i>
+          <span>Kết quả học tập</span>
+        </a>
+        <a class="chalix-user-menu__item" href="${ lms_base_url }/register-teaching">
+          <i class="fa fa-graduation-cap"></i>
+          <span>Đăng ký giảng dạy</span>
+        </a>
+        <a class="chalix-user-menu__item" href="${ lms_base_url }/help">
+          <i class="fa fa-question-circle"></i>
+          <span>Trợ giúp</span>
+        </a>
+        % if GlobalStaff().has_user(user):
+        <a class="chalix-user-menu__item" href="${reverse('maintenance:maintenance_index')}">
+          <i class="fa fa-wrench"></i>
+          <span>Maintenance</span>
+        </a>
+        % endif
+      </nav>
+
+      <div class="chalix-user-menu__footer">
+        <a class="chalix-user-menu__logout" href="${ settings.FRONTEND_LOGOUT_URL }">
+          <i class="fa fa-sign-out"></i>
+          <span>Đăng xuất</span>
+        </a>
+      </div>
+    </div>
   </div>
 </div>

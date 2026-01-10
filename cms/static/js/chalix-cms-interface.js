@@ -24,7 +24,7 @@
     // Wait for DOM to be ready
     document.addEventListener('DOMContentLoaded', function() {
         console.log('Chalix CMS Interface: Initializing...');
-        initializeTabs();
+        // Tab initialization is now handled by chalix-dashboard.js
         initializeActionButtons();
         loadTabData();
 
