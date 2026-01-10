@@ -2041,13 +2041,16 @@ def dashboard_api(request):
 
 def _get_statistics_data(request):
     """
-    Get statistics data for the dashboard.
+    Table 4: THỐNG KÊ SỐ GIỜ HỌC CỦA CÔNG CHỨC, VIÊN CHỨC NĂM 2025
+    
+    Get statistics data for the dashboard with learner details and hours completed.
     
     This function provides learner statistics with filtering options:
     - Filter by learner phone
     - Filter by learner name  
     - Filter by year
     - Filter by completion status (calculated as total estimated hours / 40 hours)
+    Column TT (row number) should be displayed as smaller column
     """
     from django.core.paginator import Paginator
     from django.db.models import Q, Count, Sum, Avg
@@ -2227,8 +2230,10 @@ def _get_statistics_data(request):
 
 def _get_course_completion_stats(request):
     """
-    Table 1: Statistics on how many students completed each course
+    Table 1: THỐNG KÊ SỐ NGƯỜI HỌC CỦA CÁC KHÓA HỌC NĂM ...
+    Statistics on how many learners completed each course
     Returns list of courses sorted by completion count (descending)
+    Column TT (row number) should be displayed as smaller column
     """
     from common.djangoapps.student.models import CourseEnrollment
     from lms.djangoapps.grades.models import PersistentCourseGrade
@@ -2242,7 +2247,13 @@ def _get_course_completion_stats(request):
     
     course_stats = []
     for course in courses:
-        # Count students who completed this course (grade >= 100% or passing)
+        # Count total active learners (currently learning)
+        current_learners_count = CourseEnrollment.objects.filter(
+            course_id=course.id,
+            is_active=True
+        ).count()
+        
+        # Count students who completed this course (grade >= 60% passing)
         completed_count = PersistentCourseGrade.objects.filter(
             course_id=course.id,
             percent_grade__gte=0.6  # 60% passing grade
@@ -2250,6 +2261,7 @@ def _get_course_completion_stats(request):
         
         course_stats.append({
             'course_name': course.display_name,
+            'current_learners': current_learners_count,
             'completed_count': completed_count
         })
     
@@ -2261,9 +2273,11 @@ def _get_course_completion_stats(request):
 
 def _get_organization_completion_stats(request):
     """
-    Table 2: Statistics on how many people from each organization completed courses
+    Table 2: THỐNG KÊ SỐ NGƯỜI HỌC CỦA CÁC CƠ QUAN NĂM ...
+    Statistics on how many learners from each organization completed courses
     Returns list of organizations with learner count and completion percentage
     Sorted by completion percentage (descending)
+    Column TT (row number) should be displayed as smaller column
     """
     from cms.djangoapps.contentstore.models import ChalixOrganization, ChalixUserRole
     from common.djangoapps.student.models import User
@@ -2317,9 +2331,11 @@ def _get_organization_completion_stats(request):
 
 def _get_organization_courses_stats(request):
     """
-    Table 3: Statistics on how many courses each organization has studied
-    Returns list of organizations with count of courses their members are enrolled in
+    Table 3: THỐNG KÊ SỐ KHÓA HỌC CỦA CÁC CƠ QUAN
+    Statistics on how many courses each organization has created
+    Returns list of organizations with course count
     Sorted by course count (descending)
+    Column TT (row number) should be displayed as smaller column
     """
     from cms.djangoapps.contentstore.models import ChalixOrganization, ChalixUserRole
     from common.djangoapps.student.models import CourseEnrollment

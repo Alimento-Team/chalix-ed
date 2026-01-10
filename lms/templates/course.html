@@ -34,9 +34,9 @@ from django.urls import reverse
           course_date_string = ''
       %>
       % if course.advertised_start is not None:
-          <div class="course-date" aria-hidden="true">${_("Starts")}: <span style="font-style: italic;">${course.advertised_start}</span></div>
+          <div class="course-date" aria-hidden="true">${_("Ngày bắt đầu")}: <span style="font-style: italic;">${course.advertised_start}</span></div>
       % else:
-          <div class="course-date localized_datetime" aria-hidden="true" data-format="shortDate" style="font-style: italic;" data-datetime="${course_date_string}" data-language="${LANGUAGE_CODE}" data-string="${_("Starts: {date}")}"></div>
+          <div class="course-date localized_datetime" aria-hidden="true" data-format="numericDate" style="font-style: italic;" data-datetime="${course_date_string}" data-language="${LANGUAGE_CODE}" data-string="${_("Ngày bắt đầu: {date}")}"></div>
       % endif
     </div>
     <div class="sr">
@@ -46,9 +46,9 @@ from django.urls import reverse
         % endif
         <li>${course.display_number_with_default}</li>
         % if course.advertised_start is not None:
-            <li>${_("Starts")}: <time itemprop="startDate">${course.advertised_start}</time></li>
+            <li>${_("Ngày bắt đầu")}: <time itemprop="startDate">${course.advertised_start}</time></li>
         % else:
-            <li>${_("Starts")}: <time class="localized_datetime" itemprop="startDate" data-format="shortDate" data-datetime="${course_date_string}" data-language="${LANGUAGE_CODE}"></time></li>
+            <li>${_("Ngày bắt đầu")}: <time class="localized_datetime" itemprop="startDate" data-format="shortDate" data-datetime="${course_date_string}" data-language="${LANGUAGE_CODE}"></time></li>
         % endif
       </ul>
     </div>

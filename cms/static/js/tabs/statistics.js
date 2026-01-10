@@ -98,19 +98,20 @@
                         <div class="statistics-tables-container">
                             <!-- Table 1: Course completion statistics -->
                             <div class="statistics-table-section">
-                                <h3 class="table-section-title">Bảng thống kê 1: Thống kê mỗi khóa học có bao nhiều người học hoàn thành (Sắp xếp theo số học viên giảm dần)</h3>
+                                <h3 class="table-section-title">THỐNG KÊ SỐ NGƯỜI HỌC CỦA CÁC KHÓA HỌC NĂM 2025</h3>
                                 <div class="statistics-table-container">
                                     <table class="table table-striped" id="course-completion-table">
                                         <thead>
                                             <tr>
                                                 <th>TT</th>
                                                 <th>Tên khóa học</th>
+                                                <th>Số người đang học</th>
                                                 <th>Số học viên hoàn thành</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             <tr id="no-data-row-1">
-                                                <td colspan="3" class="text-center">Không có dữ liệu</td>
+                                                <td colspan="4" class="text-center">Không có dữ liệu</td>
                                             </tr>
                                         </tbody>
                                     </table>
@@ -119,7 +120,7 @@
 
                             <!-- Table 2: Organization completion rate statistics -->
                             <div class="statistics-table-section">
-                                <h3 class="table-section-title">Bảng thống kê 2: Thống kê mỗi cơ quan có bao nhiều người học hoàn thành khóa học (Sắp xếp thêm tỷ lệ % giảm dần)</h3>
+                                <h3 class="table-section-title">THỐNG KÊ SỐ NGƯỜI HỌC CỦA CÁC CƠ QUAN NĂM 2025</h3>
                                 <div class="statistics-table-container">
                                     <table class="table table-striped" id="organization-completion-table">
                                         <thead>
@@ -141,7 +142,7 @@
 
                             <!-- Table 3: Organization courses completed statistics -->
                             <div class="statistics-table-section">
-                                <h3 class="table-section-title">Bảng thống kê 3: Thống kê mỗi cơ quan học được bao nhiều khóa học (Sắp xếp số khóa học giảm dần)</h3>
+                                <h3 class="table-section-title">THỐNG KÊ SỐ KHÓA HỌC CỦA CÁC CƠ QUAN</h3>
                                 <div class="statistics-table-container">
                                     <table class="table table-striped" id="organization-courses-table">
                                         <thead>
@@ -163,7 +164,7 @@
 
                         <!-- Table 4: Original learner statistics table -->
                         <div class="statistics-table-section">
-                            <h3 class="table-section-title">Bảng thống kê 4: Thống kê chi tiết người học</h3>
+                            <h3 class="table-section-title">THỐNG KÊ SỐ GIờ HỌc CỦA CÔNG CHỨC, VIÊNCHỦC NĂM 2025</h3>
                             <div class="statistics-table-container">
                                 <table class="table table-striped" id="statistics-table">
                                     <thead>
@@ -386,6 +387,7 @@
                     border-radius: 8px;
                     border: 1px solid #dee2e6;
                     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                    margin-bottom: 20px;
                 }
 
                 .table-section-title {
@@ -432,21 +434,51 @@
                     text-overflow: ellipsis;
                 }
 
-                /* Column widths and alignment */
-                .statistics-table-container th:nth-child(1),
-                .statistics-table-container td:nth-child(1) { width: 60px; text-align: center; }
-                .statistics-table-container th:nth-child(2),
-                .statistics-table-container td:nth-child(2) { width: 35%; text-align: left; }
-                .statistics-table-container th:nth-child(3),
-                .statistics-table-container td:nth-child(3) { width: 15%; text-align: center; }
-                .statistics-table-container th:nth-child(4),
-                .statistics-table-container td:nth-child(4) { width: 8%; text-align: center; }
-                .statistics-table-container th:nth-child(5),
-                .statistics-table-container td:nth-child(5) { width: 12%; text-align: center; }
-                .statistics-table-container th:nth-child(6),
-                .statistics-table-container td:nth-child(6) { width: 10%; text-align: center; }
-                .statistics-table-container th:nth-child(7),
-                .statistics-table-container td:nth-child(7) { width: 12%; text-align: center; }
+                /* Column widths and alignment - Tables 1, 2, 3 (TT column very narrow) */
+                #course-completion-table th:nth-child(1),
+                #course-completion-table td:nth-child(1),
+                #organization-completion-table th:nth-child(1),
+                #organization-completion-table td:nth-child(1),
+                #organization-courses-table th:nth-child(1),
+                #organization-courses-table td:nth-child(1) { width: 30px; text-align: center; padding: 12px 4px; }
+
+                /* Table 1: Course Completion */
+                #course-completion-table th:nth-child(2),
+                #course-completion-table td:nth-child(2) { width: 45%; text-align: left; }
+                #course-completion-table th:nth-child(3),
+                #course-completion-table td:nth-child(3) { width: 18%; text-align: center; }
+                #course-completion-table th:nth-child(4),
+                #course-completion-table td:nth-child(4) { width: 17%; text-align: center; }
+
+                /* Table 2: Organization Completion */
+                #organization-completion-table th:nth-child(2),
+                #organization-completion-table td:nth-child(2) { width: 40%; text-align: left; }
+                #organization-completion-table th:nth-child(3),
+                #organization-completion-table td:nth-child(3) { width: 15%; text-align: center; }
+                #organization-completion-table th:nth-child(4),
+                #organization-completion-table td:nth-child(4) { width: 15%; text-align: center; }
+
+                /* Table 3: Organization Courses */
+                #organization-courses-table th:nth-child(2),
+                #organization-courses-table td:nth-child(2) { width: 50%; text-align: left; }
+                #organization-courses-table th:nth-child(3),
+                #organization-courses-table td:nth-child(3) { width: 20%; text-align: center; }
+
+                /* Table 4: Statistics (STT column narrow) */
+                #statistics-table th:nth-child(1),
+                #statistics-table td:nth-child(1) { width: 30px; text-align: center; padding: 12px 4px; }
+                #statistics-table th:nth-child(2),
+                #statistics-table td:nth-child(2) { width: 18%; text-align: left; }
+                #statistics-table th:nth-child(3),
+                #statistics-table td:nth-child(3) { width: 15%; text-align: center; }
+                #statistics-table th:nth-child(4),
+                #statistics-table td:nth-child(4) { width: 10%; text-align: center; }
+                #statistics-table th:nth-child(5),
+                #statistics-table td:nth-child(5) { width: 12%; text-align: center; }
+                #statistics-table th:nth-child(6),
+                #statistics-table td:nth-child(6) { width: 12%; text-align: center; }
+                #statistics-table th:nth-child(7),
+                #statistics-table td:nth-child(7) { width: 13%; text-align: center; }
 
                 .statistics-table-container tr:hover {
                     background-color: #f8f9fa;
@@ -661,7 +693,7 @@
             const tableBody = document.querySelector('#course-completion-table tbody');
             
             if (!courses || courses.length === 0) {
-                tableBody.innerHTML = '<tr id="no-data-row-1"><td colspan="3" class="text-center">Không có dữ liệu</td></tr>';
+                tableBody.innerHTML = '<tr id="no-data-row-1"><td colspan="4" class="text-center">Không có dữ liệu</td></tr>';
                 return;
             }
 
@@ -671,6 +703,7 @@
                     <tr>
                         <td>${index + 1}</td>
                         <td>${course.course_name || 'N/A'}</td>
+                        <td>${course.current_learners || 0}</td>
                         <td>${course.completed_count || 0}</td>
                     </tr>
                 `;
