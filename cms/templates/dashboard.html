@@ -616,6 +616,7 @@ user_org_name = get_user_organization_display_name(user) or ''
             organization_name: '${organization_name or ""}',
             is_staff: ${str(is_staff).lower() if is_staff else 'false'},
             is_global_staff: ${str(is_global_staff).lower() if is_global_staff else 'false'},
+            available_tabs: ${json.dumps(available_tabs) if available_tabs else '[]'},
             // Platform URLs for popup navigation (will be resolved in JS)
             account_settings_url: '${settings.ACCOUNT_MICROFRONTEND_URL if hasattr(settings, "ACCOUNT_MICROFRONTEND_URL") else "/account/settings"}',
             // MFE base URL for loading bundles (strip /account/ path from account_settings_url)
