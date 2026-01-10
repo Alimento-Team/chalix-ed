@@ -166,7 +166,7 @@ def cms_dashboard(request):
     """
     Displays the CMS dashboard with Vietnamese interface based on Figma design.
     This is the main landing page after login with role-based tab access:
-    - Thống kê (Statistics) - All roles
+    - Thống kê (Statistics) - Bộ role only
     - Tạo tài khoản cán bộ (Create Staff Account) - Cơ quan only
     - Quản lý (Management) - Bộ, Cơ quan
     - Quản lý khóa học (Course Management) - Giảng viên, Cơ quan

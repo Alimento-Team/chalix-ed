@@ -537,6 +537,14 @@ class LearningHoursCoursesAPIView(APIView):
         # Get all active enrollments
         enrollments = CourseEnrollment.objects.filter(user=user, is_active=True)
         
+        # Filter enrollments by year if specified
+        if year != timezone.now().year or 'year' in request.query_params:
+            year_start = datetime(year, 1, 1)
+            year_end = datetime(year, 12, 31, 23, 59, 59)
+            enrollments = enrollments.filter(
+                created__year=year
+            )
+        
         courses_data = []
         for enrollment in enrollments:
             try:
@@ -608,6 +616,9 @@ class LearningHoursCoursesAPIView(APIView):
                 # Status text for display
                 status_text = 'Hoàn thành' if course_status == 'completed' else 'Đang học'
                 
+                # Get enrollment year for debugging
+                enrollment_year = enrollment.created.year
+                
                 courses_data.append({
                     'id': str(enrollment.course_id),
                     'course_id': str(enrollment.course_id),
@@ -619,6 +630,8 @@ class LearningHoursCoursesAPIView(APIView):
                     'status_text': status_text,
                     'progress_percentage': progress_percentage,
                     'course_image_url': course_overview.course_image_url if hasattr(course_overview, 'course_image_url') else None,
+                    'enrollment_date': enrollment.created.isoformat(),
+                    'enrollment_year': enrollment_year,
                 })
             except CourseOverview.DoesNotExist:
                 continue
