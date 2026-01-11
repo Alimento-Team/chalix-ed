@@ -2084,7 +2084,7 @@ def _get_statistics_data(request):
     # Filter by organization for co_quan role
     user_role = get_user_primary_role(request.user)
     if user_role and user_role.role == 'co_quan' and user_role.organization:
-        users_query = users_query.filter(profile__ten_co_quan=user_role.organization)
+               users_query = users_query.filter(profile__meta__icontains=user_role.organization.display_name)
     
     # Apply phone filter
     if phone_filter:
@@ -2253,14 +2253,14 @@ def _get_course_completion_stats(request):
     user_role = get_user_primary_role(request.user)
     org_filter = None
     if user_role and user_role.role == 'co_quan' and user_role.organization:
-        org_filter = user_role.organization
+            org_filter = user_role.organization.display_name
     
     # Get all courses with enrollments
     if org_filter:
         # For co_quan: only courses with enrollments from their organization
         courses = CourseOverview.objects.filter(
             courseenrollment__is_active=True,
-            courseenrollment__user__profile__ten_co_quan=org_filter
+                courseenrollment__user__profile__meta__icontains=org_filter
         ).distinct()
     else:
         courses = CourseOverview.objects.filter(
@@ -2275,7 +2275,7 @@ def _get_course_completion_stats(request):
             current_learners_query = CourseEnrollment.objects.filter(
                 course_id=course.id,
                 is_active=True,
-                user__profile__ten_co_quan=org_filter
+                    user__profile__meta__icontains=org_filter
             )
             completed_query = PersistentCourseGrade.objects.filter(
                 course_id=course.id,
