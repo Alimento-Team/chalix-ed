@@ -20,7 +20,9 @@
   mfe_config = getattr(settings, 'MFE_CONFIG', {})
   lms_base_url = mfe_config.get('LMS_BASE_URL') or getattr(settings, 'LMS_ROOT_URL', '')
   learner_dashboard_url = mfe_config.get('LEARNER_DASHBOARD_URL', f'{lms_base_url}/dashboard')
-  personalization_url = f"{learner_dashboard_url}{'&' if '?' in learner_dashboard_url else '?'}tab=personalized"
+  # Build personalization URL properly to avoid template syntax issues
+  separator = '&' if '?' in learner_dashboard_url else '?'
+  personalization_url = f"{learner_dashboard_url}{separator}tab=personalized"
   account_settings_url = mfe_config.get('ACCOUNT_SETTINGS_URL', '') or f'{lms_base_url}/account'
   account_profile_url = mfe_config.get('ACCOUNT_PROFILE_URL', '') or lms_base_url
   %>
@@ -33,7 +35,9 @@
         user_name: "${user.get_full_name() or user.username | n, js_escaped_string}",
         username: "${user.username | n, js_escaped_string}",
         organization_name: "${org_name | n, js_escaped_string}",
-        user_role: "",
+        user_role: "admin",
+        // Default to all tabs available - role-based filtering can be added later
+        available_tabs: ["statistics", "create-account", "management", "learning-management", "approve-requests"],
         lms_base_url: "${lms_base_url | n, js_escaped_string}",
         learner_dashboard_url: "${learner_dashboard_url | n, js_escaped_string}",
         account_settings_url: "${account_settings_url | n, js_escaped_string}",
