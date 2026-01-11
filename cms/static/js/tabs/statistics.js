@@ -222,7 +222,7 @@
                 }
             } catch (err) {
                 // Non-fatal — continue rendering
-                console.warn('Failed to populate year filter', err);
+                // debug removed
             }
 
             // Apply CSS styles
@@ -820,10 +820,7 @@
         },
 
         renderStatisticsData: function(data) {
-            // Debug logging
-            console.log('[Statistics] Received data:', data);
-            console.log('[Statistics] Organization completions:', data.organization_completions);
-            console.log('[Statistics] Organization courses:', data.organization_courses);
+            // Debug logging removed in production
             
             // Update summary cards
             const totalLearners = document.getElementById('total-learners');
@@ -1091,5 +1088,5 @@
         }
     };
 
-    console.log('Statistics tab module loaded');
+    // Statistics tab module loaded (log removed)
 })();

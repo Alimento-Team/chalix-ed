@@ -1,7 +1,7 @@
 (function () {
     'use strict';
     
-    console.log('Learning Management JS loaded - with DEBUGGING evaluation modes v1.4');
+    // Learning Management JS loaded (debug log removed)
 
     window.CMS_TABS = window.CMS_TABS || {};
 
@@ -768,7 +768,7 @@
 
     function render(container, config) {
         if (!container) return;
-        console.log('[LM] Starting render for learning-management tab');
+        // [LM] Starting render (log removed)
         ensureStyles();
 
         container.innerHTML = `
@@ -829,7 +829,7 @@
         // Load initial view (programs)
         loadProgramsList(container.querySelector('#lm-programs-tab .lm-content-area'));
         
-        console.log('[LM] Learning-management tab render completed successfully');
+        // [LM] render completed (log removed)
     }
 
     function addSubtabStyles() {
@@ -988,7 +988,7 @@
                     ]
                 }
             ];
-            console.log('🎭 Using demo programs data');
+            // Using demo programs data (log removed)
             renderProgramsList(contentArea, demoPrograms);
         });
     }
@@ -1035,7 +1035,7 @@
                     updated_at: new Date().toISOString()
                 }
             ];
-            console.log('🎭 Using demo courses data');
+            // Using demo courses data (log removed)
             renderCoursesList(contentArea, demoCourses);
         });
     }
@@ -1590,7 +1590,7 @@
             const practical = overlay.querySelector('#practical-option');
             const quiz = overlay.querySelector('#quiz-option');
             
-            console.log('setEvaluationMode called with:', isPractical, 'Elements found:', {
+            // setEvaluationMode called (log removed):
                 checkbox: !!checkbox,
                 ui: !!ui,
                 knob: !!knob,
@@ -1625,13 +1625,13 @@
                 quiz.style.background = isQuizMode ? '#e3f2fd' : 'transparent';
             }
             
-            console.log('Evaluation mode set to:', isPractical ? 'Practical (Nộp bài thu hoạch) - Switch OFF' : 'Quiz (Làm bài trắc nghiệm) - Switch ON');
+            // Evaluation mode set (log removed)
         }
 
         // Initialize with program data
         const initialPractical = !!program.allow_practical_submission;
         setEvaluationMode(initialPractical);
-        console.log('Initialized evaluation switch. Program allows practical:', program.allow_practical_submission, 
+        // Initialized evaluation switch (log removed). Program allows practical: 
                    'Switch will be:', initialPractical ? 'OFF (Practical)' : 'ON (Quiz)');
 
         // Click handlers with event delegation and fresh DOM queries
@@ -1649,7 +1649,7 @@
                     const currentlyQuiz = checkbox.checked;
                     const newIsPractical = currentlyQuiz; // Toggle to opposite
                     setEvaluationMode(newIsPractical);
-                    console.log('Switch UI clicked, toggled to:', newIsPractical ? 'Practical' : 'Quiz');
+                    // Switch UI clicked (log removed)
                 }
             }
             
@@ -1657,14 +1657,14 @@
             else if (target.id === 'practical-option' || target.closest('#practical-option')) {
                 e.preventDefault();
                 setEvaluationMode(true); // Set to practical (switch OFF)
-                console.log('Practical option selected');
+                // Practical option selected (log removed)
             }
             
             // Handle quiz option clicks - always set to quiz
             else if (target.id === 'quiz-option' || target.closest('#quiz-option')) {
                 e.preventDefault();
                 setEvaluationMode(false); // Set to quiz (switch ON)
-                console.log('Quiz option selected');
+                // Quiz option selected (log removed)
             }
         });
 
@@ -1691,7 +1691,7 @@
                 topics: topics
             };
 
-            console.log('Saving program data:', {
+            // Saving program data (log removed): {
                 evalCheckboxValue,
                 allow_practical_submission: programData.allow_practical_submission,
                 allow_multiple_choice: programData.allow_multiple_choice,
@@ -1717,15 +1717,15 @@
             // Try to save via API
             saveProgramChanges(programData)
                 .then((response) => {
-                    console.log('Save successful:', response);
-                    console.log('Updated program data being used to update UI:', programData);
+                    // Save successful (log removed)
+                    // Updated program data used to update UI (log removed)
                     const successMessage = response.message || 'Đã lưu chương trình học thành công!';
                     messageDiv.innerHTML = `<div class="lm-message lm-success">${successMessage}</div>`;
                     // Ensure visible list and any open details are updated with the new data
                     try {
                         updateProgramInDOM(programData);
                         updateOpenProgramDetails(programData);
-                        console.log('UI update calls completed');
+                        // UI update calls completed (log removed)
                     } catch (e) { 
                         console.warn('Failed to update UI after save:', e); 
                     }
@@ -1733,7 +1733,7 @@
                     setTimeout(() => {
                         // Always refresh after save to ensure fresh data
                         overlay.remove();
-                        console.log('Closing edit modal and refreshing program list');
+                        // Closing edit modal and refreshing program list (log removed)
                         if (onSuccess) {
                             onSuccess();
                         }
@@ -1755,7 +1755,7 @@
     }
 
     function saveProgramChanges(programData) {
-        console.log('📤 Saving program data:', programData);
+        // Saving program data (log removed)
         
         // Try to save via API first
         return fetch(`/api/chalix/dashboard/update-program/`, {
@@ -1769,7 +1769,7 @@
             body: JSON.stringify(programData)
         })
         .then(resp => {
-            console.log('📡 API response status:', resp.status);
+            // API response status (log removed)
             if (!resp.ok) {
                 return resp.text().then(text => {
                     console.error('❌ API error response:', text);
@@ -1779,7 +1779,7 @@
             return resp.json();
         })
         .then(data => {
-            console.log('✅ API success response:', data);
+            // API success response (log removed)
             return {
                 success: true,
                 message: 'Đã cập nhật chương trình học thành công!',
@@ -1792,13 +1792,13 @@
             // If the endpoint doesn't exist (404), provide detailed simulation
             if (err.message.includes('404') || err.message.includes('Server error: 404')) {
                 console.warn('⚠️ Update endpoint not found, running in simulation mode');
-                console.log('🔧 Backend TODO: Create endpoint /api/chalix/dashboard/update-program/');
-                console.log('📋 Expected payload format:', JSON.stringify(programData, null, 2));
+                // Backend TODO: Create endpoint /api/chalix/dashboard/update-program/ (log removed)
+                // Expected payload format (log removed)
                 
                 return new Promise(resolve => {
                     setTimeout(() => {
                         // Simulate successful save
-                        console.log('✨ Simulated program update:', {
+                        // Simulated program update (log removed): {
                             action: 'update_program',
                             program_id: programData.id,
                             changes: {
@@ -1832,7 +1832,7 @@
 
     // Update course in DOM for immediate visual feedback
     function updateCourseInDOM(courseData) {
-        console.log('🔄 Updating course in DOM:', courseData);
+        // Updating course in DOM (log removed)
         
         // Find the course item in the list - support both legacy '.lm-course-item' and new '.lm-card-item'
         const courseItems = document.querySelectorAll('.lm-course-item, .lm-card-item');
@@ -1900,12 +1900,12 @@
                     item.style.boxShadow = '';
                 }, 300);
 
-                console.log('✅ Updated course card in DOM');
+                // Updated course card in DOM (log removed)
                 return;
             }
         });
 
-        if (!found) console.log('⚠️ Course item not found in DOM for update');
+        if (!found) { /* Course item not found in DOM for update (log removed) */ }
     }
 
     function updateProgramInDOM(programData) {
@@ -1954,7 +1954,7 @@
                         card.style.boxShadow = '';
                     }, 300);
                     
-                    console.log('🔄 Updated program card in DOM:', programData.title);
+                    // Updated program card in DOM (log removed)
                     return; // Exit forEach iteration
                 }
             }
@@ -2088,11 +2088,11 @@
         // If no units, we should fetch from API to get complete course structure.
         if (course && (course.online_course_link || course.instructor || course.estimated_hours || course.course_type || course.course_level)) {
             if (course.units && course.units.length > 0) {
-                console.log('viewCourseDetails: using cached course data with units');
+                // viewCourseDetails: using cached course data (log removed)
                 showCourseDetailsModal(course);
                 return;
             } else {
-                console.log('viewCourseDetails: cached course has no units, fetching from API');
+                // viewCourseDetails: cached course has no units (log removed)
                 // Fall through to API fetch to get units
             }
         }
@@ -2112,14 +2112,14 @@
             .then(apiCourse => {
                 // Merge cached course data (which has correct course_type from DOM) with API data (which has units)
                 const mergedCourse = course ? { ...course, ...apiCourse } : apiCourse;
-                console.log('viewCourseDetails: merged course data:', mergedCourse);
+                // viewCourseDetails: merged course data (log removed)
                 showCourseDetailsModal(mergedCourse);
             })
             .catch(err => {
                 console.error('Failed to load course details:', err);
                 // Fallback: use cached course if available, or show basic modal
                 if (course) {
-                    console.log('API failed, using cached course data');
+                    // API failed, using cached course data (log removed)
                     showCourseDetailsModal(course);
                 } else {
                     showCourseDetailsModal({
@@ -2797,7 +2797,7 @@
         }
         
         // Try to save via API
-        console.log('📤 Saving course data:', courseData);
+        // Saving course data (log removed)
         
         fetch(`/api/chalix/dashboard/update-course/`, {
             method: 'POST',
@@ -2809,7 +2809,7 @@
             body: JSON.stringify(courseData)
         })
         .then(resp => {
-            console.log('📡 Course API response status:', resp.status);
+            // Course API response status (log removed)
             if (!resp.ok) {
                 return resp.text().then(text => {
                     console.error('❌ Course API error:', text);
@@ -2819,7 +2819,7 @@
             return resp.json();
         })
         .then(result => {
-            console.log('✅ Course saved successfully:', result);
+            // Course saved successfully (log removed)
             messageEl.innerHTML = '<div class="lm-message lm-success">Đã lưu khóa học thành công!</div>';
 
             // Use the server response to update the DOM immediately
@@ -2869,12 +2869,12 @@
             
             if (err.message.includes('404') || err.message.includes('Server error: 404')) {
                 console.warn('⚠️ Course update endpoint not found, running in simulation mode');
-                console.log('🔧 Backend TODO: Create endpoint /api/chalix/dashboard/update-course/');
-                console.log('📋 Expected payload format:', JSON.stringify(courseData, null, 2));
+                // Backend TODO: Create endpoint /api/chalix/dashboard/update-course/ (log removed)
+                // Expected payload format (log removed)
                 
                 // Simulate successful save
                 setTimeout(() => {
-                    console.log('✨ Simulated course update:', {
+                    // Simulated course update (log removed): {
                         action: 'update_course',
                         course_id: courseData.id,
                         changes: courseData,
@@ -3013,7 +3013,7 @@
     // ...existing code...
 
     function openCreateProgramModal(onSuccess) {
-        console.log('Opening create program modal with evaluation section');
+        // Opening create program modal (log removed)
         ensureEditModalStyles();
 
         const overlay = document.createElement('div');
@@ -3662,7 +3662,7 @@
         })
         .then(data => {
             const programs = data.programs || [];
-            console.log('[LM] Loaded programs for selection:', programs.map(p => ({id: p.id, title: p.title, topics_count: p.topics_count, topics_length: p.topics?.length || 0})));
+            // Loaded programs for selection (log removed)
             populateProgramsSelect(selectElement, programs);
         })
         .catch(err => {
@@ -3671,7 +3671,7 @@
             // Fallback to DOM data if API fails
             const existingPrograms = getAllProgramsFromDOM();
             if (existingPrograms.length > 0) {
-                console.log('[LM] Using DOM fallback for programs selection');
+                // Using DOM fallback for programs selection (log removed)
                 populateProgramsSelect(selectElement, existingPrograms);
             } else {
                 selectElement.innerHTML = '<option value="">Không thể tải danh sách chương trình</option>';
@@ -3726,7 +3726,7 @@
             return resp.json();
         })
         .then(program => {
-            console.log('[LM] Loaded program for preview:', {id: program.id, title: program.title, topics_count: program.topics_count, topics: program.topics});
+            // Loaded program for preview (log removed)
             renderUnitsPreview(previewElement, program);
         })
         .catch(err => {
@@ -3737,7 +3737,7 @@
             const program = existingPrograms.find(p => p.id == programId);
             
             if (program) {
-                console.log('[LM] Using DOM fallback for program preview:', program);
+                // Using DOM fallback for program preview (log removed)
                 renderUnitsPreview(previewElement, program);
             } else {
                 previewElement.innerHTML = '<p class="lm-error">Không thể tải chi tiết chương trình</p>';
@@ -3746,7 +3746,7 @@
     }
 
     function renderUnitsPreview(previewElement, program) {
-        console.log('[LM] Rendering units preview for program:', program);
+        // Rendering units preview for program (log removed)
         
         if (!program.topics || program.topics.length === 0) {
             previewElement.innerHTML = '<p class="lm-detail-empty">Chương trình này chưa có chuyên đề nào</p>';
@@ -3842,7 +3842,7 @@
                 return resp.json();
             })
             .then(sourceProgram => {
-                console.log('[LM] Using program for course creation:', {id: sourceProgram.id, title: sourceProgram.title, topics: sourceProgram.topics});
+                // Using program for course creation (log removed)
                 
                 if (sourceProgram && sourceProgram.topics) {
                     courseData.units = sourceProgram.topics.map((topic, index) => {
@@ -3871,7 +3871,7 @@
                     finalEvaluationType = 'project';
                 }
                 courseData.final_evaluation_type = finalEvaluationType;
-                console.log('[LM] Set final_evaluation_type from program:', finalEvaluationType);
+                // Set final_evaluation_type from program (log removed)
                 
                 // Now proceed with course creation
                 proceedWithCourseCreation(courseData, messageEl, createBtn, overlay, onSuccess);
@@ -3907,7 +3907,7 @@
                         finalEvaluationType = 'project';
                     }
                     courseData.final_evaluation_type = finalEvaluationType;
-                    console.log('[LM] Set final_evaluation_type from DOM fallback:', finalEvaluationType);
+                    // [LM] Set final_evaluation_type from DOM fallback (log removed)
                 }
                 
                 proceedWithCourseCreation(courseData, messageEl, createBtn, overlay, onSuccess);

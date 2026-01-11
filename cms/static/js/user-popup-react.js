@@ -27,7 +27,7 @@
             script.async = true;
 
             script.onload = function() {
-                console.log('UserPopup bundle loaded successfully from', src);
+                // UserPopup bundle loaded (log removed)
                 resolve(src);
             };
 
@@ -221,8 +221,8 @@
         const urls = getNavigationUrls();
         
         // Debug logging to see what URLs we're getting
-        console.log('Fallback popup URLs:', urls);
-        console.log('CMS_ROLE_DATA.account_settings_url:', window.CMS_ROLE_DATA?.account_settings_url);
+        // Fallback popup URLs (log removed)
+        // CMS_ROLE_DATA.account_settings_url (log removed)
 
         // Get the button position to position the popup correctly
         const triggerButton = document.getElementById('user-avatar-popup-trigger');
@@ -291,7 +291,7 @@
         
         // (Removed debug mutation observer and noisy logs)
         
-        console.log('Fallback UserPopup created successfully');
+        // Fallback UserPopup created (log removed)
         
         // Force a reflow to ensure the popup is rendered
         popup.offsetHeight;
@@ -336,7 +336,7 @@
             const element = React.createElement(window.UserPopupComponent, componentProps);
             ReactDOM.render(element, rootElement);
             
-            console.log('UserPopup component initialized successfully');
+            // UserPopup component initialized (log removed)
         } catch (error) {
             console.error('Error initializing UserPopup component:', error);
             createFallbackPopup();
@@ -368,7 +368,7 @@
     window.initUserPopupComponent = function(containerElement) {
         // Skip bundle loading and go directly to fallback popup
         // The MFE React bundle approach isn't set up, so use the simple HTML popup
-        console.log('Using fallback popup directly (MFE React bundle not configured)');
+        // Using fallback popup directly (log removed)
         createFallbackPopup();
         
         // Comment out bundle loading to avoid 404 errors:
@@ -386,7 +386,7 @@
     window.closeUserPopupComponent = function(force) {
         // If the popup was just opened, ignore accidental/early close calls unless explicitly forced.
         if (window._popupJustOpened && !force) {
-            console.log('closeUserPopupComponent: ignored because popup was just opened');
+            // closeUserPopupComponent ignored because popup was just opened (log removed)
             return;
         }
 

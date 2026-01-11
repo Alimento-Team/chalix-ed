@@ -9,7 +9,7 @@ define(['jquery', 'underscore', 'gettext'], function($, _, gettext) {
         courseKey: null,
         
         init: function(courseKey) {
-            console.log('CourseDetailsManager.init called with courseKey:', courseKey);
+            // CourseDetailsManager.init called (log removed)
             this.courseKey = courseKey;
             this.bindEvents();
             
@@ -20,7 +20,7 @@ define(['jquery', 'underscore', 'gettext'], function($, _, gettext) {
                 return;
             }
             
-            console.log('Course details section found, loading details...');
+            // Course details section found, loading details (log removed)
             this.loadCourseDetails();
         },
 
@@ -58,8 +58,8 @@ define(['jquery', 'underscore', 'gettext'], function($, _, gettext) {
             var self = this;
             var apiUrl = '/api/chalix/dashboard/course-detail/' + encodeURIComponent(this.courseKey) + '/';
             
-            console.log('Loading course details from:', apiUrl);
-            console.log('Course key:', this.courseKey);
+            // Loading course details from API (log removed)
+            // course key (log removed)
             
             $.ajax({
                 url: apiUrl,
@@ -69,7 +69,7 @@ define(['jquery', 'underscore', 'gettext'], function($, _, gettext) {
                 }
             })
                 .done(function(data) {
-                    console.log('Course details loaded successfully:', data);
+                    // Course details loaded successfully (log removed)
                     self.displayCourseDetails(data);
                 })
                 .fail(function(xhr, status, error) {
@@ -85,13 +85,13 @@ define(['jquery', 'underscore', 'gettext'], function($, _, gettext) {
         },
 
         displayCourseDetails: function(data) {
-            console.log('Displaying course details:', data);
+            // Displaying course details (log removed)
             
             var estimatedHours = data.estimated_hours || gettext('Chưa đặt');
             var onlineLink = data.online_course_link || gettext('Chưa đặt');
             var instructor = data.instructor || gettext('Chưa đặt');
             
-            console.log('Setting values:', {
+            // Setting values (log removed): {
                 estimatedHours: estimatedHours,
                 onlineLink: onlineLink,
                 instructor: instructor

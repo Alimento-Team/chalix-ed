@@ -80,6 +80,9 @@ from openedx.core.release import RELEASE_LINE
       <%static:css group='${self.attr.main_css}'/>
     % endif
 
+    <!-- Chalix User Menu Styles -->
+    <link rel="stylesheet" type="text/css" href="${static.url('css/chalix-user-menu.css')}" />
+
     <%include file="widgets/segment-io.html" />
 
     <%block name="header_extras"></%block>
@@ -191,10 +194,6 @@ from openedx.core.release import RELEASE_LINE
     </%block>
     <%include file="widgets/segment-io-footer.html" />
     <div class="modal-cover"></div>
-
-    <!-- User Popup Component Initialization -->
-    <script type="text/javascript" src="${static.url('js/user-popup-react.js')}"></script>
-    <script type="text/javascript" src="${static.url('js/user-popup-init.js')}"></script>
   </body>
   <script>
   // Ensure beamer_config exists for the Beamer embed script. If the settings

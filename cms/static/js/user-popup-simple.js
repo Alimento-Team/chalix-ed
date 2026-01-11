@@ -1,6 +1,6 @@
 /**
- * Simple User Popup Component for CMS
- * Creates a dropdown popup when user clicks their avatar
+ * Simple User Popup Component for CMS - Matching MFE Header Design
+ * Creates a dark dropdown popup when user clicks their avatar
  */
 
 (function(global) {
@@ -11,10 +11,12 @@
      */
     function getCurrentUserInfo() {
         // Try to get user info from the CMS role data first
-        if (window.CMS_ROLE_DATA && window.CMS_ROLE_DATA.user_name) {
+        if (window.CMS_ROLE_DATA) {
             return {
-                fullName: window.CMS_ROLE_DATA.user_name,
-                role: window.CMS_ROLE_DATA.user_role || 'User'
+                fullName: window.CMS_ROLE_DATA.user_name || 'Current User',
+                username: window.CMS_ROLE_DATA.username || '',
+                organization: window.CMS_ROLE_DATA.organization_name || '',
+                role: window.CMS_ROLE_DATA.user_role || ''
             };
         }
         
@@ -22,119 +24,155 @@
         if (window.user && window.user.username) {
             return {
                 fullName: window.user.username,
-                role: 'User'
+                username: window.user.username,
+                organization: '',
+                role: ''
             };
         }
         
         // Last fallback
         return {
             fullName: 'Current User',
-            role: 'User'
+            username: '',
+            organization: '',
+            role: ''
         };
     }
 
     /**
      * Get navigation URLs for the popup menu items
-     * Construct URLs dynamically using platform settings
      */
     function getNavigationUrls() {
         const roleData = window.CMS_ROLE_DATA || {};
-        const username = roleData.user_name || 'user';
+        const username = roleData.username || roleData.user_name || 'user';
         
         // Get MFE URLs from CMS_ROLE_DATA (passed from backend)
         const lmsBaseUrl = roleData.lms_base_url || '';
-        const learningBaseUrl = roleData.learning_base_url || lmsBaseUrl;
         const learnerDashboardUrl = roleData.learner_dashboard_url || (lmsBaseUrl + '/dashboard');
         const accountSettingsUrl = roleData.account_settings_url || (lmsBaseUrl + '/account/settings');
         const accountProfileUrl = roleData.account_profile_url || lmsBaseUrl;
         
-        // Fallback for older configurations without MFE URLs
-        if (!roleData.learning_base_url && !lmsBaseUrl) {
-            // Determine the LMS base URL by deriving from current location (legacy behavior)
-            const protocol = window.location.protocol; // e.g. 'http:'
-            const hostname = window.location.hostname; // e.g. 'studio.local.openedx.io'
-            const port = window.location.port; // e.g. '8001'
-
-            // If running on the 'studio.' subdomain in dev, remove the 'studio.' prefix
-            let lmsHost = hostname;
-            if (hostname.startsWith('studio.')) {
-                lmsHost = hostname.replace(/^studio\./, '');
-            }
-
-            // Map common dev CMS port to LMS port. If CMS is 8001, LMS commonly runs on 8000.
-            let lmsPort = port === '8001' ? '8000' : port;
-            const fallbackLmsBaseUrl = protocol + '//' + lmsHost + (lmsPort ? ':' + lmsPort : '');
-            
-            return {
-                courses: fallbackLmsBaseUrl + '/dashboard',
-                account: fallbackLmsBaseUrl + '/account/settings',
-                profile: fallbackLmsBaseUrl + '/u/' + username,
-                logout: '/logout/'
-            };
-        }
-
         // Construct profile URL with username
         const profileUrl = accountProfileUrl 
             ? (accountProfileUrl.endsWith('/') ? accountProfileUrl : accountProfileUrl + '/') + 'u/' + username
-            : null;
+            : lmsBaseUrl + '/u/' + username;
+        
+        // Personalization URL (learner dashboard with personalized tab)
+        const personalizationUrl = learnerDashboardUrl && learnerDashboardUrl.includes('?')
+            ? learnerDashboardUrl + '&tab=personalized'
+            : learnerDashboardUrl + '?tab=personalized';
 
         return {
-            // Courses - use learner dashboard MFE
             courses: learnerDashboardUrl,
-            // Account settings - use account settings MFE
             account: accountSettingsUrl,
-            // Profile - use profile MFE with username
+            personalization: personalizationUrl,
+            requests: lmsBaseUrl + '/requests',
             profile: profileUrl,
-            // Logout - always use the CMS frontend logout URL
-            logout: '/logout/'
+            teaching: '#', // TODO: Add teaching registration URL
+            help: '#', // TODO: Add help URL
+            logout: '/logout'
         };
     }
 
     /**
-     * Create the user popup menu
+     * Create the user popup menu matching MFE header design
      */
     function createUserPopup() {
-        const rootElement = document.getElementById('user-popup-root');
-        if (!rootElement) return;
+        // Create a floating popup appended to document.body and position it under the visible avatar button
+        const avatarButton = document.getElementById('user-avatar-popup-trigger');
+        if (!avatarButton) return;
 
         const userInfo = getCurrentUserInfo();
         const urls = getNavigationUrls();
 
+        // Remove any existing floating popup
+        const prev = document.getElementById('chalix-user-menu-floating');
+        if (prev && prev.parentNode) {
+            prev.parentNode.removeChild(prev);
+        }
+
         const popup = document.createElement('div');
-        popup.className = 'user-popup-menu';
-        popup.style.cssText = `
-            position: absolute;
-            top: 60px;
-            right: 0;
-            width: 280px;
-            background: white;
-            border: 1px solid #e0e0e0;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            z-index: 1000;
-            font-family: 'Inter', sans-serif;
-        `;
+        popup.id = 'chalix-user-menu-floating';
+        popup.className = 'chalix-user-menu';
+        popup.style.position = 'absolute';
+        popup.style.visibility = 'hidden';
 
-        popup.innerHTML = `
-            <div style="padding: 16px 0;">
-                <div style="padding: 0 16px 12px; border-bottom: 1px solid #f0f0f0;">
-                    <div style="font-weight: 600; font-size: 16px; color: #333; margin-bottom: 4px;">${userInfo.fullName.toUpperCase()}</div>
-                    <div style="font-size: 14px; color: #666;">${userInfo.role}</div>
-                </div>
-                <div style="padding: 8px 0;">
-                    <a href="${urls.courses}" style="display: block; padding: 12px 16px; color: #333; text-decoration: none; font-size: 14px; border-bottom: 1px solid #f5f5f5;" onmouseover="this.style.background='#f8f9fa'" onmouseout="this.style.background='white'">📚 Khóa học</a>
-                    <a href="${urls.account}" style="display: block; padding: 12px 16px; color: #333; text-decoration: none; font-size: 14px; border-bottom: 1px solid #f5f5f5;" onmouseover="this.style.background='#f8f9fa'" onmouseout="this.style.background='white'">📊 Cập nhật thông tin</a>
-                    <a href="#" style="display: block; padding: 12px 16px; color: #999; text-decoration: none; font-size: 14px; border-bottom: 1px solid #f5f5f5; cursor: not-allowed;" onmouseover="this.style.background='#f8f9fa'" onmouseout="this.style.background='white'">❤️ Danh sách yêu cầu</a>
-                    <a href="${urls.profile}" style="display: block; padding: 12px 16px; color: #333; text-decoration: none; font-size: 14px; border-bottom: 1px solid #f5f5f5;" onmouseover="this.style.background='#f8f9fa'" onmouseout="this.style.background='white'">📈 Kết quả học tập</a>
-                    <a href="#" style="display: block; padding: 12px 16px; color: #999; text-decoration: none; font-size: 14px; border-bottom: 1px solid #f5f5f5; cursor: not-allowed;" onmouseover="this.style.background='#f8f9fa'" onmouseout="this.style.background='white'">🎓 Đăng ký giảng dạy</a>
-                    <a href="#" style="display: block; padding: 12px 16px; color: #999; text-decoration: none; font-size: 14px; border-bottom: 1px solid #f5f5f5; cursor: not-allowed;" onmouseover="this.style.background='#f8f9fa'" onmouseout="this.style.background='white'">💡 Trợ giúp</a>
-                    <a href="${urls.logout}" style="display: block; padding: 12px 16px; color: #dc3545; text-decoration: none; font-size: 14px;" onmouseover="this.style.background='#f8f9fa'" onmouseout="this.style.background='white'">� Đăng xuất</a>
-                </div>
-            </div>
-        `;
+        // metadata
+        const metaParts = [];
+        if (userInfo.username) { metaParts.push('<span class="chalix-user-menu__username">@' + userInfo.username + '</span>'); }
+        if (userInfo.organization) { if (metaParts.length > 0) { metaParts.push('<span class="chalix-user-menu__dot">•</span>'); } metaParts.push('<span class="chalix-user-menu__org">' + userInfo.organization + '</span>'); }
+        const metaHtml = metaParts.length > 0 ? metaParts.join('') : '';
 
-        rootElement.appendChild(popup);
-        console.log('User popup menu created successfully');
+        popup.innerHTML =
+            '<div class="chalix-user-menu__header">' +
+                '<div class="chalix-user-menu__avatar" aria-hidden="true">' +
+                    '<i class="fa fa-user"></i>' +
+                '</div>' +
+                '<div class="chalix-user-menu__info">' +
+                    '<div class="chalix-user-menu__name">' + userInfo.fullName + '</div>' +
+                    (metaHtml ? '<div class="chalix-user-menu__meta">' + metaHtml + '</div>' : '') +
+                '</div>' +
+            '</div>' +
+            '<nav class="chalix-user-menu__list">' +
+                '<a class="chalix-user-menu__item" href="' + urls.courses + '">' +
+                    '<i class="fa fa-book"></i>' +
+                    '<span>Khóa học</span>' +
+                '</a>' +
+                '<a class="chalix-user-menu__item" href="' + urls.account + '">' +
+                    '<i class="fa fa-user"></i>' +
+                    '<span>Cập nhật thông tin</span>' +
+                '</a>' +
+                '<a class="chalix-user-menu__item" href="' + urls.personalization + '">' +
+                    '<i class="fa fa-sliders"></i>' +
+                    '<span>Cá nhân hóa</span>' +
+                '</a>' +
+                '<a class="chalix-user-menu__item" href="' + urls.requests + '">' +
+                    '<i class="fa fa-list-alt"></i>' +
+                    '<span>Danh sách yêu cầu</span>' +
+                '</a>' +
+                '<a class="chalix-user-menu__item" href="' + urls.profile + '">' +
+                    '<i class="fa fa-bar-chart"></i>' +
+                    '<span>Kết quả học tập</span>' +
+                '</a>' +
+                '<a class="chalix-user-menu__item" href="' + urls.teaching + '">' +
+                    '<i class="fa fa-chalkboard-teacher"></i>' +
+                    '<span>Đăng ký giảng dạy</span>' +
+                '</a>' +
+                '<a class="chalix-user-menu__item" href="' + urls.help + '">' +
+                    '<i class="fa fa-question-circle"></i>' +
+                    '<span>Trợ giúp</span>' +
+                '</a>' +
+            '</nav>' +
+            '<div class="chalix-user-menu__footer">' +
+                '<a class="chalix-user-menu__logout" href="' + urls.logout + '">' +
+                    '<i class="fa fa-sign-out"></i>' +
+                    '<span>Đăng xuất</span>' +
+                '</a>' +
+            '</div>';
+
+        document.body.appendChild(popup);
+
+        function positionPopup() {
+            const rect = avatarButton.getBoundingClientRect();
+            // position popup top just below the avatar button
+            const top = window.pageYOffset + rect.bottom + 8;
+            popup.style.top = top + 'px';
+            // right-align to avatar right edge, with small margin
+            const right = Math.max(8, Math.round(window.innerWidth - (rect.right)));
+            popup.style.right = right + 'px';
+            popup.style.visibility = 'visible';
+        }
+
+        // initial position after render
+        setTimeout(positionPopup, 10);
+
+        // update on scroll/resize
+        const repositionHandler = function() { positionPopup(); };
+        window.addEventListener('resize', repositionHandler);
+        window.addEventListener('scroll', repositionHandler, { passive: true });
+
+        // store handler for cleanup
+        popup._chalix_reposition = repositionHandler;
     }
 
     /**
@@ -150,18 +188,32 @@
     window.closeUserPopupComponent = function(force) {
         // Prevent early closure if popup was just opened unless forced
         if (window._popupJustOpened && !force) {
-            console.log('closeUserPopupComponent (simple): ignored because popup was just opened');
+            // ignored because popup was just opened
             return;
         }
 
+        // Remove floating popup if present
+        const popup = document.getElementById('chalix-user-menu-floating');
+        if (popup) {
+            // remove event handlers
+            if (popup._chalix_reposition) {
+                window.removeEventListener('resize', popup._chalix_reposition);
+                window.removeEventListener('scroll', popup._chalix_reposition);
+            }
+            if (popup.parentNode) {
+                popup.parentNode.removeChild(popup);
+            }
+        }
+
+        // Also clear any server-side root fallback element
         const rootElement = document.getElementById('user-popup-root');
         if (rootElement) {
             rootElement.innerHTML = '';
-            
-            const trigger = document.getElementById('user-avatar-popup-trigger');
-            if (trigger) {
-                trigger.setAttribute('aria-expanded', 'false');
-            }
+        }
+
+        const trigger = document.getElementById('user-avatar-popup-trigger');
+        if (trigger) {
+            trigger.setAttribute('aria-expanded', 'false');
         }
     };
 

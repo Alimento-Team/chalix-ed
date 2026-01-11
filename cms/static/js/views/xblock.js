@@ -147,7 +147,7 @@ function($, _, ViewUtils, BaseView, XBlock, HtmlUtils) {
             // that at least the rendered HTML will be in place.
             try {
                 return this.addXBlockFragmentResources(resources).done(function() {
-                    console.log('Updating HTML');
+                    // Updating HTML (log removed)
                     try {
                         blockView.updateHtml(element, html);
                     } catch (e) {

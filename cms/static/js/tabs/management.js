@@ -39,7 +39,7 @@
 
     function render(container, config) {
         if (!container) return;
-        console.log('[Management] Starting render for management tab (organizations only)');
+        // [Management] Starting render for management tab (log removed)
         ensureStyles();
 
         container.innerHTML = `
@@ -85,7 +85,7 @@
         // Load professional fields list
         loadProfessionalFieldsList(container.querySelector('#professional-fields-content-area'));
         
-        console.log('[Management] Management tab render completed successfully');
+        // [Management] Management tab render completed (log removed)
     }
 
     function initializeActionButtons(container) {

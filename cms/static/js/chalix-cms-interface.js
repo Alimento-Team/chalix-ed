@@ -8,22 +8,22 @@
     // Lightweight version marker and early boot log to help browser verification
     const CHALIX_CMS_INTERFACE_VERSION = 'v2.3.1'; // Added evaluation section debugging
     try {
-        console.log('Chalix CMS Interface: boot ->', CHALIX_CMS_INTERFACE_VERSION, 'timestamp:', new Date().toISOString());
+        // Boot logging removed in production
         // Try to inject styles early (ensureProgramModalStyles is a hoisted function)
         if (typeof ensureProgramModalStyles === 'function') {
-            try { ensureProgramModalStyles(); console.log('Chalix CMS Interface: early style injection succeeded'); } catch (e) { console.warn('Chalix CMS Interface: early style injection failed', e); }
+            try { ensureProgramModalStyles(); /* early style injection succeeded */ } catch (e) { /* early style injection failed */ }
         } else {
-            console.log('Chalix CMS Interface: ensureProgramModalStyles not yet available at boot');
+            /* ensureProgramModalStyles not yet available at boot */
         }
         // Expose version for quick checks
         window.ChalixCMS_interface_version = CHALIX_CMS_INTERFACE_VERSION;
     } catch (e) {
-        console.warn('Chalix CMS Interface: boot logging failed', e);
+        /* boot logging suppressed */
     }
 
     // Wait for DOM to be ready
     document.addEventListener('DOMContentLoaded', function() {
-        console.log('Chalix CMS Interface: Initializing...');
+        // Initializing (logs suppressed)
         // Tab initialization is now handled by chalix-dashboard.js
         initializeActionButtons();
         loadTabData();
@@ -202,7 +202,7 @@
      * Initialize action buttons
      */
     function initializeActionButtons() {
-        console.log('Chalix CMS Interface: Initializing action buttons (non-aggressive mode)');
+        // Initializing action buttons (log removed)
         
         // Only initialize basic action buttons, don't patch create-program buttons aggressively
         const actionButtons = document.querySelectorAll('.action-button');
@@ -267,7 +267,7 @@
                 redirectToClassCreation();
                 break;
             default:
-                console.log('Unknown action:', action);
+                // Unknown action (log removed)
         }
     }
 
@@ -336,7 +336,7 @@
         overlay.className = 'chalix-modal-overlay';
         
         // Create modal with restored chalix-modal structure
-        console.log('Creating program modal with evaluation section');
+        // Creating program modal (log removed)
         
         // Create the modal in parts to avoid any truncation issues
         const modalHTML = [
@@ -406,7 +406,7 @@
         ].join('');
         
         overlay.innerHTML = modalHTML + evaluationHTML + footerHTML;
-        console.log('Modal HTML set, length:', overlay.innerHTML.length);
+        // Modal HTML set (log removed)
 
         document.body.appendChild(overlay);
 
@@ -416,21 +416,10 @@
         const evaluationOptions = overlay.querySelector('.chalix-evaluation-options');
         const allSections = overlay.querySelectorAll('.chalix-modal-content > *');
         
-        console.log('=== MODAL CONTENT DEBUG ===');
-        console.log('Evaluation section found:', !!evaluationSection);
-        console.log('Evaluation title found:', !!evaluationTitle);
-        console.log('Evaluation options found:', !!evaluationOptions);
-        console.log('Evaluation title text:', evaluationTitle ? evaluationTitle.textContent : 'N/A');
-        console.log('All sections in modal:', allSections.length);
-        console.log('Section classes:', Array.from(allSections).map(s => s.className));
+        // Modal content debug logs removed
         
         if (evaluationSection) {
-            console.log('Evaluation section styles:', {
-                display: getComputedStyle(evaluationSection).display,
-                visibility: getComputedStyle(evaluationSection).visibility,
-                opacity: getComputedStyle(evaluationSection).opacity,
-                height: getComputedStyle(evaluationSection).height
-            });
+            // Evaluation section present - debug logging removed
         }
 
         // Show modal with animation
@@ -633,7 +622,7 @@
      */
     function redirectToClassCreation() {
         // Handle class creation logic
-        console.log('Creating new class...');
+        // (log removed)
         // This would typically open a modal or redirect to class creation page
         alert('Tính năng tạo lớp học đang được phát triển.');
     }
@@ -758,11 +747,10 @@
      * Initialize process flows layout
      */
     function initializeProcessFlows() {
-        console.log('Chalix CMS Interface: Initializing process flows...');
-        
+        // Initializing process flows (debug logs removed)
         const processContainer = document.querySelector('.process-container');
         if (!processContainer) {
-            console.log('Chalix CMS Interface: No process container found');
+            // No process container found
             return;
         }
         
@@ -770,12 +758,6 @@
         processContainer.style.display = 'none';
         processContainer.offsetHeight; // Force reflow
         processContainer.style.display = 'flex';
-        
-        // Log debug info
-        console.log('Process container:', processContainer);
-        console.log('Process container computed style:', window.getComputedStyle(processContainer));
-        console.log('Process steps:', processContainer.querySelectorAll('.process-step'));
-        console.log('Process arrows:', processContainer.querySelectorAll('.process-arrow, .arrow'));
         
         // Add debug class for testing
         processContainer.classList.add('debug-initialized');
@@ -924,7 +906,7 @@
      */
     function handleFileUpload(files) {
         Array.from(files).forEach(function(file) {
-            console.log('Uploading file:', file.name);
+            // Uploading file: debug log removed
             // Handle file upload logic here
         });
     }
@@ -934,7 +916,7 @@
      */
     function loadApprovalRequests() {
         // This would load pending approval requests
-        console.log('Loading approval requests...');
+        // debug log removed
     }
 
     // Handle browser back/forward buttons
@@ -1545,8 +1527,7 @@
         console.warn('Could not dispatch ChalixCMS:ready event', e);
     }
 
-    console.log('=== CHALIX CMS INTERFACE LOADED ===', new Date().toISOString());
-    console.log('openCreateProgramModalDirectly function exists:', typeof openCreateProgramModalDirectly);
+    // Chalix CMS interface loaded (logs removed)
 
     }); // Close DOMContentLoaded listener
 

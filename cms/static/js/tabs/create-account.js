@@ -59,18 +59,18 @@
 
         // Check if Excel import is enabled from config
         // Debug: log the config to see what we're getting
-        console.log('[Create Account] Config received:', config);
+        // [Create Account] Config received (log removed)
         const excelImportEnabled = config && config.excel_import_enabled === true;
-        console.log('[Create Account] Excel import enabled:', excelImportEnabled);
+        // [Create Account] Excel import enabled (log removed)
 
         // Check user role - use role_code if available (e.g. 'bo', 'co_quan', etc.)
         const roleData = window.CMS_ROLE_DATA || {};
         const userRoleCode = roleData.user_role_code || '';
-        console.log('[Create Account] User role code:', userRoleCode);
+        // [Create Account] User role code (log removed)
         
         // Show buttons if API says enabled OR if user has 'bo' role
         const forceShowButtons = excelImportEnabled || userRoleCode === 'bo';
-        console.log('[Create Account] Force show buttons:', forceShowButtons);
+        // [Create Account] Force show buttons (log removed)
 
         container.innerHTML = `
             <div class="create-account-wrap">
@@ -615,7 +615,7 @@
         }
         
         function showUserCreatedInfo(user) {
-            console.log('User created:', user);
+            // User created (log removed)
         }
         
         function getCSRFToken() {

@@ -24,7 +24,9 @@
 
             // Check if popup is currently open
             const isExpanded = avatarButton.getAttribute('aria-expanded') === 'true';
-            const hasPopupContent = popupRoot.children.length > 0 || document.querySelectorAll('.user-popup-fallback').length > 0;
+            const hasFloating = !!document.getElementById('chalix-user-menu-floating');
+            const hasFallback = popupRoot && popupRoot.children.length > 0;
+            const hasPopupContent = hasFloating || hasFallback || document.querySelectorAll('.user-popup-fallback').length > 0;
 
             if (isExpanded || hasPopupContent) {
                 // Close the popup
@@ -52,7 +54,7 @@
                             }
                         };
                 } else {
-                    console.warn('UserPopup component initializer not found. Loading component...');
+                    // UserPopup component initializer not found
                 }
             }
         });
@@ -65,10 +67,12 @@
             }
             
             const popupElement = document.querySelector('.user-popup-fallback');
+            const floatingPopup = document.getElementById('chalix-user-menu-floating');
             const isClickInside = (popupElement && popupElement.contains(event.target)) || 
-                                 popupRoot.contains(event.target) || 
+                                 (floatingPopup && floatingPopup.contains(event.target)) ||
+                                 (popupRoot && popupRoot.contains(event.target)) || 
                                  avatarButton.contains(event.target);
-            const hasPopup = popupRoot.children.length > 0 || document.querySelectorAll('.user-popup-fallback').length > 0;
+            const hasPopup = !!floatingPopup || (popupRoot && popupRoot.children.length > 0) || document.querySelectorAll('.user-popup-fallback').length > 0;
             
             if (!isClickInside && hasPopup) {
                 // Trigger close through the component
@@ -78,7 +82,16 @@
             }
         });
 
-        console.log('User popup initialized successfully');
+        // Close on escape key
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                const floatingPopup = document.getElementById('chalix-user-menu-floating');
+                const hasPopup = !!floatingPopup || (popupRoot && popupRoot.children.length > 0);
+                if (hasPopup && window.closeUserPopupComponent) {
+                    window.closeUserPopupComponent();
+                }
+            }
+        });
     }
 
     // Initialize when DOM is ready

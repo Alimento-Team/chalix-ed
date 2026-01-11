@@ -423,7 +423,7 @@
         
         // For some roles, we might need to show organization selection
         // This can be implemented based on business requirements
-        console.log('Role selected:', selectedRole);
+        // Role selected (log removed)
     }
 
     function showUserCreatedInfo(user) {
@@ -436,7 +436,7 @@
             - Trạng thái: ${user.is_active ? 'Hoạt động' : 'Không hoạt động'}
         `;
         
-        console.log('User created:', user);
+        // User created (log removed)
     }
 
     function setLoadingState(loading) {

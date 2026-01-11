@@ -612,7 +612,8 @@ user_org_name = get_user_organization_display_name(user) or ''
         window.CMS_ROLE_DATA = {
             user_role: '${user_role or ""}',
             user_role_code: '${user_role_code or ""}',
-            user_name: '${user_info.get("username", "") if user_info else ""}',
+            user_name: '${user.get_full_name() or user.username}',
+            username: '${user.username}',
             organization_name: '${organization_name or ""}',
             is_staff: ${str(is_staff).lower() if is_staff else 'false'},
             is_global_staff: ${str(is_global_staff).lower() if is_global_staff else 'false'},

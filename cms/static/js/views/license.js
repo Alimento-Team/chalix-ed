@@ -132,7 +132,7 @@ define([
                 for (var i = 0; i < conflicts.length; i++) {
                     // Uncheck all conflicts
                     licenseOptions[conflicts[i]] = false;
-                    console.log(licenseOptions);
+                    // debug removed
                 }
             }
 

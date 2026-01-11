@@ -171,7 +171,7 @@
             body.innerHTML = '<div style="padding: 40px; text-align: center; color: #999;">Không thể tải thông báo</div>';
         });
 
-        console.log('Notification popup created successfully');
+        // Notification popup created (log removed)
     }
 
     /**
@@ -233,7 +233,7 @@
     window.closeNotificationPopupComponent = function(force) {
         // Prevent early closure if popup was just opened unless forced
         if (window._notificationPopupJustOpened && !force) {
-            console.log('closeNotificationPopupComponent: ignored because popup was just opened');
+            // closeNotificationPopupComponent ignored because popup was just opened (log removed)
             return;
         }
 

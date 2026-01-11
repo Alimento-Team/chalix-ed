@@ -21,6 +21,24 @@
   lms_base_url = mfe_config.get('LMS_BASE_URL') or getattr(settings, 'LMS_ROOT_URL', '')
   learner_dashboard_url = mfe_config.get('LEARNER_DASHBOARD_URL', f'{lms_base_url}/dashboard')
   %>
+  
+  <!-- Pass user data to JavaScript for popup component -->
+  <script type="text/javascript">
+    (function() {
+      % if user.is_authenticated:
+      window.CMS_ROLE_DATA = {
+        user_name: "${user.get_full_name() or user.username | n, js_escaped_string}",
+        username: "${user.username | n, js_escaped_string}",
+        organization_name: "${org_name | n, js_escaped_string}",
+        user_role: "",
+        lms_base_url: "${lms_base_url | n, js_escaped_string}",
+        learner_dashboard_url: "${learner_dashboard_url | n, js_escaped_string}",
+        account_settings_url: "${mfe_config.get('ACCOUNT_SETTINGS_URL', '') or lms_base_url + '/account' | n, js_escaped_string}",
+        account_profile_url: "${mfe_config.get('ACCOUNT_PROFILE_URL', '') or lms_base_url | n, js_escaped_string}"
+      };
+      % endif
+    })();
+  </script>
   <div class="chalix-header-wrapper" id="view-top">
     <header class="chalix-header" role="banner">
       <!-- Top Blue Header -->

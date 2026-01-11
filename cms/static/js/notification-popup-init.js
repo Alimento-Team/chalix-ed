@@ -12,7 +12,7 @@
         const popupRoot = document.getElementById('notification-popup-root');
 
         if (!notificationButton || !popupRoot) {
-            console.warn('Notification popup initialization: Required elements not found');
+            // Required elements not found; skipping initialization
             return;
         }
 
@@ -47,7 +47,7 @@
                         window._notificationPopupJustOpened = false;
                     }, 300);
                 } else {
-                    console.warn('Notification popup component initializer not found');
+                    // Notification popup component initializer not found
                 }
             }
         });
@@ -81,7 +81,7 @@
             }
         });
 
-        console.log('Notification popup initialized successfully');
+        // Notification popup initialized (log removed)
     }
 
     // Initialize when DOM is ready
