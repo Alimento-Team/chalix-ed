@@ -1625,8 +1625,6 @@
         // Initialize with program data
         const initialPractical = !!program.allow_practical_submission;
         setEvaluationMode(initialPractical);
-        // Initialized evaluation switch (log removed). Program allows practical: 
-                   'Switch will be:', initialPractical ? 'OFF (Practical)' : 'ON (Quiz)');
 
         // Click handlers with event delegation and fresh DOM queries
         overlay.addEventListener('click', (e) => {
@@ -1684,13 +1682,6 @@
                 allow_multiple_choice: evalCheckboxValue === true,
                 topics: topics
             };
-
-            // Saving program data (log removed): {
-                evalCheckboxValue,
-                allow_practical_submission: programData.allow_practical_submission,
-                allow_multiple_choice: programData.allow_multiple_choice,
-                fullProgramData: programData
-            });
 
             // Validate required fields
             if (!programData.title || !programData.title.trim()) {
