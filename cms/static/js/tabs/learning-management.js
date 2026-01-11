@@ -1590,13 +1590,7 @@
             const practical = overlay.querySelector('#practical-option');
             const quiz = overlay.querySelector('#quiz-option');
             
-            // setEvaluationMode called (log removed):
-                checkbox: !!checkbox,
-                ui: !!ui,
-                knob: !!knob,
-                practical: !!practical,
-                quiz: !!quiz
-            });
+            // setEvaluationMode called (debug logs removed)
             
             // REVERSED LOGIC: checkbox ON = quiz, OFF = practical
             const isQuizMode = !isPractical;

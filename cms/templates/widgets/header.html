@@ -20,6 +20,9 @@
   mfe_config = getattr(settings, 'MFE_CONFIG', {})
   lms_base_url = mfe_config.get('LMS_BASE_URL') or getattr(settings, 'LMS_ROOT_URL', '')
   learner_dashboard_url = mfe_config.get('LEARNER_DASHBOARD_URL', f'{lms_base_url}/dashboard')
+  personalization_url = f"{learner_dashboard_url}{'&' if '?' in learner_dashboard_url else '?'}tab=personalized"
+  account_settings_url = mfe_config.get('ACCOUNT_SETTINGS_URL', '') or f'{lms_base_url}/account'
+  account_profile_url = mfe_config.get('ACCOUNT_PROFILE_URL', '') or lms_base_url
   %>
   
   <!-- Pass user data to JavaScript for popup component -->
@@ -33,8 +36,8 @@
         user_role: "",
         lms_base_url: "${lms_base_url | n, js_escaped_string}",
         learner_dashboard_url: "${learner_dashboard_url | n, js_escaped_string}",
-        account_settings_url: "${mfe_config.get('ACCOUNT_SETTINGS_URL', '') or lms_base_url + '/account' | n, js_escaped_string}",
-        account_profile_url: "${mfe_config.get('ACCOUNT_PROFILE_URL', '') or lms_base_url | n, js_escaped_string}"
+        account_settings_url: "${account_settings_url | n, js_escaped_string}",
+        account_profile_url: "${account_profile_url | n, js_escaped_string}"
       };
       % endif
     })();
@@ -87,7 +90,7 @@
               <i class="fa fa-graduation-cap nav-icon" aria-hidden="true"></i>
               <span class="nav-label">Học tập</span>
             </a>
-            <a href="${learner_dashboard_url}?tab=personalized" class="nav-item">
+            <a href="${personalization_url}" class="nav-item">
               <i class="fa fa-user-circle nav-icon" aria-hidden="true"></i>
               <span class="nav-label">Cá nhân hóa</span>
             </a>
