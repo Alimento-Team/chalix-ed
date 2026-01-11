@@ -34,12 +34,43 @@
                     <div class="statistics-header">
                         <h2>${contentTitle}</h2>
                         <p class="statistics-description">${contentDescription}</p>
+                        
+                        <!-- Table navigation buttons -->
+                        <div class="statistics-nav-buttons">
+                            ${userRole === 'co_quan' ? `
+                            <button class="stat-nav-btn active" data-table="statistics-table-section-1">
+                                <i class="fa fa-clock-o"></i>
+                                <span>Giờ học công chức</span>
+                            </button>
+                            <button class="stat-nav-btn" data-table="statistics-table-section-2">
+                                <i class="fa fa-users"></i>
+                                <span>Người học khóa học</span>
+                            </button>
+                            ` : `
+                            <button class="stat-nav-btn active" data-table="statistics-table-section-1">
+                                <i class="fa fa-building"></i>
+                                <span>Người học theo cơ quan</span>
+                            </button>
+                            <button class="stat-nav-btn" data-table="statistics-table-section-2">
+                                <i class="fa fa-users"></i>
+                                <span>Người học khóa học</span>
+                            </button>
+                            <button class="stat-nav-btn" data-table="statistics-table-section-3">
+                                <i class="fa fa-graduation-cap"></i>
+                                <span>Khóa học theo cơ quan</span>
+                            </button>
+                            <button class="stat-nav-btn" data-table="statistics-table-section-4">
+                                <i class="fa fa-clock-o"></i>
+                                <span>Giờ học công chức</span>
+                            </button>
+                            `}
+                        </div>
                     </div>
                     <div class="statistics-content">
                         <div class="statistics-tables-container">
                             ${userRole === 'co_quan' ? `
                             <!-- Co Quan sees only 2 tables for their organization -->
-                            <div class="statistics-table-section">
+                            <div class="statistics-table-section" id="statistics-table-section-1">
                                 <h3 class="table-section-title">THỐNG KÊ SỐ GIỜ HỌC CỦA CÔNG CHỨC, VIÊN CHỨC NĂM 2025</h3>
                                 <div class="statistics-table-container">
                                     <table class="table table-striped" id="statistics-table">
@@ -84,7 +115,7 @@
                             </div>
                             ` : `
                             <!-- Bo and other roles see all 4 tables -->
-                            <div class="statistics-table-section">
+                            <div class="statistics-table-section" id="statistics-table-section-1">
                                 <h3 class="table-section-title">THỐNG KÊ SỐ NGƯỜI HỌC THEO CƠ QUAN NĂM 2025</h3>
                                 <div class="statistics-table-container">
                                     <table class="table table-striped" id="organization-completion-table">
@@ -104,7 +135,7 @@
                                     </table>
                                 </div>
                             </div>
-                            <div class="statistics-table-section">
+                            <div class="statistics-table-section" id="statistics-table-section-2">
                                 <h3 class="table-section-title">THỐNG KÊ SỐ NGƯỜI HỌC CỦA CÁC KHÓA HỌC NĂM 2025</h3>
                                 <div class="statistics-table-container">
                                     <table class="table table-striped" id="course-completion-table">
@@ -124,7 +155,7 @@
                                     </table>
                                 </div>
                             </div>
-                            <div class="statistics-table-section">
+                            <div class="statistics-table-section" id="statistics-table-section-3">
                                 <h3 class="table-section-title">THỐNG KÊ SỐ KHÓA HỌC THEO CƠ QUAN NĂM 2025</h3>
                                 <div class="statistics-table-container">
                                     <table class="table table-striped" id="organization-courses-table">
@@ -143,7 +174,7 @@
                                     </table>
                                 </div>
                             </div>
-                            <div class="statistics-table-section">
+                            <div class="statistics-table-section" id="statistics-table-section-4">
                                 <h3 class="table-section-title">THỐNG KÊ SỐ GIỜ HỌC CỦA CÔNG CHỨC, VIÊN CHỨC NĂM 2025</h3>
                                 <div class="statistics-table-container">
                                     <table class="table table-striped" id="statistics-table">
@@ -197,11 +228,53 @@
             // Apply CSS styles
             this.applyStyles();
 
+            // Initialize table navigation
+            this.initializeTableNavigation();
+
             // Initialize functionality
             this.initializeEventHandlers();
 
             // Load initial data
             this.loadStatisticsData();
+        },
+
+        initializeTableNavigation: function() {
+            const self = this;
+            const navButtons = document.querySelectorAll('.stat-nav-btn');
+            const tableSections = document.querySelectorAll('.statistics-table-section');
+            
+            // Hide all tables except the first one
+            tableSections.forEach((section, index) => {
+                if (index === 0) {
+                    section.style.display = 'block';
+                } else {
+                    section.style.display = 'none';
+                }
+            });
+            
+            // Add click handlers to buttons
+            navButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const targetTableId = this.getAttribute('data-table');
+                    
+                    // Remove active class from all buttons
+                    navButtons.forEach(btn => btn.classList.remove('active'));
+                    
+                    // Add active class to clicked button
+                    this.classList.add('active');
+                    
+                    // Hide all tables
+                    tableSections.forEach(section => {
+                        section.style.display = 'none';
+                    });
+                    
+                    // Show the target table
+                    const targetTable = document.getElementById(targetTableId);
+                    if (targetTable) {
+                        targetTable.style.display = 'block';
+                    }
+                });
+            });
         },
 
         applyStyles: function() {
@@ -229,6 +302,63 @@
                     color: #666;
                     margin-bottom: 20px;
                     font-size: 14px;
+                }
+
+                .statistics-nav-buttons {
+                    display: flex;
+                    gap: 12px;
+                    margin-top: 20px;
+                    margin-bottom: 30px;
+                    flex-wrap: wrap;
+                }
+
+                .stat-nav-btn {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    padding: 12px 20px;
+                    background: #ffffff;
+                    border: 2px solid #e0e0e0;
+                    border-radius: 8px;
+                    color: #555;
+                    font-size: 14px;
+                    font-weight: 500;
+                    cursor: pointer;
+                    transition: all 0.2s ease;
+                    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+                }
+
+                .stat-nav-btn i {
+                    font-size: 16px;
+                    color: #777;
+                }
+
+                .stat-nav-btn:hover {
+                    background: #f8f9fa;
+                    border-color: #3494c8;
+                    color: #2c5aa0;
+                    transform: translateY(-1px);
+                    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+                }
+
+                .stat-nav-btn:hover i {
+                    color: #3494c8;
+                }
+
+                .stat-nav-btn.active {
+                    background: #3494c8;
+                    border-color: #3494c8;
+                    color: #ffffff;
+                    box-shadow: 0 4px 8px rgba(52, 148, 200, 0.3);
+                }
+
+                .stat-nav-btn.active i {
+                    color: #ffffff;
+                }
+
+                .stat-nav-btn:focus {
+                    outline: none;
+                    box-shadow: 0 0 0 3px rgba(52, 148, 200, 0.2);
                 }
 
                 .statistics-filters {
@@ -535,6 +665,26 @@
 
                     .filter-actions {
                         flex-direction: column;
+                    }
+
+                    .statistics-nav-buttons {
+                        flex-direction: column;
+                        gap: 8px;
+                    }
+
+                    .stat-nav-btn {
+                        width: 100%;
+                        justify-content: center;
+                    }
+                }
+
+                @media (max-width: 480px) {
+                    .stat-nav-btn span {
+                        font-size: 12px;
+                    }
+
+                    .stat-nav-btn {
+                        padding: 10px 16px;
                     }
                 }
             `;
