@@ -608,6 +608,25 @@ user_org_name = get_user_organization_display_name(user) or ''
 <%block name="jsextra">
     <!-- Pass role-based data to JavaScript -->
     <script type="text/javascript">
+        // Pre-process MFE URLs to avoid complex expressions in inline script
+        <%
+            # Extract account microfrontend URL and clean it
+            account_mfe_url = ''
+            if hasattr(settings, 'ACCOUNT_MICROFRONTEND_URL') and settings.ACCOUNT_MICROFRONTEND_URL:
+                account_mfe_url = settings.ACCOUNT_MICROFRONTEND_URL
+            
+            # Determine MFE base URL by removing /account/ path
+            mfe_base_url = ''
+            if account_mfe_url:
+                if '/account/' in account_mfe_url:
+                    mfe_base_url = account_mfe_url.replace('/account/', '').rstrip('/')
+                else:
+                    mfe_base_url = account_mfe_url.rstrip('/')
+            
+            # Get profile microfrontend URL
+            profile_mfe_url = getattr(settings, 'PROFILE_MICROFRONTEND_URL', '')
+        %>
+        
         // Pass role-based context to JavaScript
         window.CMS_ROLE_DATA = {
             user_role: '${user_role or ""}',
@@ -619,10 +638,10 @@ user_org_name = get_user_organization_display_name(user) or ''
             is_global_staff: ${str(is_global_staff).lower() if is_global_staff else 'false'},
             available_tabs: ${json.dumps(available_tabs) if available_tabs else '[]'},
             // Platform URLs for popup navigation (will be resolved in JS)
-            account_settings_url: '${settings.ACCOUNT_MICROFRONTEND_URL if hasattr(settings, "ACCOUNT_MICROFRONTEND_URL") else "/account/settings"}',
+            account_settings_url: '${account_mfe_url}',
             // MFE base URL for loading bundles (strip /account/ path from account_settings_url)
-            mfe_base_url: '${settings.ACCOUNT_MICROFRONTEND_URL.replace("/account/", "").rstrip("/") if hasattr(settings, "ACCOUNT_MICROFRONTEND_URL") and settings.ACCOUNT_MICROFRONTEND_URL and "/account/" in settings.ACCOUNT_MICROFRONTEND_URL else (settings.ACCOUNT_MICROFRONTEND_URL.rstrip("/") if hasattr(settings, "ACCOUNT_MICROFRONTEND_URL") and settings.ACCOUNT_MICROFRONTEND_URL else "")}',
-            profile_base_url: '${settings.PROFILE_MICROFRONTEND_URL if hasattr(settings, "PROFILE_MICROFRONTEND_URL") else ""}',
+            mfe_base_url: '${mfe_base_url}',
+            profile_base_url: '${profile_mfe_url}',
             // Server-provided LMS base URL: prefer explicit platform configuration (MFE_CONFIG['LMS_BASE_URL'] or LMS_ROOT_URL)
             lms_base_url: '${lms_base_url}',
             // MFE-specific URLs for proper navigation

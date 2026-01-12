@@ -1783,18 +1783,19 @@
                 return new Promise(resolve => {
                     setTimeout(() => {
                         // Simulate successful save
-                        // Simulated program update (log removed): {
-                            action: 'update_program',
-                            program_id: programData.id,
-                            changes: {
-                                title: programData.title,
-                                icon: programData.icon,
-                                short_description: programData.short_description,
-                                topics: programData.topics,
-                                update_topics: programData.update_topics
-                            },
-                            timestamp: new Date().toISOString()
-                        });
+                        // Simulated program update (log removed):
+                        // {
+                        //     action: 'update_program',
+                        //     program_id: programData.id,
+                        //     changes: {
+                        //         title: programData.title,
+                        //         icon: programData.icon,
+                        //         short_description: programData.short_description,
+                        //         topics: programData.topics,
+                        //         update_topics: programData.update_topics
+                        //     },
+                        //     timestamp: new Date().toISOString()
+                        // }
                         
                         // Update DOM with new data for immediate visual feedback
                         updateProgramInDOM(programData);

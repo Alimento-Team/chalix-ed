@@ -40,6 +40,16 @@
     }
 
     /**
+     * Escape HTML special characters in URLs for use in href attributes
+     */
+    function escapeHtml(text) {
+        if (!text) return text;
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    /**
      * Get navigation URLs for the popup menu items
      */
     function getNavigationUrls() {
@@ -63,14 +73,14 @@
             : learnerDashboardUrl + '?tab=personalized';
 
         return {
-            courses: learnerDashboardUrl,
-            account: accountSettingsUrl,
-            personalization: personalizationUrl,
-            requests: lmsBaseUrl + '/requests',
-            profile: profileUrl,
+            courses: escapeHtml(learnerDashboardUrl),
+            account: escapeHtml(accountSettingsUrl),
+            personalization: escapeHtml(personalizationUrl),
+            requests: escapeHtml(lmsBaseUrl + '/requests'),
+            profile: escapeHtml(profileUrl),
             teaching: '#', // TODO: Add teaching registration URL
             help: '#', // TODO: Add help URL
-            logout: '/logout'
+            logout: escapeHtml('/logout')
         };
     }
 
