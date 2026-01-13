@@ -2860,12 +2860,13 @@
                 
                 // Simulate successful save
                 setTimeout(() => {
-                    // Simulated course update (log removed): {
-                        action: 'update_course',
-                        course_id: courseData.id,
-                        changes: courseData,
-                        timestamp: new Date().toISOString()
-                    });
+                    // Simulated course update (log removed):
+                    // {
+                    //     action: 'update_course',
+                    //     course_id: courseData.id,
+                    //     changes: courseData,
+                    //     timestamp: new Date().toISOString()
+                    // }
                     
                     // Update DOM for immediate visual feedback
                     updateCourseInDOM(courseData);
