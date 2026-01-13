@@ -55,38 +55,38 @@
       </div>
 
       <nav class="chalix-user-menu__list">
-        <a class="chalix-user-menu__item" href="${h(learner_dashboard_url)}">
+        <a class="chalix-user-menu__item" href="${ learner_dashboard_url }">
           <i class="fa fa-book"></i>
           <span>Khóa học</span>
         </a>
-        <a class="chalix-user-menu__item" href="${h(account_settings_url)}">
+        <a class="chalix-user-menu__item" href="${ account_settings_url }">
           <i class="fa fa-user"></i>
           <span>Cập nhật thông tin</span>
         </a>
         % if personalization_url:
-        <a class="chalix-user-menu__item" href="${h(personalization_url)}">
+        <a class="chalix-user-menu__item" href="${ personalization_url }">
           <i class="fa fa-user"></i>
           <span>Cá nhân hóa</span>
         </a>
         % endif
-        <a class="chalix-user-menu__item" href="${h(lms_base_url)}/requests">
+        <a class="chalix-user-menu__item" href="${ lms_base_url }/requests">
           <i class="fa fa-list-alt"></i>
           <span>Danh sách yêu cầu</span>
         </a>
-        <a class="chalix-user-menu__item" href="${h(profile_url)}">
+        <a class="chalix-user-menu__item" href="${ profile_url }">
           <i class="fa fa-bar-chart"></i>
           <span>Kết quả học tập</span>
         </a>
-        <a class="chalix-user-menu__item" href="${h(lms_base_url)}/register-teaching">
+        <a class="chalix-user-menu__item" href="${ lms_base_url }/register-teaching">
           <i class="fa fa-graduation-cap"></i>
           <span>Đăng ký giảng dạy</span>
         </a>
-        <a class="chalix-user-menu__item" href="${h(lms_base_url)}/help">
+        <a class="chalix-user-menu__item" href="${ lms_base_url }/help">
           <i class="fa fa-question-circle"></i>
           <span>Trợ giúp</span>
         </a>
         % if GlobalStaff().has_user(user):
-        <a class="chalix-user-menu__item" href="${h(reverse('maintenance:maintenance_index'))}">
+        <a class="chalix-user-menu__item" href="${reverse('maintenance:maintenance_index')}">
           <i class="fa fa-wrench"></i>
           <span>Maintenance</span>
         </a>
@@ -94,7 +94,7 @@
       </nav>
 
       <div class="chalix-user-menu__footer">
-        <a class="chalix-user-menu__logout" href="${h(settings.FRONTEND_LOGOUT_URL)}">
+        <a class="chalix-user-menu__logout" href="${ settings.FRONTEND_LOGOUT_URL }">
           <i class="fa fa-sign-out"></i>
           <span>Đăng xuất</span>
         </a>
