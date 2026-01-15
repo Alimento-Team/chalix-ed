@@ -11,10 +11,12 @@
         const avatarButton = document.getElementById('user-avatar-popup-trigger');
         const popupRoot = document.getElementById('user-popup-root');
 
-        if (!avatarButton || !popupRoot) {
-            console.warn('User popup initialization: Required elements not found');
+        if (!avatarButton) {
+            // Avatar button not found, skip initialization
             return;
         }
+
+        // popupRoot is optional - we use floating popup approach now
 
         // Try to load and mount the UserPopup component
         // This will be called when the avatar button is clicked

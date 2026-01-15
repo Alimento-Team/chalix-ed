@@ -159,6 +159,14 @@ from openedx.core.release import RELEASE_LINE
 
     <%block name="modal_placeholder"></%block>
 
+    <!-- Chalix user popup scripts loaded on all pages -->
+    % if user.is_authenticated:
+    <script src="${static.url('js/user-popup-simple.js')}"></script>
+    <script src="${static.url('js/user-popup-init.js')}"></script>
+    <script src="${static.url('js/notification-popup-simple.js')}"></script>
+    <script src="${static.url('js/notification-popup-init.js')}"></script>
+    % endif
+
     <%block name="jsextra"></%block>
 
     % if context_course:
