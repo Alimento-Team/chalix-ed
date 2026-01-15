@@ -20,8 +20,8 @@
   mfe_config = getattr(settings, 'MFE_CONFIG', {})
   lms_base_url = mfe_config.get('LMS_BASE_URL') or getattr(settings, 'LMS_ROOT_URL', '')
   learner_dashboard_url = mfe_config.get('LEARNER_DASHBOARD_URL', f'{lms_base_url}/dashboard')
-  # Build personalization URL properly to avoid template syntax issues
-  separator = '&' if '?' in learner_dashboard_url else '?'
+  # Build personalization URL - use chr(38) for ampersand to avoid template escaping issues
+  separator = chr(38) if '?' in learner_dashboard_url else '?'
   personalization_url = f"{learner_dashboard_url}{separator}tab=personalized"
   account_settings_url = mfe_config.get('ACCOUNT_SETTINGS_URL', '') or f'{lms_base_url}/account'
   account_profile_url = mfe_config.get('ACCOUNT_PROFILE_URL', '') or lms_base_url

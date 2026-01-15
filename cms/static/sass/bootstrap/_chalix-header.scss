@@ -1,0 +1,407 @@
+// ==========================================================================
+// Chalix CMS Header Styles - Vietnamese Smart Learning Platform
+// ==========================================================================
+
+// Vietnamese CMS Header Styles - Based on Figma Design
+
+// Header Wrapper
+.chalix-header-wrapper {
+    width: 100%;
+    position: relative;
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.chalix-header {
+    width: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+// Top Blue Header
+.header-top {
+    background-color: #3494c8;
+    padding: 15px 0;
+    color: white;
+}
+
+.header-top-content {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 20px;
+}
+
+.organization-info {
+    flex: 1;
+}
+
+.application-title,
+.organization-title {
+    font-size: 16px;
+    font-weight: 700;
+    margin: 0;
+    line-height: 1.3;
+    color: white;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.organization-name,
+.department-name {
+    font-size: 14px;
+    font-weight: 500;
+    margin: 4px 0 0 0;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.header-top-right {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.user-display-name {
+    color: white;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.notification-button {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 18px;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 50%;
+    transition: background-color 0.2s ease;
+
+    &:hover {
+        background-color: rgba(255, 255, 255, 0.1);
+    }
+}
+
+.user-avatar-button {
+    background-color: #99abc8;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    color: white;
+    font-size: 16px;
+    transition: background-color 0.2s ease;
+
+    &:hover {
+        background-color: #8899b3;
+    }
+}
+
+// Bottom Navigation Header
+.header-bottom {
+    background-color: white;
+    height: 50px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.header-bottom-content {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 100%;
+    padding: 0 20px;
+}
+
+.main-navigation {
+    display: flex;
+    gap: 0;
+    height: 100%;
+}
+
+.nav-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 20px;
+    height: 100%;
+    text-decoration: none;
+    color: #394047;
+    font-size: 14px;
+    font-weight: 600;
+    border-right: 1px solid #e0e0e0;
+    cursor: pointer;
+    transition: all 0.2s ease;
+
+    &:first-child {
+        padding-left: 0;
+    }
+
+    &:hover,
+    &.active {
+        color: #3494c8;
+        background-color: #f8f9fa;
+    }
+
+    .nav-icon {
+        font-size: 16px;
+    }
+}
+
+// Search Bar
+.search-container {
+    margin-left: auto;
+}
+
+.search-bar {
+    position: relative;
+    width: 300px;
+    height: 36px;
+    border: 1px solid #99abc8;
+    border-radius: 18px;
+    display: flex;
+    align-items: center;
+    background: white;
+
+    .search-input {
+        flex: 1;
+        border: none;
+        outline: none;
+        padding: 0 15px;
+        font-size: 14px;
+        background: transparent;
+
+        &::placeholder {
+            color: rgba(73, 69, 79, 0.6);
+        }
+    }
+
+    .search-button {
+        background: none;
+        border: none;
+        padding: 8px 12px;
+        cursor: pointer;
+        color: #666;
+    }
+}
+
+// ==========================================================================
+// User Popup Menu Styles - Dark Theme Matching MFE Header Component
+// ==========================================================================
+
+.chalix-user-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    width: 280px;
+    margin-top: 8px;
+    background-color: #2d3436;
+    border: 1px solid #3d4446;
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+    z-index: 10000;
+    overflow: hidden;
+    font-family: 'Roboto', 'Inter', sans-serif;
+}
+
+// Header section with user info
+.chalix-user-menu__header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 20px;
+    background-color: #2d3436;
+    border-bottom: 1px solid #3d4446;
+}
+
+.chalix-user-menu__avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #636e72;
+    color: white;
+    font-size: 22px;
+    flex-shrink: 0;
+    border: 2px solid #74b9ff;
+
+    i {
+        font-size: 20px;
+        color: #dfe6e9;
+    }
+}
+
+.chalix-user-menu__info {
+    flex: 1;
+    min-width: 0;
+}
+
+.chalix-user-menu__name {
+    font-weight: 600;
+    font-size: 15px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.3;
+    letter-spacing: 0.3px;
+    color: #ffffff;
+    margin: 0;
+}
+
+.chalix-user-menu__meta {
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.4;
+    margin-top: 3px;
+    color: #b2bec3;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.chalix-user-menu__username {
+    color: #b2bec3;
+}
+
+.chalix-user-menu__dot {
+    color: #636e72;
+    font-size: 8px;
+}
+
+.chalix-user-menu__org {
+    color: #b2bec3;
+}
+
+// Menu navigation list
+.chalix-user-menu__list {
+    display: flex;
+    flex-direction: column;
+    list-style: none;
+    margin: 0;
+    padding: 8px 0;
+    background-color: #2d3436;
+}
+
+.chalix-user-menu__item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 20px;
+    color: #dfe6e9;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    font-size: 14px;
+    font-weight: 400;
+    cursor: pointer;
+
+    &:hover {
+        background-color: #3d4446;
+
+        i {
+            color: #74b9ff;
+        }
+    }
+
+    i {
+        width: 18px;
+        flex-shrink: 0;
+        color: #b2bec3;
+        transition: color 0.2s ease;
+        font-size: 14px;
+        text-align: center;
+    }
+
+    span {
+        flex: 1;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+}
+
+// Footer with logout button
+.chalix-user-menu__footer {
+    padding: 0;
+    border-top: 1px solid #3d4446;
+    background-color: #2d3436;
+}
+
+.chalix-user-menu__logout {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 12px;
+    width: 100%;
+    padding: 12px 20px;
+    background-color: transparent;
+    border: none;
+    color: #ff7675;
+    font-size: 14px;
+    font-weight: 400;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-decoration: none;
+
+    &:hover {
+        background-color: rgba(255, 118, 117, 0.1);
+    }
+
+    i {
+        width: 18px;
+        flex-shrink: 0;
+        font-size: 14px;
+        color: #ff7675;
+    }
+}
+
+// User menu container for positioning
+.user-menu-container {
+    position: relative;
+}
+
+// Responsive adjustments
+@media (max-width: 480px) {
+    .chalix-user-menu {
+        width: calc(100vw - 32px);
+        max-width: 280px;
+    }
+}
+
+// Mobile Responsive
+@media (max-width: 768px) {
+
+    .header-top-content,
+    .header-bottom-content {
+        padding: 0 15px;
+    }
+
+    .application-title,
+    .organization-title {
+        font-size: 14px;
+    }
+
+    .main-navigation {
+        display: none;
+    }
+
+    .search-bar {
+        width: 200px;
+    }
+}

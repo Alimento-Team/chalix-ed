@@ -19,7 +19,7 @@
 
   personalization_url = None
   if learner_dashboard_url:
-      separator = '&' if '?' in learner_dashboard_url else '?'
+      separator = chr(38) if '?' in learner_dashboard_url else '?'
       personalization_url = f"{learner_dashboard_url}{separator}tab=personalized"
 
   org_name = get_user_organization_display_name(user) or ''
