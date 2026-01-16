@@ -27,6 +27,137 @@
   account_profile_url = mfe_config.get('ACCOUNT_PROFILE_URL', '') or lms_base_url
   %>
   
+  <!-- User Popup Menu Styles - Dark Theme -->
+  <style>
+    .chalix-user-menu {
+        position: absolute;
+        top: 100%;
+        right: 0;
+        width: 280px;
+        margin-top: 8px;
+        background-color: #2d3436;
+        border: 1px solid #3d4446;
+        border-radius: 12px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+        z-index: 10000;
+        overflow: hidden;
+        font-family: 'Roboto', 'Inter', sans-serif;
+    }
+    .chalix-user-menu__header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 16px 20px;
+        background-color: #2d3436;
+        border-bottom: 1px solid #3d4446;
+    }
+    .chalix-user-menu__avatar {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: #636e72;
+        color: white;
+        font-size: 22px;
+        flex-shrink: 0;
+        border: 2px solid #74b9ff;
+    }
+    .chalix-user-menu__avatar i {
+        font-size: 20px;
+        color: #dfe6e9;
+    }
+    .chalix-user-menu__info {
+        flex: 1;
+        min-width: 0;
+    }
+    .chalix-user-menu__name {
+        font-weight: 600;
+        font-size: 15px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        line-height: 1.3;
+        color: #ffffff;
+        margin: 0;
+    }
+    .chalix-user-menu__meta {
+        font-size: 12px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        line-height: 1.4;
+        margin-top: 3px;
+        color: #b2bec3;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+    .chalix-user-menu__username { color: #b2bec3; }
+    .chalix-user-menu__dot { color: #636e72; font-size: 8px; }
+    .chalix-user-menu__org { color: #b2bec3; }
+    .chalix-user-menu__list {
+        display: flex;
+        flex-direction: column;
+        list-style: none;
+        margin: 0;
+        padding: 8px 0;
+        background-color: #2d3436;
+    }
+    .chalix-user-menu__item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 20px;
+        color: #dfe6e9;
+        text-decoration: none;
+        transition: all 0.2s ease;
+        font-size: 14px;
+        font-weight: 400;
+        cursor: pointer;
+    }
+    .chalix-user-menu__item:hover { background-color: #3d4446; }
+    .chalix-user-menu__item:hover i { color: #74b9ff; }
+    .chalix-user-menu__item i {
+        width: 18px;
+        flex-shrink: 0;
+        color: #b2bec3;
+        transition: color 0.2s ease;
+        font-size: 14px;
+        text-align: center;
+    }
+    .chalix-user-menu__item span {
+        flex: 1;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .chalix-user-menu__footer {
+        padding: 0;
+        border-top: 1px solid #3d4446;
+        background-color: #2d3436;
+    }
+    .chalix-user-menu__logout {
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 12px;
+        width: 100%;
+        padding: 12px 20px;
+        background-color: transparent;
+        border: none;
+        color: #ff7675;
+        font-size: 14px;
+        font-weight: 400;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        text-decoration: none;
+    }
+    .chalix-user-menu__logout:hover { background-color: rgba(255, 118, 117, 0.1); }
+    .chalix-user-menu__logout i { width: 18px; flex-shrink: 0; font-size: 14px; color: #ff7675; }
+  </style>
+
   <!-- Pass user data to JavaScript for popup component -->
   <script type="text/javascript">
     (function() {

@@ -1,12 +1,13 @@
 /**
  * CMS Dashboard Tab Management
  * Handles tab switching and content loading for the Vietnamese CMS interface
+ * Note: Tabs are rendered server-side for security. This script only handles interactions.
  */
 
 (function() {
     'use strict';
 
-    // Tab data configuration
+    // Tab data configuration (for content only - tabs are rendered server-side)
     const TAB_CONFIG = {
         'statistics': {
             label: 'Thống kê',
@@ -37,7 +38,7 @@
 
     class CMSDashboard {
         constructor() {
-            this.currentTab = 'statistics';
+            this.currentTab = null;
             this.tabElements = {};
             this.contentElement = null;
             
@@ -45,18 +46,25 @@
         }
 
         init() {
-            this.bindEvents();
             this.initializeTabs();
-            this.setActiveTab(this.currentTab);
+            this.bindEvents();
+            
+            // Set initial tab from URL hash or first available
+            const hashTab = window.location.hash.replace('#', '');
+            const firstTab = Object.keys(this.tabElements)[0];
+            const initialTab = (hashTab && this.tabElements[hashTab]) ? hashTab : firstTab;
+            
+            if (initialTab) {
+                this.setActiveTab(initialTab);
+            }
         }
 
         bindEvents() {
-            // Handle tab clicks
+            // Handle tab clicks using event delegation
             document.addEventListener('click', (e) => {
-                if (e.target.closest('.tab-item')) {
-                    const tabItem = e.target.closest('.tab-item');
-                    const tabId = tabItem.dataset.tabId;
-                    
+                const tabButton = e.target.closest('.cms-tab');
+                if (tabButton) {
+                    const tabId = tabButton.dataset.tab;
                     if (tabId) {
                         this.setActiveTab(tabId);
                     }
@@ -72,71 +80,33 @@
         }
 
         initializeTabs() {
-            const tabContainer = document.querySelector('.cms-tabs .tab-container');
+            // Tabs are rendered server-side - just find them in the DOM
+            const tabButtons = document.querySelectorAll('.cms-tab[data-tab]');
             const contentContainer = document.querySelector('.tab-content');
             
-            if (!tabContainer || !contentContainer) {
-                console.error('Required tab elements not found');
+            if (!contentContainer) {
+                console.error('[CMS Dashboard] Content container not found');
                 return;
             }
 
             this.contentElement = contentContainer;
 
-            // Get role-based available tabs
-            const roleData = window.CMS_ROLE_DATA || {};
-            const availableTabs = roleData.available_tabs || Object.keys(TAB_CONFIG);
-            
-            console.info('[CMS Dashboard] Available tabs for role:', roleData.user_role, availableTabs);
-
-            // Clear existing tabs and create new ones
-            tabContainer.innerHTML = '';
-            
-            // Only create tabs that are available for the user's role
-            availableTabs.forEach((tabId, index) => {
-                if (TAB_CONFIG[tabId]) {
-                    const config = TAB_CONFIG[tabId];
-                    const tabElement = this.createTabElement(tabId, config.label, index === 0);
-                    
-                    tabContainer.appendChild(tabElement);
-                    this.tabElements[tabId] = tabElement;
+            // Build tab elements map from server-rendered tabs
+            tabButtons.forEach(tabButton => {
+                const tabId = tabButton.dataset.tab;
+                if (tabId) {
+                    this.tabElements[tabId] = tabButton;
                 }
             });
 
-            // Set default tab to first available tab
-            if (availableTabs.length > 0 && !availableTabs.includes(this.currentTab)) {
-                this.currentTab = availableTabs[0];
-            }
-        }
-
-        createTabElement(tabId, label, isActive = false) {
-            const tabItem = document.createElement('div');
-            tabItem.className = `tab-item ${isActive ? 'active' : ''}`;
-            tabItem.dataset.tabId = tabId;
-            tabItem.setAttribute('role', 'tab');
-            tabItem.setAttribute('aria-selected', isActive ? 'true' : 'false');
-            tabItem.setAttribute('tabindex', isActive ? '0' : '-1');
-
-            const tabLabel = document.createElement('span');
-            tabLabel.className = 'tab-label';
-            tabLabel.textContent = label;
-
-            tabItem.appendChild(tabLabel);
-            
-            return tabItem;
+            const availableTabIds = Object.keys(this.tabElements);
+            console.info('[CMS Dashboard] Server-rendered tabs:', availableTabIds);
         }
 
         setActiveTab(tabId) {
-            if (!TAB_CONFIG[tabId]) {
-                console.error(`Invalid tab ID: ${tabId}`);
-                return;
-            }
-
-            // Check if tab is available for the user's role
-            const roleData = window.CMS_ROLE_DATA || {};
-            const availableTabs = roleData.available_tabs || Object.keys(TAB_CONFIG);
-            
-            if (!availableTabs.includes(tabId)) {
-                console.warn(`Tab ${tabId} not available for user role: ${roleData.user_role}`);
+            // Verify tab exists in DOM (server-rendered)
+            if (!this.tabElements[tabId]) {
+                console.warn(`[CMS Dashboard] Tab ${tabId} not found in DOM`);
                 return;
             }
 
@@ -146,8 +116,8 @@
                 const isActive = id === tabId;
                 
                 tabElement.classList.toggle('active', isActive);
+                tabElement.classList.toggle('selected', isActive);
                 tabElement.setAttribute('aria-selected', isActive ? 'true' : 'false');
-                tabElement.setAttribute('tabindex', isActive ? '0' : '-1');
             });
 
             // Update content
@@ -156,7 +126,7 @@
             // Update current tab
             this.currentTab = tabId;
 
-            // Update URL hash (optional, for deep linking)
+            // Update URL hash for deep linking
             if (window.history && window.history.replaceState) {
                 window.history.replaceState(null, null, `#${tabId}`);
             }
@@ -169,14 +139,9 @@
                 return;
             }
             
-            // Use tabId directly as the module key
-            let moduleKey = tabId;
-            
             // Check if tab has its own module renderer
-            const tabModule = window.CMS_TABS && window.CMS_TABS[moduleKey];
+            const tabModule = window.CMS_TABS && window.CMS_TABS[tabId];
             
-            // Tabs with their own modules handle their own data loading
-            // (e.g., learning-management loads data from /api/v1/organizations/)
             if (tabModule && typeof tabModule.render === 'function') {
                 // Let the module handle everything including data fetching
                 tabModule.render(this.contentElement, {

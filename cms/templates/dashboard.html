@@ -298,6 +298,176 @@ lms_base_url = _mfe_conf.get('LMS_BASE_URL') or getattr(settings, 'LMS_ROOT_URL'
             font-size: 18px;
         }
 
+        /* ==========================================================================
+           User Popup Menu Styles - Dark Theme Matching MFE Header Component
+           ========================================================================== */
+
+        .chalix-user-menu {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            width: 280px;
+            margin-top: 8px;
+            background-color: #2d3436;
+            border: 1px solid #3d4446;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+            z-index: 10000;
+            overflow: hidden;
+            font-family: 'Roboto', 'Inter', sans-serif;
+        }
+
+        .chalix-user-menu__header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 16px 20px;
+            background-color: #2d3436;
+            border-bottom: 1px solid #3d4446;
+        }
+
+        .chalix-user-menu__avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #636e72;
+            color: white;
+            font-size: 22px;
+            flex-shrink: 0;
+            border: 2px solid #74b9ff;
+        }
+
+        .chalix-user-menu__avatar i {
+            font-size: 20px;
+            color: #dfe6e9;
+        }
+
+        .chalix-user-menu__info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .chalix-user-menu__name {
+            font-weight: 600;
+            font-size: 15px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            line-height: 1.3;
+            letter-spacing: 0.3px;
+            color: #ffffff;
+            margin: 0;
+        }
+
+        .chalix-user-menu__meta {
+            font-size: 12px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            line-height: 1.4;
+            margin-top: 3px;
+            color: #b2bec3;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .chalix-user-menu__username {
+            color: #b2bec3;
+        }
+
+        .chalix-user-menu__dot {
+            color: #636e72;
+            font-size: 8px;
+        }
+
+        .chalix-user-menu__org {
+            color: #b2bec3;
+        }
+
+        .chalix-user-menu__list {
+            display: flex;
+            flex-direction: column;
+            list-style: none;
+            margin: 0;
+            padding: 8px 0;
+            background-color: #2d3436;
+        }
+
+        .chalix-user-menu__item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 20px;
+            color: #dfe6e9;
+            text-decoration: none;
+            transition: all 0.2s ease;
+            font-size: 14px;
+            font-weight: 400;
+            cursor: pointer;
+        }
+
+        .chalix-user-menu__item:hover {
+            background-color: #3d4446;
+        }
+
+        .chalix-user-menu__item:hover i {
+            color: #74b9ff;
+        }
+
+        .chalix-user-menu__item i {
+            width: 18px;
+            flex-shrink: 0;
+            color: #b2bec3;
+            transition: color 0.2s ease;
+            font-size: 14px;
+            text-align: center;
+        }
+
+        .chalix-user-menu__item span {
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .chalix-user-menu__footer {
+            padding: 0;
+            border-top: 1px solid #3d4446;
+            background-color: #2d3436;
+        }
+
+        .chalix-user-menu__logout {
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 12px;
+            width: 100%;
+            padding: 12px 20px;
+            background-color: transparent;
+            border: none;
+            color: #ff7675;
+            font-size: 14px;
+            font-weight: 400;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+        }
+
+        .chalix-user-menu__logout:hover {
+            background-color: rgba(255, 118, 117, 0.1);
+        }
+
+        .chalix-user-menu__logout i {
+            width: 18px;
+            flex-shrink: 0;
+            font-size: 14px;
+            color: #ff7675;
+        }
+
         /* Ensure header doesn't conflict with existing CMS styles */
         .chalix-header * {
             box-sizing: border-box;
@@ -573,10 +743,28 @@ user_org_name = get_user_organization_display_name(user) or ''
     <!-- Main Content Area -->
     <main class="cms-content">
         <div class="content-container">
-            <!-- Tab Navigation -->
+            <!-- Tab Navigation - Rendered server-side for security -->
             <nav class="cms-tabs" role="tablist">
                 <div class="tab-container">
-                    <!-- Tabs will be dynamically generated by JavaScript -->
+                    <%
+                    # Define tab configuration
+                    tab_config = [
+                        ('statistics', 'Thống kê'),
+                        ('create-account', 'Quản lý tài khoản cán bộ'),
+                        ('management', 'Quản lý cơ quan'),
+                        ('learning-management', 'Quản lý khóa học'),
+                        ('approve-requests', 'Phê duyệt yêu cầu'),
+                    ]
+                    # available_tabs is passed from the view
+                    tabs_to_show = available_tabs if available_tabs else []
+                    %>
+                    % for tab_id, tab_label in tab_config:
+                        % if tab_id in tabs_to_show:
+                        <button class="cms-tab" data-tab="${tab_id}" role="tab" aria-selected="false">
+                            ${tab_label}
+                        </button>
+                        % endif
+                    % endfor
                 </div>
             </nav>
             
@@ -627,28 +815,23 @@ user_org_name = get_user_organization_display_name(user) or ''
             profile_mfe_url = getattr(settings, 'PROFILE_MICROFRONTEND_URL', '')
         %>
         
-        // Pass role-based context to JavaScript
-        window.CMS_ROLE_DATA = {
-            user_role: '${user_role or ""}',
-            user_role_code: '${user_role_code or ""}',
-            user_name: '${user.get_full_name() or user.username}',
-            username: '${user.username}',
-            organization_name: '${organization_name or ""}',
-            is_staff: ${str(is_staff).lower() if is_staff else 'false'},
-            is_global_staff: ${str(is_global_staff).lower() if is_global_staff else 'false'},
-            available_tabs: ${json.dumps(available_tabs) if available_tabs else '[]'},
-            // Platform URLs for popup navigation (will be resolved in JS)
-            account_settings_url: '${account_mfe_url}',
-            // MFE base URL for loading bundles (strip /account/ path from account_settings_url)
-            mfe_base_url: '${mfe_base_url}',
-            profile_base_url: '${profile_mfe_url}',
-            // Server-provided LMS base URL: prefer explicit platform configuration (MFE_CONFIG['LMS_BASE_URL'] or LMS_ROOT_URL)
-            lms_base_url: '${lms_base_url}',
-            // MFE-specific URLs for proper navigation
-            learning_base_url: '${learning_base_url}',
-            learner_dashboard_url: '${learner_dashboard_url}',
-            account_profile_url: '${account_profile_url}'
-        };
+        // Pass role-based context to JavaScript (tabs are rendered server-side for security)
+        window.CMS_ROLE_DATA = ${dump_js_escaped_json({
+            'user_role': user_role or '',
+            'user_role_code': user_role_code or '',
+            'user_name': user.get_full_name() or user.username,
+            'username': user.username,
+            'organization_name': organization_name or '',
+            'is_staff': bool(is_staff),
+            'is_global_staff': bool(is_global_staff),
+            'account_settings_url': account_mfe_url,
+            'mfe_base_url': mfe_base_url,
+            'profile_base_url': profile_mfe_url,
+            'lms_base_url': lms_base_url,
+            'learning_base_url': learning_base_url,
+            'learner_dashboard_url': learner_dashboard_url,
+            'account_profile_url': account_profile_url
+        }) | n};
     </script>
 
     <!-- Chalix CMS Dashboard JavaScript -->
