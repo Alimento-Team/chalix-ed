@@ -813,15 +813,20 @@ user_org_name = get_user_organization_display_name(user) or ''
             
             # Get profile microfrontend URL
             profile_mfe_url = getattr(settings, 'PROFILE_MICROFRONTEND_URL', '')
+            
+            # Convert user_role to string if it's an object (to avoid JSON serialization errors)
+            user_role_str = str(user_role) if user_role else ''
+            user_role_code_str = str(user_role_code) if user_role_code else ''
+            org_name_str = str(organization_name) if organization_name else ''
         %>
         
         // Pass role-based context to JavaScript (tabs are rendered server-side for security)
         window.CMS_ROLE_DATA = ${dump_js_escaped_json({
-            'user_role': user_role or '',
-            'user_role_code': user_role_code or '',
+            'user_role': user_role_str,
+            'user_role_code': user_role_code_str,
             'user_name': user.get_full_name() or user.username,
             'username': user.username,
-            'organization_name': organization_name or '',
+            'organization_name': org_name_str,
             'is_staff': bool(is_staff),
             'is_global_staff': bool(is_global_staff),
             'account_settings_url': account_mfe_url,
