@@ -416,3 +416,72 @@ class FacialExpressionLog(models.Model):
     def video_size_mb(self):
         """Convert video size to MB for display."""
         return round(self.video_size / (1024 * 1024), 2)
+
+
+class StudentLearningProcessSnapshot(models.Model):
+    """Stores one global learning-process snapshot record per student."""
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='learning_process_snapshots'
+    )
+    student_id = models.CharField(max_length=32, unique=True)
+
+    position_code = models.PositiveSmallIntegerField()
+    position_text = models.CharField(max_length=64)
+    gender_code = models.PositiveSmallIntegerField()
+    gender_text = models.CharField(max_length=32)
+    location_code = models.PositiveSmallIntegerField()
+    location_text = models.CharField(max_length=128)
+    age_code = models.PositiveSmallIntegerField()
+    age_text = models.CharField(max_length=64)
+    job_title_code = models.PositiveSmallIntegerField()
+    job_title_text = models.CharField(max_length=64)
+    experience_code = models.PositiveSmallIntegerField()
+    experience_text = models.CharField(max_length=64)
+
+    week_1 = models.DecimalField(max_digits=4, decimal_places=2)
+    week_2 = models.DecimalField(max_digits=4, decimal_places=2)
+    week_3 = models.DecimalField(max_digits=4, decimal_places=2)
+    vle_1 = models.PositiveIntegerField()
+    vle_2 = models.PositiveIntegerField()
+    vle_3 = models.PositiveIntegerField()
+    final_score = models.DecimalField(max_digits=4, decimal_places=2)
+
+    source_file = models.CharField(max_length=255, blank=True)
+    source_row_number = models.PositiveIntegerField(null=True, blank=True)
+    imported_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        app_label = 'learning_analytics'
+        ordering = ['student_id']
+        indexes = [
+            models.Index(fields=['user']),
+            models.Index(fields=['location_code']),
+            models.Index(fields=['final_score']),
+        ]
+        constraints = [
+            models.CheckConstraint(
+                check=models.Q(week_1__gte=0) & models.Q(week_1__lte=10),
+                name='la_snapshot_week_1_0_10',
+            ),
+            models.CheckConstraint(
+                check=models.Q(week_2__gte=0) & models.Q(week_2__lte=10),
+                name='la_snapshot_week_2_0_10',
+            ),
+            models.CheckConstraint(
+                check=models.Q(week_3__gte=0) & models.Q(week_3__lte=10),
+                name='la_snapshot_week_3_0_10',
+            ),
+            models.CheckConstraint(
+                check=models.Q(final_score__gte=0) & models.Q(final_score__lte=10),
+                name='la_snapshot_final_0_10',
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.student_id} ({self.final_score})"

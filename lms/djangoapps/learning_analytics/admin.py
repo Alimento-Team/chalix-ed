@@ -6,7 +6,12 @@ from django.utils.html import format_html
 from django.urls import reverse
 from django.utils import timezone
 
-from .models import LearnerBehavior, LearningHoursRequirement, LearningHoursApproval
+from .models import (
+    LearnerBehavior,
+    LearningHoursRequirement,
+    LearningHoursApproval,
+    StudentLearningProcessSnapshot,
+)
 
 
 @admin.register(LearnerBehavior)
@@ -150,3 +155,25 @@ class LearningHoursApprovalAdmin(admin.ModelAdmin):
         return obj.requirement.user
     user.short_description = 'User'
     user.admin_order_field = 'requirement__user'
+
+
+@admin.register(StudentLearningProcessSnapshot)
+class StudentLearningProcessSnapshotAdmin(admin.ModelAdmin):
+    list_display = [
+        'student_id',
+        'user',
+        'position_text',
+        'gender_text',
+        'location_text',
+        'final_score',
+        'imported_at',
+    ]
+    list_filter = [
+        'position_code',
+        'gender_code',
+        'location_code',
+        'job_title_code',
+        'experience_code',
+    ]
+    search_fields = ['student_id', 'user__username', 'location_text']
+    readonly_fields = ['imported_at', 'updated_at']

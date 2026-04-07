@@ -4,14 +4,15 @@ Services for learning analytics and credit hours management.
 from django.contrib.auth.models import User
 from django.utils import timezone
 from django.db import transaction
-from django.db.models import Sum
+from django.db.models import Avg, Count, Sum
 
 from .models import (
     CourseCreditHours,
     StudentCourseProgress,
     LearningHoursRequirement,
     LearningHoursApproval,
-    LearnerRecommendation
+    LearnerRecommendation,
+    StudentLearningProcessSnapshot,
 )
 from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
 from common.djangoapps.student.models import CourseEnrollment
@@ -274,3 +275,66 @@ class LearningHoursService:
             return StudentCourseProgress.objects.get(user=user, course_id=course_id)
         except StudentCourseProgress.DoesNotExist:
             return None
+
+
+class StudentLearningProcessService:
+    """Service methods for student learning-process snapshots."""
+
+    @staticmethod
+    def get_for_user(user):
+        return StudentLearningProcessSnapshot.objects.filter(user=user).first()
+
+    @staticmethod
+    def list_for_staff(filters):
+        queryset = StudentLearningProcessSnapshot.objects.select_related('user').all()
+
+        if filters.get('student_id'):
+            queryset = queryset.filter(student_id__icontains=filters['student_id'])
+        if filters.get('position_code') is not None:
+            queryset = queryset.filter(position_code=filters['position_code'])
+        if filters.get('gender_code') is not None:
+            queryset = queryset.filter(gender_code=filters['gender_code'])
+        if filters.get('location_code') is not None:
+            queryset = queryset.filter(location_code=filters['location_code'])
+        if filters.get('min_final_score') is not None:
+            queryset = queryset.filter(final_score__gte=filters['min_final_score'])
+        if filters.get('max_final_score') is not None:
+            queryset = queryset.filter(final_score__lte=filters['max_final_score'])
+
+        return queryset.order_by('student_id')
+
+    @staticmethod
+    def aggregate_for_staff():
+        queryset = StudentLearningProcessSnapshot.objects.all()
+
+        totals = queryset.aggregate(
+            total_records=Count('id'),
+            avg_final_score=Avg('final_score'),
+            avg_week_1=Avg('week_1'),
+            avg_week_2=Avg('week_2'),
+            avg_week_3=Avg('week_3'),
+            avg_vle_1=Avg('vle_1'),
+            avg_vle_2=Avg('vle_2'),
+            avg_vle_3=Avg('vle_3'),
+        )
+
+        def as_distribution(grouped_queryset, key_field, label_field):
+            distribution = {}
+            for row in grouped_queryset.values(key_field, label_field).annotate(count=Count('id')).order_by(key_field):
+                label = f"{row[key_field]}:{row[label_field]}"
+                distribution[label] = row['count']
+            return distribution
+
+        return {
+            'total_records': totals['total_records'] or 0,
+            'avg_final_score': float(totals['avg_final_score'] or 0),
+            'avg_week_1': float(totals['avg_week_1'] or 0),
+            'avg_week_2': float(totals['avg_week_2'] or 0),
+            'avg_week_3': float(totals['avg_week_3'] or 0),
+            'avg_vle_1': float(totals['avg_vle_1'] or 0),
+            'avg_vle_2': float(totals['avg_vle_2'] or 0),
+            'avg_vle_3': float(totals['avg_vle_3'] or 0),
+            'position_distribution': as_distribution(queryset, 'position_code', 'position_text'),
+            'gender_distribution': as_distribution(queryset, 'gender_code', 'gender_text'),
+            'job_title_distribution': as_distribution(queryset, 'job_title_code', 'job_title_text'),
+        }

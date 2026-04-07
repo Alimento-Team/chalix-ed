@@ -2,13 +2,14 @@
 API views for learning analytics and personalized learning data.
 """
 from datetime import datetime, timedelta
+from decimal import Decimal
 from django.utils import timezone
+from django.core.exceptions import PermissionDenied
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
-from django.db.models import Count, Sum, Avg, Q
-from django.contrib.auth.models import User
+from django.db.models import Count, Sum
 
 from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
 from common.djangoapps.student.models import CourseEnrollment
@@ -21,9 +22,10 @@ from .models import (
     StudentCourseProgress,
     LearningHoursRequirement,
     LearningHoursApproval,
-    LearnerRecommendation
+    LearnerRecommendation,
+    StudentLearningProcessSnapshot,
 )
-from .services import LearningHoursService
+from .services import LearningHoursService, StudentLearningProcessService
 from .serializers import (
     LearnerStatsSerializer,
     CourseProgressSerializer,
@@ -31,6 +33,8 @@ from .serializers import (
     LearningHoursRequirementSerializer,
     LearningHoursApprovalSerializer,
     LearningHoursSummarySerializer,
+    StudentLearningProcessSnapshotSerializer,
+    StudentLearningProcessAggregateSerializer,
 )
 
 
@@ -655,3 +659,81 @@ class LearningHoursCoursesAPIView(APIView):
             'certificates_earned': certificates_earned,
             'year': year
         })
+
+
+class StudentLearningProcessSelfAPIView(APIView):
+    """Expose the authenticated learner's own learning-process snapshot."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        snapshot = StudentLearningProcessService.get_for_user(request.user)
+        if not snapshot:
+            return Response(
+                {'detail': 'No learning process snapshot found for the current user.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        serializer = StudentLearningProcessSnapshotSerializer(snapshot)
+        return Response(serializer.data)
+
+
+class StudentLearningProcessListAPIView(APIView):
+    """Expose staff-only filtered list of learning-process snapshots."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if not request.user.is_staff:
+            raise PermissionDenied('Staff access is required.')
+
+        def parse_int(param_name):
+            value = request.query_params.get(param_name)
+            if value in (None, ''):
+                return None
+            return int(value)
+
+        def parse_decimal(param_name):
+            value = request.query_params.get(param_name)
+            if value in (None, ''):
+                return None
+            return Decimal(value)
+
+        filters = {
+            'student_id': request.query_params.get('student_id', '').strip(),
+            'position_code': parse_int('position_code'),
+            'gender_code': parse_int('gender_code'),
+            'location_code': parse_int('location_code'),
+            'min_final_score': parse_decimal('min_final_score'),
+            'max_final_score': parse_decimal('max_final_score'),
+        }
+
+        queryset = StudentLearningProcessService.list_for_staff(filters)
+        offset = max(0, int(request.query_params.get('offset', 0)))
+        limit = min(200, max(1, int(request.query_params.get('limit', 50))))
+
+        total_count = queryset.count()
+        page = queryset[offset: offset + limit]
+        serializer = StudentLearningProcessSnapshotSerializer(page, many=True)
+        return Response(
+            {
+                'count': total_count,
+                'offset': offset,
+                'limit': limit,
+                'results': serializer.data,
+            }
+        )
+
+
+class StudentLearningProcessAggregateAPIView(APIView):
+    """Expose staff-only aggregates for learning-process snapshots."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if not request.user.is_staff:
+            raise PermissionDenied('Staff access is required.')
+
+        payload = StudentLearningProcessService.aggregate_for_staff()
+        serializer = StudentLearningProcessAggregateSerializer(payload)
+        return Response(serializer.data)

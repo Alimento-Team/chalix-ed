@@ -12,6 +12,9 @@ from .views import (
     StudentProgressUpdateAPIView,
     LearningAnalyticsDashboardAPIView,
     LearningHoursCoursesAPIView,
+    StudentLearningProcessSelfAPIView,
+    StudentLearningProcessListAPIView,
+    StudentLearningProcessAggregateAPIView,
 )
 
 app_name = 'learning_analytics'
@@ -37,4 +40,9 @@ urlpatterns = [
     
     # Learning hours courses list
     path('courses/', LearningHoursCoursesAPIView.as_view(), name='learning_hours_courses'),
+
+    # Student learning-process snapshots
+    path('student-learning-process/me/', StudentLearningProcessSelfAPIView.as_view(), name='student_learning_process_me'),
+    path('student-learning-process/', StudentLearningProcessListAPIView.as_view(), name='student_learning_process_list'),
+    path('student-learning-process/aggregate/', StudentLearningProcessAggregateAPIView.as_view(), name='student_learning_process_aggregate'),
 ]

@@ -7,7 +7,8 @@ from .models import (
     StudentCourseProgress,
     LearningHoursRequirement,
     LearningHoursApproval,
-    LearnerRecommendation
+    LearnerRecommendation,
+    StudentLearningProcessSnapshot,
 )
 
 
@@ -132,3 +133,58 @@ class LearnerRecommendationModelSerializer(serializers.ModelSerializer):
             'confidence_score', 'reason', 'is_active', 'created_at', 'updated_at'
         ]
         read_only_fields = ['created_at', 'updated_at']
+
+
+class StudentLearningProcessSnapshotSerializer(serializers.ModelSerializer):
+    """Serializer for student learning-process snapshots."""
+
+    username = serializers.CharField(source='user.username', read_only=True)
+
+    class Meta:
+        model = StudentLearningProcessSnapshot
+        fields = [
+            'id',
+            'student_id',
+            'user',
+            'username',
+            'position_code',
+            'position_text',
+            'gender_code',
+            'gender_text',
+            'location_code',
+            'location_text',
+            'age_code',
+            'age_text',
+            'job_title_code',
+            'job_title_text',
+            'experience_code',
+            'experience_text',
+            'week_1',
+            'week_2',
+            'week_3',
+            'vle_1',
+            'vle_2',
+            'vle_3',
+            'final_score',
+            'source_file',
+            'source_row_number',
+            'imported_at',
+            'updated_at',
+        ]
+        read_only_fields = ['imported_at', 'updated_at']
+
+
+class StudentLearningProcessAggregateSerializer(serializers.Serializer):
+    """Serializer for aggregate analytics over learning-process snapshots."""
+
+    total_records = serializers.IntegerField()
+    avg_final_score = serializers.FloatField()
+    avg_week_1 = serializers.FloatField()
+    avg_week_2 = serializers.FloatField()
+    avg_week_3 = serializers.FloatField()
+    avg_vle_1 = serializers.FloatField()
+    avg_vle_2 = serializers.FloatField()
+    avg_vle_3 = serializers.FloatField()
+    position_distribution = serializers.DictField(child=serializers.IntegerField())
+    gender_distribution = serializers.DictField(child=serializers.IntegerField())
+    job_title_distribution = serializers.DictField(child=serializers.IntegerField())
