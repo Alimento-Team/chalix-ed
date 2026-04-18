@@ -457,6 +457,10 @@ class StudentLearningProcessSnapshot(models.Model):
     prediction_input_hash = models.CharField(max_length=64, blank=True)
     prediction_updated_at = models.DateTimeField(null=True, blank=True)
     prediction_error = models.TextField(blank=True)
+    eye_score = models.DecimalField(max_digits=7, decimal_places=4, null=True, blank=True)
+    nose_score = models.DecimalField(max_digits=7, decimal_places=4, null=True, blank=True)
+    mouth_score = models.DecimalField(max_digits=7, decimal_places=4, null=True, blank=True)
+    emotion_score = models.DecimalField(max_digits=7, decimal_places=4, null=True, blank=True)
 
     source_file = models.CharField(max_length=255, blank=True)
     source_row_number = models.PositiveIntegerField(null=True, blank=True)

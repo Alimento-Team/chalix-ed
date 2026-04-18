@@ -559,10 +559,18 @@ class StudentLearningProcessService:
         if predicted_score < Decimal('0') or predicted_score > Decimal('10'):
             raise ValueError('Prediction API returned predicted_score outside 0..10 range')
 
-        return {
+        result = {
             'predicted_score': predicted_score,
             'week_number': int(body.get('week_number') or payload.get('week_number') or 1),
         }
+
+        # Capture emotion features if present (emotion-prediction endpoint only)
+        for field in ('eye_score', 'nose_score', 'mouth_score', 'emotion_score'):
+            raw = body.get(field)
+            if raw is not None:
+                result[field] = Decimal(str(raw))
+
+        return result
 
     @staticmethod
     def refresh_prediction(snapshot, force=False, course_id=None, week_number=None):
@@ -591,17 +599,24 @@ class StudentLearningProcessService:
             snapshot.prediction_input_hash = input_hash
             snapshot.prediction_updated_at = timezone.now()
             snapshot.prediction_error = ''
-            snapshot.save(
-                update_fields=[
-                    'predicted_final_score',
-                    'prediction_week',
-                    'prediction_source',
-                    'prediction_input_hash',
-                    'prediction_updated_at',
-                    'prediction_error',
-                    'updated_at',
-                ]
-            )
+
+            # Persist emotion feature scores when returned by the API
+            emotion_fields = ('eye_score', 'nose_score', 'mouth_score', 'emotion_score')
+            for field in emotion_fields:
+                if field in result:
+                    setattr(snapshot, field, result[field])
+
+            update_fields = [
+                'predicted_final_score',
+                'prediction_week',
+                'prediction_source',
+                'prediction_input_hash',
+                'prediction_updated_at',
+                'prediction_error',
+                'updated_at',
+            ] + [f for f in emotion_fields if f in result]
+
+            snapshot.save(update_fields=update_fields)
         except Exception as exc:  # pylint: disable=broad-except
             LOGGER.warning('Failed to refresh prediction for student_id=%s: %s', snapshot.student_id, exc)
             snapshot.prediction_error = str(exc)
