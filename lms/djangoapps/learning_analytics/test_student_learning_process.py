@@ -2,6 +2,7 @@
 
 import json
 import tempfile
+from unittest.mock import Mock, patch
 
 from django.contrib.auth.models import User
 from django.core.management import call_command
@@ -127,6 +128,7 @@ class StudentLearningProcessAPIServiceSmokeTests(TestCase):
         response = self.client.get('/api/learning_analytics/student-learning-process/me/')
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['student_id'], 'student_001')
+        self.assertEqual(response.json()['score_type'], 'actual')
 
     def test_staff_list_endpoint_requires_staff(self):
         self.client.force_login(self.user)
@@ -319,3 +321,123 @@ class LearningAnalyticsDashboardBreakdownTests(TestCase):
         self.assertEqual(payload['vle_breakdown']['videos_opened'], 7)
         self.assertEqual(payload['vle_breakdown']['quizzes_opened'], 5)
         self.assertEqual(payload['vle_breakdown']['materials_opened'], 18)
+
+
+class StudentLearningProcessPredictionTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username='student_pred', email='sp@example.com')
+        self.client.force_login(self.user)
+        self.snapshot = StudentLearningProcessSnapshot.objects.create(
+            user=self.user,
+            student_id='student_pred',
+            position_code=0,
+            position_text='Chuyên viên',
+            gender_code=1,
+            gender_text='Nữ',
+            location_code=9,
+            location_text='Thái Bình',
+            age_code=2,
+            age_text='Trên 25 tuổi',
+            job_title_code=1,
+            job_title_text='Viên chức',
+            experience_code=1,
+            experience_text='Từ 5 đến 10 năm',
+            week_1='2.50',
+            week_2='2.25',
+            week_3='1.00',
+            vle_1=53,
+            vle_2=17,
+            vle_3=102,
+            final_score=None,
+            source_file='dataset/log.csv',
+            source_row_number=2,
+        )
+
+    @patch('lms.djangoapps.learning_analytics.services.requests.post')
+    def test_self_endpoint_refreshes_prediction_when_enabled(self, mock_post):
+        with self.settings(
+            LEARNING_ANALYTICS_PREDICTION_ENABLED=True,
+            LEARNING_ANALYTICS_PREDICTION_MODE='mla',
+            LEARNING_ANALYTICS_MLA_PREDICTION_URL='http://predictor/mla-prediction',
+            LEARNING_ANALYTICS_PREDICTION_TIMEOUT_SECONDS=3,
+        ):
+            mock_response = Mock()
+            mock_response.json.return_value = {
+                'week_number': 3,
+                'predicted_score': 7.45,
+            }
+            mock_response.raise_for_status.return_value = None
+            mock_post.return_value = mock_response
+
+            response = self.client.get('/api/learning_analytics/student-learning-process/me/')
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload['score_type'], 'predicted')
+        self.assertEqual(float(payload['predicted_final_score']), 7.45)
+        self.assertEqual(float(payload['effective_final_score']), 7.45)
+
+        self.snapshot.refresh_from_db()
+        self.assertEqual(float(self.snapshot.predicted_final_score), 7.45)
+        self.assertEqual(self.snapshot.prediction_source, 'mla')
+        self.assertEqual(self.snapshot.prediction_week, 3)
+        self.assertEqual(mock_post.call_count, 1)
+
+    @patch('lms.djangoapps.learning_analytics.services.requests.post')
+    def test_self_endpoint_skips_prediction_call_when_input_unchanged(self, mock_post):
+        with self.settings(
+            LEARNING_ANALYTICS_PREDICTION_ENABLED=True,
+            LEARNING_ANALYTICS_PREDICTION_MODE='mla',
+            LEARNING_ANALYTICS_MLA_PREDICTION_URL='http://predictor/mla-prediction',
+            LEARNING_ANALYTICS_PREDICTION_TIMEOUT_SECONDS=3,
+        ):
+            mock_response = Mock()
+            mock_response.json.return_value = {
+                'week_number': 3,
+                'predicted_score': 6.4,
+            }
+            mock_response.raise_for_status.return_value = None
+            mock_post.return_value = mock_response
+
+            first = self.client.get('/api/learning_analytics/student-learning-process/me/')
+            second = self.client.get('/api/learning_analytics/student-learning-process/me/')
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(mock_post.call_count, 1)
+
+    @patch('lms.djangoapps.learning_analytics.services.requests.post')
+    def test_self_endpoint_retries_prediction_after_snapshot_change(self, mock_post):
+        with self.settings(
+            LEARNING_ANALYTICS_PREDICTION_ENABLED=True,
+            LEARNING_ANALYTICS_PREDICTION_MODE='mla',
+            LEARNING_ANALYTICS_MLA_PREDICTION_URL='http://predictor/mla-prediction',
+            LEARNING_ANALYTICS_PREDICTION_TIMEOUT_SECONDS=3,
+        ):
+            mock_response_1 = Mock()
+            mock_response_1.json.return_value = {
+                'week_number': 3,
+                'predicted_score': 6.0,
+            }
+            mock_response_1.raise_for_status.return_value = None
+
+            mock_response_2 = Mock()
+            mock_response_2.json.return_value = {
+                'week_number': 3,
+                'predicted_score': 6.8,
+            }
+            mock_response_2.raise_for_status.return_value = None
+
+            mock_post.side_effect = [mock_response_1, mock_response_2]
+
+            self.client.get('/api/learning_analytics/student-learning-process/me/')
+            self.snapshot.refresh_from_db()
+            self.snapshot.vle_3 = self.snapshot.vle_3 + 1
+            self.snapshot.save(update_fields=['vle_3', 'updated_at'])
+
+            response = self.client.get('/api/learning_analytics/student-learning-process/me/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(mock_post.call_count, 2)
+        self.snapshot.refresh_from_db()
+        self.assertEqual(float(self.snapshot.predicted_final_score), 6.8)

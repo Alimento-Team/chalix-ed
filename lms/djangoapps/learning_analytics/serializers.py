@@ -139,6 +139,8 @@ class StudentLearningProcessSnapshotSerializer(serializers.ModelSerializer):
     """Serializer for student learning-process snapshots."""
 
     username = serializers.CharField(source='user.username', read_only=True)
+    score_type = serializers.SerializerMethodField()
+    effective_final_score = serializers.SerializerMethodField()
 
     class Meta:
         model = StudentLearningProcessSnapshot
@@ -166,12 +168,31 @@ class StudentLearningProcessSnapshotSerializer(serializers.ModelSerializer):
             'vle_2',
             'vle_3',
             'final_score',
+            'predicted_final_score',
+            'prediction_source',
+            'prediction_week',
+            'prediction_updated_at',
+            'prediction_error',
+            'score_type',
+            'effective_final_score',
             'source_file',
             'source_row_number',
             'imported_at',
             'updated_at',
         ]
         read_only_fields = ['imported_at', 'updated_at']
+
+    def get_score_type(self, obj):
+        if obj.final_score is not None:
+            return 'actual'
+        if obj.predicted_final_score is not None:
+            return 'predicted'
+        return 'unknown'
+
+    def get_effective_final_score(self, obj):
+        if obj.final_score is not None:
+            return obj.final_score
+        return obj.predicted_final_score
 
 
 class StudentLearningProcessAggregateSerializer(serializers.Serializer):
@@ -185,6 +206,9 @@ class StudentLearningProcessAggregateSerializer(serializers.Serializer):
     avg_vle_1 = serializers.FloatField()
     avg_vle_2 = serializers.FloatField()
     avg_vle_3 = serializers.FloatField()
+    avg_predicted_final_score = serializers.FloatField()
+    total_with_actual_score = serializers.IntegerField()
+    total_with_predicted_score = serializers.IntegerField()
     position_distribution = serializers.DictField(child=serializers.IntegerField())
     gender_distribution = serializers.DictField(child=serializers.IntegerField())
     job_title_distribution = serializers.DictField(child=serializers.IntegerField())

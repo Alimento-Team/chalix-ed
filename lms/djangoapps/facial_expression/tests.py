@@ -104,13 +104,15 @@ class FacialExpressionStorageTest(TestCase):
             user_id=123,
             course_id='course-v1:Test+Course+Run',
             unit_id='unit-123',
-            timestamp=timestamp
+            timestamp=timestamp,
+            student_id='student_123',
+            week_number=2,
         )
         
-        self.assertIn('facial_expressions', path)
-        self.assertIn('123', path)
-        self.assertIn('2025/11/02', path)
-        self.assertTrue(path.endswith('.webm'))
+        self.assertIn('emotion', path)
+        self.assertIn('student_123', path)
+        self.assertIn('week_2', path)
+        self.assertTrue(path.endswith('.mp4'))
 
     def test_sanitize_path_component(self):
         """Test path component sanitization."""
@@ -124,15 +126,15 @@ class FacialExpressionStorageTest(TestCase):
     def test_save_video(self, mock_get_storage):
         """Test video saving."""
         mock_storage = Mock()
-        mock_storage.save.return_value = 'saved/path.webm'
+        mock_storage.save.return_value = 'saved/path.mp4'
         mock_get_storage.return_value = mock_storage
         
         storage = FacialExpressionStorage()
         mock_file = Mock()
         
-        result = storage.save_video(mock_file, 'test/path.webm')
+        result = storage.save_video(mock_file, 'test/path.mp4')
         
-        self.assertEqual(result, 'saved/path.webm')
+        self.assertEqual(result, 'saved/path.mp4')
         mock_storage.save.assert_called_once()
 
 

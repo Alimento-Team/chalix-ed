@@ -2093,8 +2093,8 @@ AWS_S3_CUSTOM_DOMAIN = "SET-ME-PLEASE (ex. bucket-name.s3.amazonaws.com)"
 ################################# FACIAL EXPRESSION RECORDING ###################################
 # Configuration for facial expression video storage (MinIO/S3)
 FACIAL_EXPRESSION_STORAGE_CLASS = 'storages.backends.s3boto3.S3Boto3Storage'
-FACIAL_EXPRESSION_STORAGE_BUCKET = 'facial-expressions'
-FACIAL_EXPRESSION_STORAGE_ROOT = 'facial_expressions/'
+FACIAL_EXPRESSION_STORAGE_BUCKET = 'chalix'
+FACIAL_EXPRESSION_STORAGE_ROOT = ''
 FACIAL_EXPRESSION_STORAGE_ACCESS_KEY = 'minioadmin'  # Change in production
 FACIAL_EXPRESSION_STORAGE_SECRET_KEY = 'minioadmin'  # Change in production
 FACIAL_EXPRESSION_STORAGE_ENDPOINT = 'http://localhost:9000'  # Change to your MinIO endpoint
@@ -5229,6 +5229,15 @@ LEARNING_ANALYTICS_AUTO_ENROLL_SKIP_STAFF = True
 # entries for their email that have auto_enroll=True. This helps ensure users see
 # their courses on the learner dashboard after account creation.
 LEARNING_ANALYTICS_AUTO_ENROLL_FROM_ALLOWEDS_ON_LOGIN = True
+# When enabled, learner snapshot endpoints can enrich responses with predicted scores.
+LEARNING_ANALYTICS_PREDICTION_ENABLED = True
+# Supported values: 'mla', 'emotion'.
+LEARNING_ANALYTICS_PREDICTION_MODE = 'emotion'
+LEARNING_ANALYTICS_MLA_PREDICTION_URL = 'http://localhost:9010/mla-prediction'
+LEARNING_ANALYTICS_EMOTION_PREDICTION_URL = 'http://localhost:9011/emotion-prediction'
+LEARNING_ANALYTICS_EMOTION_PREDICTION_DEFAULT_FILE_URL = 'webcam-videos/sample.mp4'
+LEARNING_ANALYTICS_PREDICTION_TIMEOUT_SECONDS = 3
+LEARNING_ANALYTICS_PREDICTION_AUTH_TOKEN = ''
 # Note that all settings are actually defined by the plugin
 # pylint: disable=wrong-import-position
 ACE_ROUTING_KEY = ace_common_settings.ACE_ROUTING_KEY

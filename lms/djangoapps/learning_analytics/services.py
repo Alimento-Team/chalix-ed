@@ -1,10 +1,17 @@
 """
 Services for learning analytics and credit hours management.
 """
+import hashlib
+import json
+import logging
+from decimal import Decimal, InvalidOperation
+
+import requests
+from django.conf import settings
 from django.contrib.auth.models import User
 from django.utils import timezone
 from django.db import transaction
-from django.db.models import F
+from django.db.models import F, Q
 from django.db.models import Avg, Count, Sum
 
 from .models import (
@@ -14,10 +21,14 @@ from .models import (
     LearningHoursRequirement,
     LearningHoursApproval,
     LearnerRecommendation,
+    FacialExpressionLog,
     StudentLearningProcessSnapshot,
 )
 from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
 from common.djangoapps.student.models import CourseEnrollment
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 class LearningHoursService:
@@ -408,9 +419,201 @@ class LearningHoursService:
 class StudentLearningProcessService:
     """Service methods for student learning-process snapshots."""
 
+    SUPPORTED_PREDICTION_MODES = {'mla', 'emotion'}
+
     @staticmethod
-    def get_for_user(user):
-        return StudentLearningProcessSnapshot.objects.filter(user=user).first()
+    def _prediction_enabled():
+        return bool(getattr(settings, 'LEARNING_ANALYTICS_PREDICTION_ENABLED', False))
+
+    @staticmethod
+    def _prediction_mode():
+        mode = str(getattr(settings, 'LEARNING_ANALYTICS_PREDICTION_MODE', 'emotion')).strip().lower()
+        if mode not in StudentLearningProcessService.SUPPORTED_PREDICTION_MODES:
+            return 'emotion'
+        return mode
+
+    @staticmethod
+    def _prediction_timeout_seconds():
+        timeout = getattr(settings, 'LEARNING_ANALYTICS_PREDICTION_TIMEOUT_SECONDS', 3)
+        try:
+            return max(1.0, float(timeout))
+        except (TypeError, ValueError):
+            return 3.0
+
+    @staticmethod
+    def _prediction_headers():
+        token = str(getattr(settings, 'LEARNING_ANALYTICS_PREDICTION_AUTH_TOKEN', '')).strip()
+        headers = {'Content-Type': 'application/json'}
+        if token:
+            headers['Authorization'] = f'Bearer {token}'
+        return headers
+
+    @staticmethod
+    def _prediction_url(mode):
+        if mode == 'emotion':
+            return str(getattr(settings, 'LEARNING_ANALYTICS_EMOTION_PREDICTION_URL', '')).strip()
+        return str(getattr(settings, 'LEARNING_ANALYTICS_MLA_PREDICTION_URL', '')).strip()
+
+    @staticmethod
+    def _prediction_week(snapshot):
+        if snapshot.week_3 is not None and snapshot.vle_3 is not None:
+            return 3
+        if snapshot.week_2 is not None and snapshot.vle_2 is not None:
+            return 2
+        return 1
+
+    @staticmethod
+    def _as_float(value):
+        if value is None:
+            return None
+        try:
+            return float(value)
+        except (TypeError, ValueError, InvalidOperation):
+            return None
+
+    @staticmethod
+    def _latest_emotion_file_url(snapshot, course_id=None, week_number=None):
+        if not snapshot or not snapshot.user:
+            return None
+
+        queryset = FacialExpressionLog.objects.filter(
+            user=snapshot.user,
+            is_complete=True,
+        )
+        if course_id:
+            queryset = queryset.filter(course_id=course_id)
+        if week_number:
+            queryset = queryset.filter(video_path__contains=f'/week_{int(week_number)}/')
+
+        latest_log = queryset.order_by('-start_timestamp', '-id').first()
+        if not latest_log:
+            return None
+        return latest_log.video_path
+
+    @staticmethod
+    def _build_prediction_payload(snapshot, mode, course_id=None, week_number=None):
+        resolved_week_number = week_number or StudentLearningProcessService._prediction_week(snapshot)
+        payload = {
+            'week_number': resolved_week_number,
+            'position': snapshot.position_text,
+            'gender': snapshot.gender_text,
+            'location': snapshot.location_text,
+            'age': snapshot.age_text,
+            'job_title': snapshot.job_title_text,
+            'experience': snapshot.experience_text,
+            'score_1': StudentLearningProcessService._as_float(snapshot.week_1),
+            'vle_1': StudentLearningProcessService._as_float(snapshot.vle_1),
+        }
+
+        if resolved_week_number >= 2:
+            payload['score_2'] = StudentLearningProcessService._as_float(snapshot.week_2)
+            payload['vle_2'] = StudentLearningProcessService._as_float(snapshot.vle_2)
+        if resolved_week_number >= 3:
+            payload['score_3'] = StudentLearningProcessService._as_float(snapshot.week_3)
+            payload['vle_3'] = StudentLearningProcessService._as_float(snapshot.vle_3)
+
+        if mode == 'emotion':
+            file_url = StudentLearningProcessService._latest_emotion_file_url(
+                snapshot,
+                course_id=course_id,
+                week_number=resolved_week_number,
+            )
+            if not file_url:
+                raise ValueError('No completed emotion recording found for this learner')
+            payload['file_url'] = file_url
+
+        return payload
+
+    @staticmethod
+    def _prediction_input_hash(payload):
+        normalized = json.dumps(payload, sort_keys=True, separators=(',', ':'))
+        return hashlib.sha256(normalized.encode('utf-8')).hexdigest()
+
+    @staticmethod
+    def _call_prediction_api(mode, payload):
+        url = StudentLearningProcessService._prediction_url(mode)
+        if not url:
+            raise ValueError(f'Missing prediction URL for mode: {mode}')
+
+        response = requests.post(
+            url,
+            json=payload,
+            headers=StudentLearningProcessService._prediction_headers(),
+            timeout=StudentLearningProcessService._prediction_timeout_seconds(),
+        )
+        response.raise_for_status()
+        body = response.json()
+        score = body.get('predicted_score')
+        if score is None:
+            raise ValueError('Prediction API did not return predicted_score')
+
+        predicted_score = Decimal(str(score))
+        if predicted_score < Decimal('0') or predicted_score > Decimal('10'):
+            raise ValueError('Prediction API returned predicted_score outside 0..10 range')
+
+        return {
+            'predicted_score': predicted_score,
+            'week_number': int(body.get('week_number') or payload.get('week_number') or 1),
+        }
+
+    @staticmethod
+    def refresh_prediction(snapshot, force=False, course_id=None, week_number=None):
+        """Refresh persisted prediction if inputs changed or force=True."""
+        if not snapshot or not StudentLearningProcessService._prediction_enabled():
+            return snapshot
+
+        try:
+            mode = StudentLearningProcessService._prediction_mode()
+            payload = StudentLearningProcessService._build_prediction_payload(
+                snapshot,
+                mode,
+                course_id=course_id,
+                week_number=week_number,
+            )
+            input_hash = StudentLearningProcessService._prediction_input_hash(payload)
+
+            has_prediction = snapshot.predicted_final_score is not None
+            if not force and has_prediction and snapshot.prediction_input_hash == input_hash:
+                return snapshot
+
+            result = StudentLearningProcessService._call_prediction_api(mode, payload)
+            snapshot.predicted_final_score = result['predicted_score']
+            snapshot.prediction_week = result['week_number']
+            snapshot.prediction_source = mode
+            snapshot.prediction_input_hash = input_hash
+            snapshot.prediction_updated_at = timezone.now()
+            snapshot.prediction_error = ''
+            snapshot.save(
+                update_fields=[
+                    'predicted_final_score',
+                    'prediction_week',
+                    'prediction_source',
+                    'prediction_input_hash',
+                    'prediction_updated_at',
+                    'prediction_error',
+                    'updated_at',
+                ]
+            )
+        except Exception as exc:  # pylint: disable=broad-except
+            LOGGER.warning('Failed to refresh prediction for student_id=%s: %s', snapshot.student_id, exc)
+            snapshot.prediction_error = str(exc)
+            snapshot.save(update_fields=['prediction_error', 'updated_at'])
+
+        return snapshot
+
+    @staticmethod
+    def get_for_user(user, refresh_prediction=False, course_id=None, week_number=None):
+        snapshot = StudentLearningProcessSnapshot.objects.filter(user=user).first()
+        if refresh_prediction and snapshot:
+            resolved_week = week_number
+            if course_id and resolved_week is None:
+                resolved_week = LearningHoursService.resolve_learning_week(user, course_id)
+            return StudentLearningProcessService.refresh_prediction(
+                snapshot,
+                course_id=course_id,
+                week_number=resolved_week,
+            )
+        return snapshot
 
     @staticmethod
     def list_for_staff(filters):
@@ -438,12 +641,15 @@ class StudentLearningProcessService:
         totals = queryset.aggregate(
             total_records=Count('id'),
             avg_final_score=Avg('final_score'),
+            avg_predicted_final_score=Avg('predicted_final_score'),
             avg_week_1=Avg('week_1'),
             avg_week_2=Avg('week_2'),
             avg_week_3=Avg('week_3'),
             avg_vle_1=Avg('vle_1'),
             avg_vle_2=Avg('vle_2'),
             avg_vle_3=Avg('vle_3'),
+            total_with_actual_score=Count('id', filter=Q(final_score__isnull=False)),
+            total_with_predicted_score=Count('id', filter=Q(predicted_final_score__isnull=False)),
         )
 
         def as_distribution(grouped_queryset, key_field, label_field):
@@ -456,12 +662,15 @@ class StudentLearningProcessService:
         return {
             'total_records': totals['total_records'] or 0,
             'avg_final_score': float(totals['avg_final_score'] or 0),
+            'avg_predicted_final_score': float(totals['avg_predicted_final_score'] or 0),
             'avg_week_1': float(totals['avg_week_1'] or 0),
             'avg_week_2': float(totals['avg_week_2'] or 0),
             'avg_week_3': float(totals['avg_week_3'] or 0),
             'avg_vle_1': float(totals['avg_vle_1'] or 0),
             'avg_vle_2': float(totals['avg_vle_2'] or 0),
             'avg_vle_3': float(totals['avg_vle_3'] or 0),
+            'total_with_actual_score': int(totals['total_with_actual_score'] or 0),
+            'total_with_predicted_score': int(totals['total_with_predicted_score'] or 0),
             'position_distribution': as_distribution(queryset, 'position_code', 'position_text'),
             'gender_distribution': as_distribution(queryset, 'gender_code', 'gender_text'),
             'job_title_distribution': as_distribution(queryset, 'job_title_code', 'job_title_text'),

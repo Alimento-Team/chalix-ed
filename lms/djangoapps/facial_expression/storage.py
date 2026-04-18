@@ -3,6 +3,7 @@ Storage utilities for facial expression videos using MinIO.
 """
 import os
 import logging
+import uuid
 from datetime import datetime
 from django.conf import settings
 from openedx.core.storage import get_storage
@@ -36,24 +37,25 @@ class FacialExpressionStorage:
             'file_overwrite': False,
         }
 
-    def generate_video_path(self, user_id, course_id, unit_id, timestamp=None):
+    def generate_video_path(self, user_id, course_id, unit_id=None, timestamp=None, student_id=None, week_number=1):
         """
         Generate a unique path for storing facial expression video.
         
-        Format: facial_expressions/{course_id}/{user_id}/{unit_id}/{timestamp}.webm
+        Format: emotion/{course_id}/{student_id}/week_{week_number}/{file_id}.mp4
         """
         if timestamp is None:
             timestamp = datetime.now()
-        
-        date_path = timestamp.strftime('%Y/%m/%d')
-        filename = f"{timestamp.strftime('%Y%m%d_%H%M%S')}_{timestamp.microsecond}.webm"
+
+        normalized_week = max(1, min(3, int(week_number or 1)))
+        learner_id = self._sanitize_path_component(str(student_id or user_id))
+        file_id = f"{timestamp.strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:12]}"
+        filename = f"{file_id}.mp4"
         
         path = os.path.join(
-            'facial_expressions',
+            'emotion',
             self._sanitize_path_component(course_id),
-            str(user_id),
-            self._sanitize_path_component(unit_id),
-            date_path,
+            learner_id,
+            f'week_{normalized_week}',
             filename
         )
         

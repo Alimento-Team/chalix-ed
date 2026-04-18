@@ -729,7 +729,12 @@ class StudentLearningProcessSelfAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        snapshot = StudentLearningProcessService.get_for_user(request.user)
+        course_id = request.query_params.get('course_id')
+        snapshot = StudentLearningProcessService.get_for_user(
+            request.user,
+            refresh_prediction=True,
+            course_id=course_id,
+        )
         if not snapshot:
             return Response(
                 {'detail': 'No learning process snapshot found for the current user.'},

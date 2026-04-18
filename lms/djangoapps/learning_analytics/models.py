@@ -449,7 +449,13 @@ class StudentLearningProcessSnapshot(models.Model):
     vle_1 = models.PositiveIntegerField()
     vle_2 = models.PositiveIntegerField()
     vle_3 = models.PositiveIntegerField()
-    final_score = models.DecimalField(max_digits=4, decimal_places=2)
+    final_score = models.DecimalField(max_digits=4, decimal_places=2, null=True, blank=True)
+    predicted_final_score = models.DecimalField(max_digits=4, decimal_places=2, null=True, blank=True)
+    prediction_source = models.CharField(max_length=32, blank=True)
+    prediction_week = models.PositiveSmallIntegerField(null=True, blank=True)
+    prediction_input_hash = models.CharField(max_length=64, blank=True)
+    prediction_updated_at = models.DateTimeField(null=True, blank=True)
+    prediction_error = models.TextField(blank=True)
 
     source_file = models.CharField(max_length=255, blank=True)
     source_row_number = models.PositiveIntegerField(null=True, blank=True)
@@ -463,6 +469,7 @@ class StudentLearningProcessSnapshot(models.Model):
             models.Index(fields=['user']),
             models.Index(fields=['location_code']),
             models.Index(fields=['final_score']),
+            models.Index(fields=['predicted_final_score']),
         ]
         constraints = [
             models.CheckConstraint(
@@ -478,8 +485,18 @@ class StudentLearningProcessSnapshot(models.Model):
                 name='la_snapshot_week_3_0_10',
             ),
             models.CheckConstraint(
-                check=models.Q(final_score__gte=0) & models.Q(final_score__lte=10),
+                check=(
+                    models.Q(final_score__isnull=True) |
+                    (models.Q(final_score__gte=0) & models.Q(final_score__lte=10))
+                ),
                 name='la_snapshot_final_0_10',
+            ),
+            models.CheckConstraint(
+                check=(
+                    models.Q(predicted_final_score__isnull=True) |
+                    (models.Q(predicted_final_score__gte=0) & models.Q(predicted_final_score__lte=10))
+                ),
+                name='la_snapshot_predicted_final_0_10',
             ),
         ]
 

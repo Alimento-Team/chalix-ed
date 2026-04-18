@@ -166,6 +166,8 @@ class StudentLearningProcessSnapshotAdmin(admin.ModelAdmin):
         'gender_text',
         'location_text',
         'final_score',
+        'predicted_final_score',
+        'prediction_source',
         'imported_at',
     ]
     list_filter = [

@@ -13,6 +13,7 @@ from openedx.core.lib.api.view_utils import view_auth_classes
 
 from lms.djangoapps.learning_analytics.models import FacialExpressionLog
 from lms.djangoapps.courseware.courses import get_course_by_id
+from lms.djangoapps.learning_analytics.services import LearningHoursService, StudentLearningProcessService
 from .serializers import FacialExpressionUploadSerializer, FacialExpressionLogSerializer
 from .storage import get_facial_expression_storage
 
@@ -58,6 +59,9 @@ def upload_facial_expression_video(request):
         duration_seconds = serializer.validated_data.get('duration_seconds', 0)
         
         user = request.user
+        snapshot = StudentLearningProcessService.get_for_user(user)
+        student_id = snapshot.student_id if snapshot else user.username
+        week_number = LearningHoursService.resolve_learning_week(user, course_id)
         
         # Get course information
         try:
@@ -76,7 +80,9 @@ def upload_facial_expression_video(request):
             user_id=user.id,
             course_id=course_id,
             unit_id=unit_id,
-            timestamp=timestamp
+            timestamp=timestamp,
+            student_id=student_id,
+            week_number=week_number,
         )
         
         # Save video to storage
@@ -97,6 +103,18 @@ def upload_facial_expression_video(request):
             is_complete=is_final,
             processing_status='pending'
         )
+
+        week_segment = f'/week_{week_number}/'
+        stale_logs = FacialExpressionLog.objects.filter(
+            user=user,
+            course_id=course_id,
+            is_complete=True,
+            video_path__contains=week_segment,
+        ).exclude(id=facial_log.id)
+
+        for stale_log in stale_logs:
+            storage.delete_video(stale_log.video_path)
+            stale_log.delete()
         
         # Try to get teacher/instructor info
         try:
@@ -107,6 +125,16 @@ def upload_facial_expression_video(request):
             logger.warning(f"Could not get teacher info: {e}")
         
         log_serializer = FacialExpressionLogSerializer(facial_log)
+
+        refreshed_snapshot = StudentLearningProcessService.get_for_user(
+            user,
+            refresh_prediction=True,
+            course_id=course_id,
+            week_number=week_number,
+        )
+        predicted_score = None
+        if refreshed_snapshot and refreshed_snapshot.predicted_final_score is not None:
+            predicted_score = float(refreshed_snapshot.predicted_final_score)
         
         logger.info(
             f"Facial expression video uploaded successfully. "
@@ -118,7 +146,12 @@ def upload_facial_expression_video(request):
         return Response(
             {
                 'message': 'Video uploaded successfully',
-                'log': log_serializer.data
+                'log': log_serializer.data,
+                'prediction': {
+                    'week_number': week_number,
+                    'predicted_score': predicted_score,
+                    'source': 'emotion',
+                },
             },
             status=status.HTTP_201_CREATED
         )
