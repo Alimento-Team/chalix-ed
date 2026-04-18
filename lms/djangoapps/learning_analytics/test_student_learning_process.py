@@ -14,16 +14,18 @@ from lms.djangoapps.learning_analytics.models import StudentLearningProcessSnaps
 from lms.djangoapps.learning_analytics.models import LearnerBehavior
 from lms.djangoapps.courseware.models import StudentModule
 from common.djangoapps.student.models.course_enrollment import CourseEnrollment
+from common.djangoapps.student.models import UserProfile
 
 
 class StudentLearningProcessImportCommandTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username='student_001', email='s1@example.com')
+        self.course_id = 'course-v1:chalix+course_6f694e29+2024'
 
     def test_import_creates_snapshot(self):
         csv_content = (
-            'student_id,position,gender,location,age,job_title,experience,week_1,week_2,week_3,vle_1,vle_2,vle_3,final_score\n'
-            'student_001,Chuyên viên,Nữ,Thái Bình,Trên 25 tuổi,Viên chức,Từ 5 đến 10 năm,2.5,2.25,1.0,53,17,102,4.0\n'
+            'course_id,student_id,position,gender,location,age,job_title,experience,week_1,week_2,week_3,vle_1,vle_2,vle_3,final_score\n'
+            'chalix+course_6f694e29+2024,student_001,Chuyên viên,Nữ,Thái Bình,Trên 25 tuổi,Viên chức,Từ 5 đến 10 năm,2.5,2.25,1.0,53,17,102,4.0\n'
         )
         schema = {
             'fields': [
@@ -54,14 +56,164 @@ class StudentLearningProcessImportCommandTests(TestCase):
 
         snapshot = StudentLearningProcessSnapshot.objects.get(student_id='student_001')
         self.assertEqual(snapshot.user, self.user)
+        self.assertEqual(snapshot.course_id, self.course_id)
         self.assertEqual(snapshot.position_code, 0)
         self.assertEqual(snapshot.location_code, 9)
         self.assertEqual(float(snapshot.final_score), 4.0)
 
+    def test_import_derives_vle_creates_profile_and_enrollment(self):
+        csv_content = (
+            'course_id,student_id,name,date_of_birth,position,gender,location,age,job_title,experience,week_1,week_2,week_3,video_1,quiz_1,resource_1,video_2,quiz_2,resource_2,video_3,quiz_3,resource_3,final_score\n'
+            'chalix+course_6f694e29+2024,student_900,,,Chuyên viên,Nữ,Thái Bình,Trên 25 tuổi,Viên chức,Từ 5 đến 10 năm,2.5,2.25,1.0,5,14,34,12,1,4,20,7,75,4.0\n'
+        )
+        schema = {
+            'fields': [
+                {'name': 'position', 'values': {'0': 'Chuyên viên'}},
+                {'name': 'gender', 'values': {'1': 'Nữ'}},
+                {'name': 'location', 'all_possible_values': {'9': 'Thái Bình'}},
+                {'name': 'age', 'values': {'2': 'Trên 25 tuổi'}},
+                {'name': 'job_title', 'values': {'1': 'Viên chức'}},
+                {'name': 'experience', 'values': {'1': 'Từ 5 đến 10 năm'}},
+            ]
+        }
+
+        with tempfile.NamedTemporaryFile('w', encoding='utf-8', delete=False) as csv_file:
+            csv_file.write(csv_content)
+            csv_path = csv_file.name
+
+        with tempfile.NamedTemporaryFile('w', encoding='utf-8', delete=False) as schema_file:
+            schema_file.write(json.dumps(schema, ensure_ascii=False))
+            schema_path = schema_file.name
+
+        call_command(
+            'import_student_learning_process',
+            '--csv-path',
+            csv_path,
+            '--schema-path',
+            schema_path,
+            '--create-missing-users',
+        )
+
+        snapshot = StudentLearningProcessSnapshot.objects.get(student_id='student_900')
+        self.assertEqual(snapshot.course_id, 'course-v1:chalix+course_6f694e29+2024')
+        self.assertEqual(snapshot.vle_1, 53)
+        self.assertEqual(snapshot.vle_2, 17)
+        self.assertEqual(snapshot.vle_3, 102)
+
+        imported_user = User.objects.get(username='student_900')
+        profile = UserProfile.objects.get(user=imported_user)
+        self.assertEqual(profile.name, 'student_900')
+        self.assertEqual(profile.year_of_birth, min(UserProfile.VALID_YEARS))
+        self.assertTrue(
+            CourseEnrollment.objects.filter(
+                user=imported_user,
+                course_id=CourseKey.from_string('course-v1:chalix+course_6f694e29+2024'),
+                is_active=True,
+            ).exists()
+        )
+
+    def test_replace_existing_replaces_rows_for_imported_students(self):
+        StudentLearningProcessSnapshot.objects.create(
+            user=self.user,
+            student_id='student_001',
+            course_id='course-v1:test+old+2026',
+            position_code=0,
+            position_text='Chuyên viên',
+            gender_code=1,
+            gender_text='Nữ',
+            location_code=9,
+            location_text='Thái Bình',
+            age_code=2,
+            age_text='Trên 25 tuổi',
+            job_title_code=1,
+            job_title_text='Viên chức',
+            experience_code=1,
+            experience_text='Từ 5 đến 10 năm',
+            week_1='1.00',
+            week_2='1.00',
+            week_3='1.00',
+            vle_1=1,
+            vle_2=1,
+            vle_3=1,
+            final_score='1.00',
+            source_file='dataset/log.csv',
+            source_row_number=1,
+        )
+
+        other_user = User.objects.create_user(username='student_777', email='s777@example.com')
+        StudentLearningProcessSnapshot.objects.create(
+            user=other_user,
+            student_id='student_777',
+            course_id='course-v1:test+keep+2026',
+            position_code=0,
+            position_text='Chuyên viên',
+            gender_code=1,
+            gender_text='Nữ',
+            location_code=9,
+            location_text='Thái Bình',
+            age_code=2,
+            age_text='Trên 25 tuổi',
+            job_title_code=1,
+            job_title_text='Viên chức',
+            experience_code=1,
+            experience_text='Từ 5 đến 10 năm',
+            week_1='1.00',
+            week_2='1.00',
+            week_3='1.00',
+            vle_1=1,
+            vle_2=1,
+            vle_3=1,
+            final_score='1.00',
+            source_file='dataset/log.csv',
+            source_row_number=1,
+        )
+
+        csv_content = (
+            'course_id,student_id,position,gender,location,age,job_title,experience,week_1,week_2,week_3,vle_1,vle_2,vle_3,final_score\n'
+            'chalix+course_6f694e29+2024,student_001,Chuyên viên,Nữ,Thái Bình,Trên 25 tuổi,Viên chức,Từ 5 đến 10 năm,2.5,2.25,1.0,53,17,102,4.0\n'
+        )
+        schema = {
+            'fields': [
+                {'name': 'position', 'values': {'0': 'Chuyên viên'}},
+                {'name': 'gender', 'values': {'1': 'Nữ'}},
+                {'name': 'location', 'all_possible_values': {'9': 'Thái Bình'}},
+                {'name': 'age', 'values': {'2': 'Trên 25 tuổi'}},
+                {'name': 'job_title', 'values': {'1': 'Viên chức'}},
+                {'name': 'experience', 'values': {'1': 'Từ 5 đến 10 năm'}},
+            ]
+        }
+
+        with tempfile.NamedTemporaryFile('w', encoding='utf-8', delete=False) as csv_file:
+            csv_file.write(csv_content)
+            csv_path = csv_file.name
+
+        with tempfile.NamedTemporaryFile('w', encoding='utf-8', delete=False) as schema_file:
+            schema_file.write(json.dumps(schema, ensure_ascii=False))
+            schema_path = schema_file.name
+
+        call_command(
+            'import_student_learning_process',
+            '--csv-path',
+            csv_path,
+            '--schema-path',
+            schema_path,
+            '--replace-existing',
+        )
+
+        self.assertEqual(
+            StudentLearningProcessSnapshot.objects.filter(student_id='student_001').count(),
+            1,
+        )
+        self.assertEqual(
+            StudentLearningProcessSnapshot.objects.get(student_id='student_001').course_id,
+            'course-v1:chalix+course_6f694e29+2024',
+        )
+        self.assertTrue(StudentLearningProcessSnapshot.objects.filter(student_id='student_777').exists())
+
     def test_import_skips_when_user_mapping_missing(self):
         csv_content = (
-            'student_id,position,gender,location,age,job_title,experience,week_1,week_2,week_3,vle_1,vle_2,vle_3,final_score\n'
-            'student_999,Chuyên viên,Nữ,Thái Bình,Trên 25 tuổi,Viên chức,Từ 5 đến 10 năm,2.5,2.25,1.0,53,17,102,4.0\n'
+            'course_id,student_id,position,gender,location,age,job_title,experience,week_1,week_2,week_3,vle_1,vle_2,vle_3,final_score\n'
+            'chalix+course_6f694e29+2024,student_999,Chuyên viên,Nữ,Thái Bình,Trên 25 tuổi,Viên chức,Từ 5 đến 10 năm,2.5,2.25,1.0,53,17,102,4.0\n'
         )
         schema = {
             'fields': [
@@ -92,14 +244,54 @@ class StudentLearningProcessImportCommandTests(TestCase):
 
         self.assertFalse(StudentLearningProcessSnapshot.objects.filter(student_id='student_999').exists())
 
+    def test_import_allows_multiple_courses_for_same_student(self):
+        csv_content = (
+            'course_id,student_id,position,gender,location,age,job_title,experience,week_1,week_2,week_3,vle_1,vle_2,vle_3,final_score\n'
+            'course-v1:test+alpha+2026,student_001,Chuyên viên,Nữ,Thái Bình,Trên 25 tuổi,Viên chức,Từ 5 đến 10 năm,2.5,2.25,1.0,53,17,102,4.0\n'
+            'course-v1:test+beta+2026,student_001,Chuyên viên,Nữ,Thái Bình,Trên 25 tuổi,Viên chức,Từ 5 đến 10 năm,3.5,3.25,2.0,63,27,112,6.0\n'
+        )
+        schema = {
+            'fields': [
+                {'name': 'position', 'values': {'0': 'Chuyên viên'}},
+                {'name': 'gender', 'values': {'1': 'Nữ'}},
+                {'name': 'location', 'all_possible_values': {'9': 'Thái Bình'}},
+                {'name': 'age', 'values': {'2': 'Trên 25 tuổi'}},
+                {'name': 'job_title', 'values': {'1': 'Viên chức'}},
+                {'name': 'experience', 'values': {'1': 'Từ 5 đến 10 năm'}},
+            ]
+        }
+
+        with tempfile.NamedTemporaryFile('w', encoding='utf-8', delete=False) as csv_file:
+            csv_file.write(csv_content)
+            csv_path = csv_file.name
+
+        with tempfile.NamedTemporaryFile('w', encoding='utf-8', delete=False) as schema_file:
+            schema_file.write(json.dumps(schema, ensure_ascii=False))
+            schema_path = schema_file.name
+
+        call_command(
+            'import_student_learning_process',
+            '--csv-path',
+            csv_path,
+            '--schema-path',
+            schema_path,
+        )
+
+        rows = StudentLearningProcessSnapshot.objects.filter(student_id='student_001').order_by('course_id')
+        self.assertEqual(rows.count(), 2)
+        self.assertEqual(rows[0].course_id, 'course-v1:test+alpha+2026')
+        self.assertEqual(rows[1].course_id, 'course-v1:test+beta+2026')
+
 
 class StudentLearningProcessAPIServiceSmokeTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username='student_001', email='s1@example.com')
         self.staff = User.objects.create_user(username='admin_1', email='a1@example.com', is_staff=True)
+        self.course_id = 'chalix+course_6f694e29+2024'
         StudentLearningProcessSnapshot.objects.create(
             user=self.user,
             student_id='student_001',
+            course_id=self.course_id,
             position_code=0,
             position_text='Chuyên viên',
             gender_code=1,
@@ -125,10 +317,20 @@ class StudentLearningProcessAPIServiceSmokeTests(TestCase):
 
     def test_self_endpoint(self):
         self.client.force_login(self.user)
-        response = self.client.get('/api/learning_analytics/student-learning-process/me/')
+        response = self.client.get(
+            '/api/learning_analytics/student-learning-process/me/',
+            {'course_id': self.course_id},
+        )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['student_id'], 'student_001')
+        self.assertEqual(response.json()['course_id'], self.course_id)
         self.assertEqual(response.json()['score_type'], 'actual')
+
+    def test_self_endpoint_without_course_id_returns_empty_payload(self):
+        self.client.force_login(self.user)
+        response = self.client.get('/api/learning_analytics/student-learning-process/me/')
+        self.assertEqual(response.status_code, 200)
+        self.assertJSONEqual(response.content, 'null')
 
     def test_staff_list_endpoint_requires_staff(self):
         self.client.force_login(self.user)
@@ -150,6 +352,7 @@ class StudentLearningProcessVLEAutoTrackingTests(TestCase):
         self.snapshot = StudentLearningProcessSnapshot.objects.create(
             user=self.user,
             student_id='student_002',
+            course_id=str(self.course_key),
             position_code=0,
             position_text='Chuyen vien',
             gender_code=1,
@@ -226,6 +429,7 @@ class MaterialOpenEventAPITests(TestCase):
         self.snapshot = StudentLearningProcessSnapshot.objects.create(
             user=self.user,
             student_id='student_003',
+            course_id=str(self.course_key),
             position_code=0,
             position_text='Chuyen vien',
             gender_code=1,
@@ -283,6 +487,7 @@ class LearningAnalyticsDashboardBreakdownTests(TestCase):
         StudentLearningProcessSnapshot.objects.create(
             user=self.user,
             student_id='student_004',
+            course_id='chalix+course_6f694e29+2024',
             position_code=0,
             position_text='Chuyen vien',
             gender_code=1,
@@ -327,9 +532,11 @@ class StudentLearningProcessPredictionTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username='student_pred', email='sp@example.com')
         self.client.force_login(self.user)
+        self.course_id = 'chalix+course_6f694e29+2024'
         self.snapshot = StudentLearningProcessSnapshot.objects.create(
             user=self.user,
             student_id='student_pred',
+            course_id=self.course_id,
             position_code=0,
             position_text='Chuyên viên',
             gender_code=1,
@@ -369,7 +576,10 @@ class StudentLearningProcessPredictionTests(TestCase):
             mock_response.raise_for_status.return_value = None
             mock_post.return_value = mock_response
 
-            response = self.client.get('/api/learning_analytics/student-learning-process/me/')
+            response = self.client.get(
+                '/api/learning_analytics/student-learning-process/me/',
+                {'course_id': self.course_id},
+            )
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
@@ -399,8 +609,14 @@ class StudentLearningProcessPredictionTests(TestCase):
             mock_response.raise_for_status.return_value = None
             mock_post.return_value = mock_response
 
-            first = self.client.get('/api/learning_analytics/student-learning-process/me/')
-            second = self.client.get('/api/learning_analytics/student-learning-process/me/')
+            first = self.client.get(
+                '/api/learning_analytics/student-learning-process/me/',
+                {'course_id': self.course_id},
+            )
+            second = self.client.get(
+                '/api/learning_analytics/student-learning-process/me/',
+                {'course_id': self.course_id},
+            )
 
         self.assertEqual(first.status_code, 200)
         self.assertEqual(second.status_code, 200)
@@ -430,12 +646,18 @@ class StudentLearningProcessPredictionTests(TestCase):
 
             mock_post.side_effect = [mock_response_1, mock_response_2]
 
-            self.client.get('/api/learning_analytics/student-learning-process/me/')
+            self.client.get(
+                '/api/learning_analytics/student-learning-process/me/',
+                {'course_id': self.course_id},
+            )
             self.snapshot.refresh_from_db()
             self.snapshot.vle_3 = self.snapshot.vle_3 + 1
             self.snapshot.save(update_fields=['vle_3', 'updated_at'])
 
-            response = self.client.get('/api/learning_analytics/student-learning-process/me/')
+            response = self.client.get(
+                '/api/learning_analytics/student-learning-process/me/',
+                {'course_id': self.course_id},
+            )
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(mock_post.call_count, 2)

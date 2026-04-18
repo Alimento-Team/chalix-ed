@@ -96,7 +96,7 @@ class LearningHoursService:
         )
 
     @staticmethod
-    def increment_student_vle_for_week(user, week_number, increment_by=1):
+    def increment_student_vle_for_week(user, course_id, week_number, increment_by=1):
         """Increment a student's weekly VLE interaction counter in snapshot table."""
         if not user or not getattr(user, 'is_authenticated', False):
             return False
@@ -104,8 +104,15 @@ class LearningHoursService:
         if week_number not in (1, 2, 3) or increment_by <= 0:
             return False
 
+        normalized_course_id = str(course_id or '').strip()
+        if not normalized_course_id:
+            return False
+
         vle_field = f'vle_{week_number}'
-        updated = StudentLearningProcessSnapshot.objects.filter(user=user).update(
+        updated = StudentLearningProcessSnapshot.objects.filter(
+            user=user,
+            course_id=normalized_course_id,
+        ).update(
             **{vle_field: F(vle_field) + int(increment_by)}
         )
         return updated > 0
@@ -145,6 +152,7 @@ class LearningHoursService:
         week_number = LearningHoursService.resolve_learning_week(user, course_id)
         incremented = LearningHoursService.increment_student_vle_for_week(
             user=user,
+            course_id=course_id,
             week_number=week_number,
             increment_by=1,
         )
@@ -603,14 +611,21 @@ class StudentLearningProcessService:
 
     @staticmethod
     def get_for_user(user, refresh_prediction=False, course_id=None, week_number=None):
-        snapshot = StudentLearningProcessSnapshot.objects.filter(user=user).first()
+        normalized_course_id = str(course_id or '').strip()
+        if not normalized_course_id:
+            return None
+
+        snapshot = StudentLearningProcessSnapshot.objects.filter(
+            user=user,
+            course_id=normalized_course_id,
+        ).first()
         if refresh_prediction and snapshot:
             resolved_week = week_number
-            if course_id and resolved_week is None:
-                resolved_week = LearningHoursService.resolve_learning_week(user, course_id)
+            if resolved_week is None:
+                resolved_week = LearningHoursService.resolve_learning_week(user, normalized_course_id)
             return StudentLearningProcessService.refresh_prediction(
                 snapshot,
-                course_id=course_id,
+                course_id=normalized_course_id,
                 week_number=resolved_week,
             )
         return snapshot
@@ -621,6 +636,8 @@ class StudentLearningProcessService:
 
         if filters.get('student_id'):
             queryset = queryset.filter(student_id__icontains=filters['student_id'])
+        if filters.get('course_id'):
+            queryset = queryset.filter(course_id__icontains=filters['course_id'])
         if filters.get('position_code') is not None:
             queryset = queryset.filter(position_code=filters['position_code'])
         if filters.get('gender_code') is not None:
@@ -632,11 +649,14 @@ class StudentLearningProcessService:
         if filters.get('max_final_score') is not None:
             queryset = queryset.filter(final_score__lte=filters['max_final_score'])
 
-        return queryset.order_by('student_id')
+        return queryset.order_by('student_id', 'course_id')
 
     @staticmethod
-    def aggregate_for_staff():
+    def aggregate_for_staff(course_id=None):
         queryset = StudentLearningProcessSnapshot.objects.all()
+        normalized_course_id = str(course_id or '').strip()
+        if normalized_course_id:
+            queryset = queryset.filter(course_id__icontains=normalized_course_id)
 
         totals = queryset.aggregate(
             total_records=Count('id'),

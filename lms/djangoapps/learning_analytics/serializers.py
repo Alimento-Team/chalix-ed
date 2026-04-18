@@ -147,6 +147,7 @@ class StudentLearningProcessSnapshotSerializer(serializers.ModelSerializer):
         fields = [
             'id',
             'student_id',
+            'course_id',
             'user',
             'username',
             'position_code',

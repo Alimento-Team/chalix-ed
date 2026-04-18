@@ -2,21 +2,25 @@
 
 import csv
 import json
+from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 from django.contrib.auth.models import User
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
+from opaque_keys.edx.keys import CourseKey
 
 from common.djangoapps.student.models import UserProfile
+from common.djangoapps.student.models.course_enrollment import AlreadyEnrolledError, CourseEnrollment
 from lms.djangoapps.learning_analytics.models import StudentLearningProcessSnapshot
 
 
 class Command(BaseCommand):
     help = 'One-time import for student learning-process snapshots.'
 
-    REQUIRED_COLUMNS = [
+    REQUIRED_BASE_COLUMNS = [
+        'course_id',
         'student_id',
         'position',
         'gender',
@@ -27,11 +31,21 @@ class Command(BaseCommand):
         'week_1',
         'week_2',
         'week_3',
-        'vle_1',
-        'vle_2',
-        'vle_3',
         'final_score',
     ]
+    LEGACY_VLE_COLUMNS = ['vle_1', 'vle_2', 'vle_3']
+    ACTIVITY_COLUMNS = [
+        'video_1',
+        'quiz_1',
+        'resource_1',
+        'video_2',
+        'quiz_2',
+        'resource_2',
+        'video_3',
+        'quiz_3',
+        'resource_3',
+    ]
+    DEFAULT_DOB = '01/01/1870'
 
     def add_arguments(self, parser):
         parser.add_argument('--csv-path', required=True, help='Path to source CSV file.')
@@ -46,12 +60,18 @@ class Command(BaseCommand):
             action='store_true',
             help='Create auth users when student_id username is missing.',
         )
+        parser.add_argument(
+            '--replace-existing',
+            action='store_true',
+            help='Replace existing snapshot rows for students found in the input CSV.',
+        )
 
     def handle(self, *args, **options):
         csv_path = Path(options['csv_path']).expanduser().resolve()
         schema_path = Path(options['schema_path']).expanduser().resolve()
         dry_run = options['dry_run']
         create_missing_users = options['create_missing_users']
+        replace_existing = options['replace_existing']
 
         if not csv_path.exists():
             raise CommandError(f'CSV file does not exist: {csv_path}')
@@ -61,17 +81,20 @@ class Command(BaseCommand):
         codebooks = self._load_codebooks(schema_path)
 
         created_count = 0
-        skipped_count = 0
+        updated_count = 0
+        replaced_count = 0
         failed_count = 0
         error_examples = []
+        parsed_rows = []
+        imported_student_ids = set()
 
         with csv_path.open('r', encoding='utf-8-sig', newline='') as handle:
-            reader = csv.DictReader(handle)
+            reader = csv.DictReader(handle, skipinitialspace=True)
             self._validate_header(reader.fieldnames)
 
             for row_number, row in enumerate(reader, start=2):
                 try:
-                    payload = self._parse_row(
+                    parsed_row = self._parse_row(
                         row,
                         row_number,
                         codebooks,
@@ -83,25 +106,43 @@ class Command(BaseCommand):
                         error_examples.append(f'row {row_number}: {exc}')
                     continue
 
-                if dry_run:
-                    created_count += 1
-                    continue
+                parsed_rows.append(parsed_row)
+                imported_student_ids.add(parsed_row['snapshot']['student_id'])
 
-                with transaction.atomic():
-                    obj, created = StudentLearningProcessSnapshot.objects.get_or_create(
-                        student_id=payload['student_id'],
-                        defaults=payload,
-                    )
-                    if created:
-                        created_count += 1
-                    else:
-                        skipped_count += 1
-                        self._update_user_link_if_missing(obj, payload['user'])
+        if dry_run:
+            created_count = len(parsed_rows)
+        else:
+            if replace_existing and imported_student_ids:
+                replaced_count, _ = StudentLearningProcessSnapshot.objects.filter(
+                    student_id__in=imported_student_ids,
+                ).delete()
+
+            for parsed_row in parsed_rows:
+                try:
+                    with transaction.atomic():
+                        self._sync_user_profile(parsed_row)
+                        self._ensure_enrollment(parsed_row['user'], parsed_row['course_key'], parsed_row['normalized_course_id'])
+
+                        payload = parsed_row['snapshot']
+                        _, created = StudentLearningProcessSnapshot.objects.update_or_create(
+                            student_id=payload['student_id'],
+                            course_id=payload['course_id'],
+                            defaults=payload,
+                        )
+                        if created:
+                            created_count += 1
+                        else:
+                            updated_count += 1
+                except ValueError as exc:
+                    failed_count += 1
+                    if len(error_examples) < 10:
+                        error_examples.append(f'row {parsed_row["snapshot"]["source_row_number"]}: {exc}')
 
         mode = 'DRY RUN' if dry_run else 'IMPORT'
         self.stdout.write(self.style.SUCCESS(f'{mode} complete'))
         self.stdout.write(f'Created: {created_count}')
-        self.stdout.write(f'Skipped (already exists): {skipped_count}')
+        self.stdout.write(f'Updated: {updated_count}')
+        self.stdout.write(f'Replaced: {replaced_count}')
         self.stdout.write(f'Failed: {failed_count}')
         for msg in error_examples:
             self.stdout.write(self.style.WARNING(msg))
@@ -131,11 +172,26 @@ class Command(BaseCommand):
     def _validate_header(self, fieldnames):
         if not fieldnames:
             raise CommandError('CSV header is missing.')
-        missing = [name for name in self.REQUIRED_COLUMNS if name not in fieldnames]
+        missing = [name for name in self.REQUIRED_BASE_COLUMNS if name not in fieldnames]
         if missing:
             raise CommandError(f'CSV is missing required columns: {missing}')
 
+        has_legacy_vle = all(name in fieldnames for name in self.LEGACY_VLE_COLUMNS)
+        has_activity_columns = all(name in fieldnames for name in self.ACTIVITY_COLUMNS)
+        if not has_legacy_vle and not has_activity_columns:
+            raise CommandError(
+                'CSV must include either legacy vle_1..vle_3 columns or activity columns '
+                'video_n/quiz_n/resource_n for n=1..3.'
+            )
+
     def _parse_row(self, row, row_number, codebooks, create_missing_users=False):
+        raw_course_id = row['course_id'].strip()
+        if not raw_course_id:
+            raise ValueError('course_id is empty')
+        course_id, course_key = self._normalize_course_id(raw_course_id)
+        if course_key is None:
+            raise ValueError(f'invalid course_id for enrollment: {raw_course_id}')
+
         student_id = row['student_id'].strip()
         if not student_id:
             raise ValueError('student_id is empty')
@@ -156,35 +212,74 @@ class Command(BaseCommand):
         week_3 = self._parse_decimal(row['week_3'], 'week_3', Decimal('0.0'), Decimal('10.0'))
         final_score = self._parse_decimal(row['final_score'], 'final_score', Decimal('0.0'), Decimal('10.0'))
 
-        vle_1 = self._parse_int(row['vle_1'], 'vle_1', minimum=0)
-        vle_2 = self._parse_int(row['vle_2'], 'vle_2', minimum=0)
-        vle_3 = self._parse_int(row['vle_3'], 'vle_3', minimum=0)
+        vle_1, vle_2, vle_3 = self._resolve_vle_values(row)
+
+        parsed_name = (row.get('name') or '').strip()
+        parsed_dob = (row.get('date_of_birth') or '').strip()
 
         return {
             'user': user,
-            'student_id': student_id,
-            'position_code': position_code,
-            'position_text': position_text,
-            'gender_code': gender_code,
-            'gender_text': gender_text,
-            'location_code': location_code,
-            'location_text': location_text,
-            'age_code': age_code,
-            'age_text': age_text,
-            'job_title_code': job_title_code,
-            'job_title_text': job_title_text,
-            'experience_code': experience_code,
-            'experience_text': experience_text,
-            'week_1': week_1,
-            'week_2': week_2,
-            'week_3': week_3,
-            'vle_1': vle_1,
-            'vle_2': vle_2,
-            'vle_3': vle_3,
-            'final_score': final_score,
-            'source_file': 'dataset/log.csv',
-            'source_row_number': row_number,
+            'course_key': course_key,
+            'normalized_course_id': course_id,
+            'profile_name': parsed_name or student_id,
+            'profile_name_was_provided': bool(parsed_name),
+            'year_of_birth': self._resolve_birth_year(parsed_dob),
+            'dob_was_provided': bool(parsed_dob),
+            'snapshot': {
+                'user': user,
+                'student_id': student_id,
+                'course_id': course_id,
+                'position_code': position_code,
+                'position_text': position_text,
+                'gender_code': gender_code,
+                'gender_text': gender_text,
+                'location_code': location_code,
+                'location_text': location_text,
+                'age_code': age_code,
+                'age_text': age_text,
+                'job_title_code': job_title_code,
+                'job_title_text': job_title_text,
+                'experience_code': experience_code,
+                'experience_text': experience_text,
+                'week_1': week_1,
+                'week_2': week_2,
+                'week_3': week_3,
+                'vle_1': vle_1,
+                'vle_2': vle_2,
+                'vle_3': vle_3,
+                'final_score': final_score,
+                'source_file': 'dataset/log.csv',
+                'source_row_number': row_number,
+            },
         }
+
+    def _resolve_vle_values(self, row):
+        has_activity_columns = all(str(row.get(name, '')).strip() != '' for name in self.ACTIVITY_COLUMNS)
+
+        if has_activity_columns:
+            video_1 = self._parse_int(row['video_1'], 'video_1', minimum=0)
+            quiz_1 = self._parse_int(row['quiz_1'], 'quiz_1', minimum=0)
+            resource_1 = self._parse_int(row['resource_1'], 'resource_1', minimum=0)
+            video_2 = self._parse_int(row['video_2'], 'video_2', minimum=0)
+            quiz_2 = self._parse_int(row['quiz_2'], 'quiz_2', minimum=0)
+            resource_2 = self._parse_int(row['resource_2'], 'resource_2', minimum=0)
+            video_3 = self._parse_int(row['video_3'], 'video_3', minimum=0)
+            quiz_3 = self._parse_int(row['quiz_3'], 'quiz_3', minimum=0)
+            resource_3 = self._parse_int(row['resource_3'], 'resource_3', minimum=0)
+            return (
+                video_1 + quiz_1 + resource_1,
+                video_2 + quiz_2 + resource_2,
+                video_3 + quiz_3 + resource_3,
+            )
+
+        try:
+            return (
+                self._parse_int(row['vle_1'], 'vle_1', minimum=0),
+                self._parse_int(row['vle_2'], 'vle_2', minimum=0),
+                self._parse_int(row['vle_3'], 'vle_3', minimum=0),
+            )
+        except KeyError as exc:
+            raise ValueError(f'missing VLE column: {exc}')
 
     def _map_category(self, field_name, value, codebooks):
         text_value = value.strip()
@@ -205,7 +300,7 @@ class Command(BaseCommand):
 
     def _parse_int(self, value, field_name, minimum=0):
         try:
-            parsed = int(value)
+            parsed = int(str(value).strip())
         except (ValueError, TypeError):
             raise ValueError(f'invalid integer for {field_name}: {value}')
         if parsed < minimum:
@@ -215,10 +310,43 @@ class Command(BaseCommand):
     def _normalize_text(self, value):
         return ' '.join(str(value).strip().split()).lower()
 
+    def _normalize_course_id(self, raw_course_id):
+        candidates = [raw_course_id]
+        if not raw_course_id.startswith('course-v1:'):
+            candidates.append(f'course-v1:{raw_course_id}')
+
+        for candidate in candidates:
+            try:
+                course_key = CourseKey.from_string(candidate)
+                return str(course_key), course_key
+            except Exception:
+                continue
+        return raw_course_id, None
+
+    def _resolve_birth_year(self, raw_date_of_birth):
+        date_value = raw_date_of_birth or self.DEFAULT_DOB
+        parsed_year = None
+        for date_format in ('%d/%m/%Y', '%Y-%m-%d', '%d-%m-%Y', '%Y'):
+            try:
+                parsed_year = datetime.strptime(date_value, date_format).year
+                break
+            except ValueError:
+                continue
+
+        if parsed_year is None:
+            parsed_year = datetime.strptime(self.DEFAULT_DOB, '%d/%m/%Y').year
+
+        min_year = min(UserProfile.VALID_YEARS)
+        max_year = max(UserProfile.VALID_YEARS)
+        if parsed_year < min_year:
+            return min_year
+        if parsed_year > max_year:
+            return max_year
+        return parsed_year
+
     def _get_or_create_user(self, student_id, create_missing_users=False):
         user = User.objects.filter(username=student_id).first()
         if user:
-            self._ensure_user_profile(user)
             return user
 
         if not create_missing_users:
@@ -230,16 +358,48 @@ class Command(BaseCommand):
             email=f'{student_id}@example.local',
             password=None,
         )
-        self._ensure_user_profile(user)
         return user
 
-    def _ensure_user_profile(self, user):
-        UserProfile.objects.get_or_create(
+    def _sync_user_profile(self, parsed_row):
+        user = parsed_row['user']
+        profile_name = parsed_row['profile_name']
+        profile_name_was_provided = parsed_row['profile_name_was_provided']
+        year_of_birth = parsed_row['year_of_birth']
+        dob_was_provided = parsed_row['dob_was_provided']
+
+        profile, _ = UserProfile.objects.get_or_create(
             user=user,
-            defaults={'name': user.username},
+            defaults={
+                'name': profile_name,
+                'year_of_birth': year_of_birth,
+            },
         )
 
-    def _update_user_link_if_missing(self, obj, user):
-        if obj.user_id is None and user:
-            obj.user = user
-            obj.save(update_fields=['user', 'updated_at'])
+        update_fields = []
+        if profile_name_was_provided:
+            if profile.name != profile_name:
+                profile.name = profile_name
+                update_fields.append('name')
+        elif not profile.name:
+            profile.name = profile_name
+            update_fields.append('name')
+
+        if dob_was_provided:
+            if profile.year_of_birth != year_of_birth:
+                profile.year_of_birth = year_of_birth
+                update_fields.append('year_of_birth')
+        elif profile.year_of_birth is None:
+            profile.year_of_birth = year_of_birth
+            update_fields.append('year_of_birth')
+
+        if update_fields:
+            profile.save(update_fields=update_fields)
+
+    def _ensure_enrollment(self, user, course_key, course_id):
+        try:
+            CourseEnrollment.enroll(user, course_key, check_access=False)
+        except AlreadyEnrolledError:
+            CourseEnrollment.objects.filter(user=user, course_id=course_key).update(is_active=True)
+        except Exception as exc:
+            raise ValueError(f'failed to enroll user {user.username} to {course_id}: {exc}')
+

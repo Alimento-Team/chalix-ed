@@ -729,17 +729,14 @@ class StudentLearningProcessSelfAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        course_id = request.query_params.get('course_id')
+        course_id = (request.query_params.get('course_id') or '').strip()
         snapshot = StudentLearningProcessService.get_for_user(
             request.user,
             refresh_prediction=True,
             course_id=course_id,
         )
         if not snapshot:
-            return Response(
-                {'detail': 'No learning process snapshot found for the current user.'},
-                status=status.HTTP_404_NOT_FOUND,
-            )
+            return Response(None, status=status.HTTP_200_OK)
 
         serializer = StudentLearningProcessSnapshotSerializer(snapshot)
         return Response(serializer.data)
@@ -768,6 +765,7 @@ class StudentLearningProcessListAPIView(APIView):
 
         filters = {
             'student_id': request.query_params.get('student_id', '').strip(),
+            'course_id': request.query_params.get('course_id', '').strip(),
             'position_code': parse_int('position_code'),
             'gender_code': parse_int('gender_code'),
             'location_code': parse_int('location_code'),
@@ -801,6 +799,8 @@ class StudentLearningProcessAggregateAPIView(APIView):
         if not request.user.is_staff:
             raise PermissionDenied('Staff access is required.')
 
-        payload = StudentLearningProcessService.aggregate_for_staff()
+        payload = StudentLearningProcessService.aggregate_for_staff(
+            course_id=request.query_params.get('course_id', '').strip(),
+        )
         serializer = StudentLearningProcessAggregateSerializer(payload)
         return Response(serializer.data)

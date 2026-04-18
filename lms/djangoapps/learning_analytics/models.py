@@ -419,7 +419,7 @@ class FacialExpressionLog(models.Model):
 
 
 class StudentLearningProcessSnapshot(models.Model):
-    """Stores one global learning-process snapshot record per student."""
+    """Stores one learning-process snapshot record per student/course pair."""
 
     user = models.ForeignKey(
         User,
@@ -428,7 +428,8 @@ class StudentLearningProcessSnapshot(models.Model):
         blank=True,
         related_name='learning_process_snapshots'
     )
-    student_id = models.CharField(max_length=32, unique=True)
+    student_id = models.CharField(max_length=32)
+    course_id = models.CharField(max_length=255)
 
     position_code = models.PositiveSmallIntegerField()
     position_text = models.CharField(max_length=64)
@@ -464,14 +465,19 @@ class StudentLearningProcessSnapshot(models.Model):
 
     class Meta:
         app_label = 'learning_analytics'
-        ordering = ['student_id']
+        ordering = ['student_id', 'course_id']
         indexes = [
             models.Index(fields=['user']),
+            models.Index(fields=['course_id']),
             models.Index(fields=['location_code']),
             models.Index(fields=['final_score']),
             models.Index(fields=['predicted_final_score']),
         ]
         constraints = [
+            models.UniqueConstraint(
+                fields=['student_id', 'course_id'],
+                name='la_snapshot_student_course_unique',
+            ),
             models.CheckConstraint(
                 check=models.Q(week_1__gte=0) & models.Q(week_1__lte=10),
                 name='la_snapshot_week_1_0_10',
@@ -501,4 +507,4 @@ class StudentLearningProcessSnapshot(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.student_id} ({self.final_score})"
+        return f"{self.student_id} - {self.course_id} ({self.final_score})"
