@@ -18,6 +18,7 @@ from lms.djangoapps.courseware.models import StudentModule
 from lms.djangoapps.grades.api import CourseGradeFactory
 
 from .models import (
+    LearnerBehavior,
     CourseCreditHours,
     StudentCourseProgress,
     LearningHoursRequirement,
@@ -476,6 +477,48 @@ class StudentProgressUpdateAPIView(APIView):
         })
 
 
+class MaterialOpenEventAPIView(APIView):
+    """API endpoint for true every-open counting of learning materials."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        course_id = request.data.get('course_id')
+        module_type = request.data.get('module_type', 'html')
+
+        if not course_id:
+            return Response(
+                {'error': 'course_id is required'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        tracking_result = LearningHoursService.record_material_open(
+            user=user,
+            course_id=course_id,
+            module_type=module_type,
+        )
+
+        snapshot = StudentLearningProcessSnapshot.objects.filter(user=user).first()
+        payload = {
+            'tracked': tracking_result.get('tracked', False),
+            'course_id': str(course_id),
+            'module_type': module_type,
+            'week_number': tracking_result.get('week_number'),
+            'snapshot_updated': tracking_result.get('snapshot_updated', False),
+        }
+        if snapshot:
+            payload.update(
+                {
+                    'vle_1': snapshot.vle_1,
+                    'vle_2': snapshot.vle_2,
+                    'vle_3': snapshot.vle_3,
+                }
+            )
+
+        return Response(payload, status=status.HTTP_200_OK)
+
+
 class LearningAnalyticsDashboardAPIView(APIView):
     """
     API view to get comprehensive learning analytics dashboard data.
@@ -512,6 +555,19 @@ class LearningAnalyticsDashboardAPIView(APIView):
                 'completion_date': progress.completion_date
             })
 
+        snapshot = StudentLearningProcessSnapshot.objects.filter(user=user).first()
+        total_vle = 0
+        if snapshot:
+            total_vle = (snapshot.vle_1 or 0) + (snapshot.vle_2 or 0) + (snapshot.vle_3 or 0)
+
+        behavior_totals = LearnerBehavior.objects.filter(user=user).aggregate(
+            videos_opened=Sum('videos_watched'),
+            quizzes_opened=Sum('problems_attempted'),
+        )
+        videos_opened = int(behavior_totals.get('videos_opened') or 0)
+        quizzes_opened = int(behavior_totals.get('quizzes_opened') or 0)
+        materials_opened = max(0, int(total_vle) - videos_opened - quizzes_opened)
+
         dashboard_data = {
             'learning_hours': hours_summary,
             'course_summary': {
@@ -521,6 +577,12 @@ class LearningAnalyticsDashboardAPIView(APIView):
                 'completion_rate': round((completed_count / total_enrolled * 100), 1) if total_enrolled > 0 else 0
             },
             'credit_hours_breakdown': credit_hours_breakdown,
+            'vle_breakdown': {
+                'total_vle': int(total_vle),
+                'materials_opened': materials_opened,
+                'videos_opened': videos_opened,
+                'quizzes_opened': quizzes_opened,
+            },
             'year': year
         }
 

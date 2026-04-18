@@ -6,8 +6,13 @@ import tempfile
 from django.contrib.auth.models import User
 from django.core.management import call_command
 from django.test import TestCase
+from django.utils import timezone
+from opaque_keys.edx.keys import CourseKey
 
 from lms.djangoapps.learning_analytics.models import StudentLearningProcessSnapshot
+from lms.djangoapps.learning_analytics.models import LearnerBehavior
+from lms.djangoapps.courseware.models import StudentModule
+from common.djangoapps.student.models.course_enrollment import CourseEnrollment
 
 
 class StudentLearningProcessImportCommandTests(TestCase):
@@ -132,3 +137,185 @@ class StudentLearningProcessAPIServiceSmokeTests(TestCase):
         response = self.client.get('/api/learning_analytics/student-learning-process/')
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['count'], 1)
+
+
+class StudentLearningProcessVLEAutoTrackingTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username='student_002', email='s2@example.com')
+        self.course_key = CourseKey.from_string('course-v1:test+learning+2026')
+        CourseEnrollment.enroll(self.user, self.course_key, check_access=False)
+
+        self.snapshot = StudentLearningProcessSnapshot.objects.create(
+            user=self.user,
+            student_id='student_002',
+            position_code=0,
+            position_text='Chuyen vien',
+            gender_code=1,
+            gender_text='Nu',
+            location_code=9,
+            location_text='Thai Binh',
+            age_code=2,
+            age_text='Tren 25 tuoi',
+            job_title_code=1,
+            job_title_text='Vien chuc',
+            experience_code=1,
+            experience_text='Tu 5 den 10 nam',
+            week_1='2.00',
+            week_2='2.00',
+            week_3='2.00',
+            vle_1=10,
+            vle_2=20,
+            vle_3=30,
+            final_score='4.00',
+            source_file='dataset/log.csv',
+            source_row_number=2,
+        )
+
+    def _open_material(self, block_type, block_id):
+        StudentModule.objects.create(
+            module_type=block_type,
+            module_state_key=self.course_key.make_usage_key(block_type, block_id),
+            student=self.user,
+            course_id=self.course_key,
+        )
+
+    def test_opening_material_increments_week_1_vle(self):
+        self._open_material('html', 'unit-week-1')
+        self.snapshot.refresh_from_db()
+        self.assertEqual(self.snapshot.vle_1, 11)
+        self.assertEqual(self.snapshot.vle_2, 20)
+        self.assertEqual(self.snapshot.vle_3, 30)
+
+    def test_opening_material_increments_week_2_vle(self):
+        CourseEnrollment.objects.filter(user=self.user, course_id=self.course_key).update(
+            created=timezone.now() - timezone.timedelta(days=8)
+        )
+
+        self._open_material('video', 'unit-week-2')
+        self.snapshot.refresh_from_db()
+        self.assertEqual(self.snapshot.vle_1, 10)
+        self.assertEqual(self.snapshot.vle_2, 21)
+        self.assertEqual(self.snapshot.vle_3, 30)
+
+    def test_opening_material_increments_week_3_vle(self):
+        CourseEnrollment.objects.filter(user=self.user, course_id=self.course_key).update(
+            created=timezone.now() - timezone.timedelta(days=15)
+        )
+
+        self._open_material('problem', 'unit-week-3')
+        self.snapshot.refresh_from_db()
+        self.assertEqual(self.snapshot.vle_1, 10)
+        self.assertEqual(self.snapshot.vle_2, 20)
+        self.assertEqual(self.snapshot.vle_3, 31)
+
+    def test_non_tracked_module_type_does_not_increment_vle(self):
+        self._open_material('sequential', 'unit-seq')
+        self.snapshot.refresh_from_db()
+        self.assertEqual(self.snapshot.vle_1, 10)
+        self.assertEqual(self.snapshot.vle_2, 20)
+        self.assertEqual(self.snapshot.vle_3, 30)
+
+
+class MaterialOpenEventAPITests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username='student_003', email='s3@example.com')
+        self.course_key = CourseKey.from_string('course-v1:test+material+2026')
+        CourseEnrollment.enroll(self.user, self.course_key, check_access=False)
+        self.snapshot = StudentLearningProcessSnapshot.objects.create(
+            user=self.user,
+            student_id='student_003',
+            position_code=0,
+            position_text='Chuyen vien',
+            gender_code=1,
+            gender_text='Nu',
+            location_code=9,
+            location_text='Thai Binh',
+            age_code=2,
+            age_text='Tren 25 tuoi',
+            job_title_code=1,
+            job_title_text='Vien chuc',
+            experience_code=1,
+            experience_text='Tu 5 den 10 nam',
+            week_1='2.00',
+            week_2='2.00',
+            week_3='2.00',
+            vle_1=1,
+            vle_2=2,
+            vle_3=3,
+            final_score='4.00',
+            source_file='dataset/log.csv',
+            source_row_number=2,
+        )
+        self.client.force_login(self.user)
+
+    def test_every_call_increments_weekly_vle(self):
+        endpoint = '/api/learning_analytics/material-open/'
+        payload = {
+            'course_id': str(self.course_key),
+            'module_type': 'video',
+        }
+
+        first = self.client.post(endpoint, payload, content_type='application/json')
+        self.assertEqual(first.status_code, 200)
+        second = self.client.post(endpoint, payload, content_type='application/json')
+        self.assertEqual(second.status_code, 200)
+
+        self.snapshot.refresh_from_db()
+        self.assertEqual(self.snapshot.vle_1, 3)
+        self.assertEqual(self.snapshot.vle_2, 2)
+        self.assertEqual(self.snapshot.vle_3, 3)
+
+    def test_missing_course_id_returns_400(self):
+        response = self.client.post(
+            '/api/learning_analytics/material-open/',
+            {'module_type': 'html'},
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 400)
+
+
+class LearningAnalyticsDashboardBreakdownTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username='student_004', email='s4@example.com')
+        self.client.force_login(self.user)
+        StudentLearningProcessSnapshot.objects.create(
+            user=self.user,
+            student_id='student_004',
+            position_code=0,
+            position_text='Chuyen vien',
+            gender_code=1,
+            gender_text='Nu',
+            location_code=9,
+            location_text='Thai Binh',
+            age_code=2,
+            age_text='Tren 25 tuoi',
+            job_title_code=1,
+            job_title_text='Vien chuc',
+            experience_code=1,
+            experience_text='Tu 5 den 10 nam',
+            week_1='2.00',
+            week_2='2.00',
+            week_3='2.00',
+            vle_1=10,
+            vle_2=12,
+            vle_3=8,
+            final_score='4.00',
+            source_file='dataset/log.csv',
+            source_row_number=2,
+        )
+        LearnerBehavior.objects.create(
+            user=self.user,
+            course_id='course-v1:test+sample+2026',
+            videos_watched=7,
+            problems_attempted=5,
+        )
+
+    def test_dashboard_returns_vle_breakdown(self):
+        response = self.client.get('/api/learning_analytics/dashboard/')
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertIn('vle_breakdown', payload)
+        self.assertEqual(payload['vle_breakdown']['total_vle'], 30)
+        self.assertEqual(payload['vle_breakdown']['videos_opened'], 7)
+        self.assertEqual(payload['vle_breakdown']['quizzes_opened'], 5)
+        self.assertEqual(payload['vle_breakdown']['materials_opened'], 18)

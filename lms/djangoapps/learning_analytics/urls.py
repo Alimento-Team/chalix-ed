@@ -10,6 +10,7 @@ from .views import (
     LearningHoursApprovalAPIView,
     CourseCreditHoursAPIView,
     StudentProgressUpdateAPIView,
+    MaterialOpenEventAPIView,
     LearningAnalyticsDashboardAPIView,
     LearningHoursCoursesAPIView,
     StudentLearningProcessSelfAPIView,
@@ -34,6 +35,7 @@ urlpatterns = [
 
     # Student progress updates (internal use)
     path('student-progress/', StudentProgressUpdateAPIView.as_view(), name='student_progress_update'),
+    path('material-open/', MaterialOpenEventAPIView.as_view(), name='material_open_event'),
 
     # Comprehensive dashboard
     path('dashboard/', LearningAnalyticsDashboardAPIView.as_view(), name='learning_analytics_dashboard'),

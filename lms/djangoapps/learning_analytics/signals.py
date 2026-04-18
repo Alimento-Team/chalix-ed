@@ -17,6 +17,9 @@ from common.djangoapps.student.models.course_enrollment import CourseEnrollment,
 
 log = logging.getLogger(__name__)
 
+# Treat these module types as "learning material opens" for VLE counting.
+TRACKED_LEARNING_MATERIAL_TYPES = {'html', 'video', 'problem'}
+
 
 @receiver(post_save, sender=CourseOverview)
 def auto_enroll_all_users_on_course_create(sender, instance, created, **kwargs):
@@ -82,6 +85,13 @@ from .services import LearningHoursService
 @receiver(post_save, sender=StudentModule)
 def track_student_activity(sender, instance, created, **kwargs):
     """Track student activity when modules are accessed or completed."""
+    if created and instance.module_type in TRACKED_LEARNING_MATERIAL_TYPES:
+        LearningHoursService.record_material_open(
+            user=instance.student,
+            course_id=instance.course_id,
+            module_type=instance.module_type,
+        )
+
     if created or instance.grade:
         # Track time spent (estimate based on module type)
         estimated_minutes = 15  # Default estimate for module completion

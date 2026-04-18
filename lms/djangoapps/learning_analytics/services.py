@@ -4,9 +4,11 @@ Services for learning analytics and credit hours management.
 from django.contrib.auth.models import User
 from django.utils import timezone
 from django.db import transaction
+from django.db.models import F
 from django.db.models import Avg, Count, Sum
 
 from .models import (
+    LearnerBehavior,
     CourseCreditHours,
     StudentCourseProgress,
     LearningHoursRequirement,
@@ -22,6 +24,132 @@ class LearningHoursService:
     """
     Service class for managing learning hours and credit-based tracking.
     """
+
+    @staticmethod
+    def track_time_spent(user, course_id, minutes_spent):
+        """Track learning time for a user/course pair."""
+        if not user or not getattr(user, 'is_authenticated', False):
+            return None
+
+        if minutes_spent is None or minutes_spent <= 0:
+            return None
+
+        behavior, _ = LearnerBehavior.objects.get_or_create(
+            user=user,
+            course_id=str(course_id),
+            defaults={
+                'total_time_spent_minutes': 0,
+                'last_activity': timezone.now(),
+            },
+        )
+        behavior.total_time_spent_minutes += int(minutes_spent)
+        behavior.last_activity = timezone.now()
+        behavior.save(update_fields=['total_time_spent_minutes', 'last_activity', 'modified'])
+        return behavior
+
+    @staticmethod
+    def update_activity_metrics(user, course_id, activity_type):
+        """Update lightweight activity counters on learner behavior."""
+        if not user or not getattr(user, 'is_authenticated', False):
+            return None
+
+        behavior, _ = LearnerBehavior.objects.get_or_create(
+            user=user,
+            course_id=str(course_id),
+            defaults={'last_activity': timezone.now()},
+        )
+
+        update_fields = ['last_activity', 'modified']
+        if activity_type in ('video_watched', 'video_opened'):
+            behavior.videos_watched += 1
+            update_fields.append('videos_watched')
+        elif activity_type in ('assignment_completed', 'quiz_opened', 'problem_opened'):
+            behavior.problems_attempted += 1
+            update_fields.append('problems_attempted')
+        elif activity_type in ('discussion_participated',):
+            behavior.discussions_participated += 1
+            update_fields.append('discussions_participated')
+
+        behavior.last_activity = timezone.now()
+        behavior.save(update_fields=update_fields)
+        return behavior
+
+    @staticmethod
+    def auto_track_course_completion(user, course_id):
+        """Mark a learner's course progress as completed when auto-detected."""
+        return LearningHoursService.update_student_course_progress(
+            user=user,
+            course_id=str(course_id),
+            status='completed',
+            progress_percentage=100,
+        )
+
+    @staticmethod
+    def increment_student_vle_for_week(user, week_number, increment_by=1):
+        """Increment a student's weekly VLE interaction counter in snapshot table."""
+        if not user or not getattr(user, 'is_authenticated', False):
+            return False
+
+        if week_number not in (1, 2, 3) or increment_by <= 0:
+            return False
+
+        vle_field = f'vle_{week_number}'
+        updated = StudentLearningProcessSnapshot.objects.filter(user=user).update(
+            **{vle_field: F(vle_field) + int(increment_by)}
+        )
+        return updated > 0
+
+    @staticmethod
+    def resolve_learning_week(user, course_id):
+        """Resolve current learning week from enrollment age (1..3)."""
+        if not user or not getattr(user, 'is_authenticated', False):
+            return 1
+
+        enrollment = CourseEnrollment.objects.filter(
+            user=user,
+            course_id=course_id,
+            is_active=True,
+        ).order_by('created').first()
+        if not enrollment or not enrollment.created:
+            return 1
+
+        days_since_enrollment = max(0, (timezone.now() - enrollment.created).days)
+        return min(3, (days_since_enrollment // 7) + 1)
+
+    @staticmethod
+    def record_material_open(user, course_id, module_type='html'):
+        """Record one learning-material open event and increment the matching weekly VLE counter."""
+        if not user or not getattr(user, 'is_authenticated', False):
+            return {'tracked': False, 'reason': 'anonymous_user'}
+
+        module_type = (module_type or 'html').lower().strip()
+        activity_type = {
+            'video': 'video_opened',
+            'problem': 'problem_opened',
+            'quiz': 'quiz_opened',
+            'html': 'material_opened',
+            'slides': 'material_opened',
+        }.get(module_type, 'material_opened')
+
+        week_number = LearningHoursService.resolve_learning_week(user, course_id)
+        incremented = LearningHoursService.increment_student_vle_for_week(
+            user=user,
+            week_number=week_number,
+            increment_by=1,
+        )
+
+        LearningHoursService.update_activity_metrics(
+            user=user,
+            course_id=course_id,
+            activity_type=activity_type,
+        )
+
+        return {
+            'tracked': True,
+            'week_number': week_number,
+            'snapshot_updated': incremented,
+            'activity_type': activity_type,
+        }
 
     @staticmethod
     def set_course_credit_hours(course_id, credit_hours, created_by):
