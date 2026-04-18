@@ -9,6 +9,7 @@ from django.contrib.auth.models import User
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
+from common.djangoapps.student.models import UserProfile
 from lms.djangoapps.learning_analytics.models import StudentLearningProcessSnapshot
 
 
@@ -40,11 +41,17 @@ class Command(BaseCommand):
             action='store_true',
             help='Validate and parse data without writing rows.',
         )
+        parser.add_argument(
+            '--create-missing-users',
+            action='store_true',
+            help='Create auth users when student_id username is missing.',
+        )
 
     def handle(self, *args, **options):
         csv_path = Path(options['csv_path']).expanduser().resolve()
         schema_path = Path(options['schema_path']).expanduser().resolve()
         dry_run = options['dry_run']
+        create_missing_users = options['create_missing_users']
 
         if not csv_path.exists():
             raise CommandError(f'CSV file does not exist: {csv_path}')
@@ -64,7 +71,12 @@ class Command(BaseCommand):
 
             for row_number, row in enumerate(reader, start=2):
                 try:
-                    payload = self._parse_row(row, row_number, codebooks)
+                    payload = self._parse_row(
+                        row,
+                        row_number,
+                        codebooks,
+                        create_missing_users=create_missing_users,
+                    )
                 except ValueError as exc:
                     failed_count += 1
                     if len(error_examples) < 10:
@@ -123,13 +135,13 @@ class Command(BaseCommand):
         if missing:
             raise CommandError(f'CSV is missing required columns: {missing}')
 
-    def _parse_row(self, row, row_number, codebooks):
+    def _parse_row(self, row, row_number, codebooks, create_missing_users=False):
         student_id = row['student_id'].strip()
         if not student_id:
             raise ValueError('student_id is empty')
 
-        user = User.objects.filter(username=student_id).first()
-        if not user:
+        user = self._get_or_create_user(student_id, create_missing_users=create_missing_users)
+        if user is None:
             raise ValueError(f'user not found for student_id {student_id}')
 
         position_text, position_code = self._map_category('position', row['position'], codebooks)
@@ -202,6 +214,30 @@ class Command(BaseCommand):
 
     def _normalize_text(self, value):
         return ' '.join(str(value).strip().split()).lower()
+
+    def _get_or_create_user(self, student_id, create_missing_users=False):
+        user = User.objects.filter(username=student_id).first()
+        if user:
+            self._ensure_user_profile(user)
+            return user
+
+        if not create_missing_users:
+            return user
+
+        # This import is one-time bootstrap data; set unusable password to prevent unknown credentials.
+        user = User.objects.create_user(
+            username=student_id,
+            email=f'{student_id}@example.local',
+            password=None,
+        )
+        self._ensure_user_profile(user)
+        return user
+
+    def _ensure_user_profile(self, user):
+        UserProfile.objects.get_or_create(
+            user=user,
+            defaults={'name': user.username},
+        )
 
     def _update_user_link_if_missing(self, obj, user):
         if obj.user_id is None and user:
