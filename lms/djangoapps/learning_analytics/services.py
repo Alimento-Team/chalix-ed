@@ -10,7 +10,7 @@ import requests
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.utils import timezone
-from django.db import transaction
+from django.db import connection, transaction
 from django.db.models import F, Q
 from django.db.models import Avg, Count, Sum
 
@@ -26,9 +26,172 @@ from .models import (
 )
 from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
 from common.djangoapps.student.models import CourseEnrollment
+from lms.djangoapps.course_home_api.models import ChalixCourseMetadataLMS
 
 
 LOGGER = logging.getLogger(__name__)
+
+
+class CourseSuggestionService:
+    """Generate weighted course recommendations used by learner-home and dashboard surfaces."""
+
+    WEIGHT_POPULAR_ORG = 0.35
+    WEIGHT_POSITION_MATCH = 0.30
+    WEIGHT_MANDATORY_INTERNAL = 0.20
+    WEIGHT_MANDATORY_MINISTRY = 0.15
+    WEIGHT_ELECTIVE = 0.10
+
+    @staticmethod
+    def _get_user_context(user):
+        """Return user organization/professional field context from Chalix role table."""
+        context = {
+            'organization_id': None,
+            'professional_field_id': None,
+        }
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT organization_id, professional_field_id
+                    FROM contentstore_chalixuserrole
+                    WHERE user_id = %s AND is_active = TRUE
+                    ORDER BY id DESC
+                    LIMIT 1
+                    """,
+                    [user.id],
+                )
+                row = cursor.fetchone()
+                if row:
+                    context['organization_id'] = row[0]
+                    context['professional_field_id'] = row[1]
+        except Exception:  # pragma: no cover - defensive fallback
+            LOGGER.exception('Unable to load Chalix user context for recommendations')
+        return context
+
+    @staticmethod
+    def _deterministic_noise(user_id, course_id):
+        """Stable pseudo-random value in [0, 1) used to diversify elective ties."""
+        digest = hashlib.sha256(f"{user_id}:{course_id}".encode('utf-8')).hexdigest()
+        return int(digest[:8], 16) / float(0xFFFFFFFF)
+
+    @staticmethod
+    def _get_learning_hours_state(user):
+        """Get remaining required learning hours for current year."""
+        try:
+            summary = LearningHoursService.get_user_learning_hours_summary(
+                user,
+                timezone.now().year,
+            )
+            required = float(summary.get('required_hours') or 40)
+            completed = float(summary.get('completed_hours') or 0)
+            return max(required - completed, 0)
+        except Exception:  # pragma: no cover - defensive fallback
+            return 40
+
+    @staticmethod
+    def _get_visible_metadata_for_user(user_context):
+        """Return visible course metadata records for a learner."""
+        org_id = user_context.get('organization_id')
+        visibility_query = Q(is_public=True)
+        if org_id:
+            visibility_query |= Q(is_public=False, creator_organization_id=org_id)
+
+        return list(ChalixCourseMetadataLMS.objects.filter(visibility_query))
+
+    @staticmethod
+    def _get_popularity_map(course_ids):
+        """Return active enrollment counts for course IDs."""
+        if not course_ids:
+            return {}
+
+        rows = (
+            CourseEnrollment.objects.filter(is_active=True, course_id__in=course_ids)
+            .values('course_id')
+            .annotate(total=Count('id'))
+        )
+        return {str(row['course_id']): int(row['total']) for row in rows}
+
+    @classmethod
+    def get_ranked_course_ids(cls, user, limit=50):
+        """
+        Return ranked visible course IDs for a learner using weighted criteria.
+
+        Criteria currently implemented:
+        - Popular courses in same organization
+        - Professional field match (position proxy)
+        - Mandatory/elective recommendations to satisfy 40-hour requirement
+        """
+        if not user or not getattr(user, 'is_authenticated', False):
+            return []
+
+        user_context = cls._get_user_context(user)
+        visible_metadata = cls._get_visible_metadata_for_user(user_context)
+        if not visible_metadata:
+            return []
+
+        course_ids = [meta.course_id for meta in visible_metadata]
+        popularity_map = cls._get_popularity_map(course_ids)
+        remaining_hours = cls._get_learning_hours_state(user)
+        user_org_id = user_context.get('organization_id')
+        user_professional_field_id = user_context.get('professional_field_id')
+
+        scored = []
+        has_profile_signal = bool(user_professional_field_id)
+
+        for meta in visible_metadata:
+            course_id = str(meta.course_id)
+            enrollment_count = popularity_map.get(course_id, 0)
+            is_internal_scope = (
+                (meta.is_public is False)
+                and bool(user_org_id)
+                and meta.creator_organization_id == user_org_id
+            )
+            is_ministry_scope = bool(meta.is_public)
+            is_mandatory = bool(meta.is_mandatory_course) or meta.course_category == 'mandatory'
+            is_elective = (
+                meta.course_category == 'elective' or meta.publish_type == 'elective'
+            )
+
+            score = 0.0
+
+            # Criterion 1: Most popular in same organization.
+            if is_internal_scope and enrollment_count > 0:
+                score += cls.WEIGHT_POPULAR_ORG * min(enrollment_count / 20.0, 1.0)
+
+            # Criterion 2: Position/job match using professional_field_id proxy.
+            if (
+                user_professional_field_id
+                and meta.professional_field_id
+                and meta.professional_field_id == user_professional_field_id
+            ):
+                score += cls.WEIGHT_POSITION_MATCH
+
+            # Criteria 3/4: Mandatory and elective coverage for remaining 40-hour requirement.
+            if remaining_hours > 0:
+                if is_mandatory and is_internal_scope:
+                    score += cls.WEIGHT_MANDATORY_INTERNAL
+                elif is_mandatory and is_ministry_scope:
+                    score += cls.WEIGHT_MANDATORY_MINISTRY
+                elif is_elective and (is_internal_scope or is_ministry_scope):
+                    score += cls.WEIGHT_ELECTIVE
+
+            # Cold-start fallback: lean on popularity when profile signals are missing.
+            if not has_profile_signal:
+                score += 0.15 * min(enrollment_count / 30.0, 1.0)
+
+            # Keep low-confidence candidates in deterministic order.
+            score += cls._deterministic_noise(user.id, course_id) * 0.01
+
+            scored.append((course_id, score))
+
+        scored.sort(key=lambda item: item[1], reverse=True)
+        return [course_id for course_id, _ in scored[:limit]]
+
+    @classmethod
+    def get_recommendation_rank_map(cls, user, limit=50):
+        """Return a course_id -> rank map for fast ordering in view/serializer layers."""
+        ranked_ids = cls.get_ranked_course_ids(user=user, limit=limit)
+        return {course_id: index for index, course_id in enumerate(ranked_ids)}
 
 
 class LearningHoursService:

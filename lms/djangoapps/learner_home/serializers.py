@@ -817,7 +817,8 @@ class LearnerDashboardSerializer(serializers.Serializer):
     def get_courses(self, instance):
         """
         Get a list of course cards by serializing enrollments and entitlements into
-        a single list. When filter_type='all_visible', also includes available unenrolled courses.
+        a single list. When filter_type in ('all_visible', 'ai_recommended'),
+        also includes available unenrolled courses.
         """
         courses = []
 
@@ -835,22 +836,31 @@ class LearnerDashboardSerializer(serializers.Serializer):
         
         # If filter_type is 'all_visible', add available (unenrolled) courses
         filter_type = self.context.get('filter_type')
-        if filter_type == 'all_visible':
+        if filter_type in ('all_visible', 'ai_recommended'):
             for course in instance.get("availableCourses", []):
                 courses.append(
                     AvailableCourseSerializer(course).data
                 )
+
+        if filter_type == 'ai_recommended':
+            rank_map = self.context.get('ai_recommendation_rank') or {}
+            courses.sort(
+                key=lambda item: rank_map.get(
+                    str(((item.get('courseRun') or {}).get('courseId') or '')),
+                    10 ** 9,
+                )
+            )
 
         return courses
     
     def get_availableCourses(self, instance):
         """
         Serialize available (unenrolled) courses.
-        Note: When filter_type='all_visible', these are already included in 'courses' field.
+        Note: When filter_type in ('all_visible', 'ai_recommended'), these are already included in 'courses' field.
         This separate field is kept for API transparency and potential future use.
         """
         filter_type = self.context.get('filter_type')
-        if filter_type == 'all_visible':
+        if filter_type in ('all_visible', 'ai_recommended'):
             available_courses = instance.get("availableCourses", [])
             return [
                 AvailableCourseSerializer(course).data

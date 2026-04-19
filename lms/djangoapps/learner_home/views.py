@@ -4,6 +4,7 @@ Views for Learner Home
 
 import logging
 from collections import OrderedDict
+from urllib.parse import urljoin
 
 from completion.exceptions import UnavailableCompletionData
 from completion.utilities import get_key_to_last_completed_block
@@ -66,6 +67,7 @@ from openedx.features.enterprise_support.api import (
 )
 from openedx.features.course_experience import course_home_url
 from lms.djangoapps.learner_home.utils import course_progress_url
+from lms.djangoapps.learning_analytics.services import CourseSuggestionService
 
 logger = logging.getLogger(__name__)
 
@@ -205,7 +207,12 @@ def get_available_courses_for_user(user, enrolled_course_ids):
 
 
 @function_trace("filter_enrollments_by_chalix_metadata")
-def filter_enrollments_by_chalix_metadata(enrollments, user, filter_type=None):
+def filter_enrollments_by_chalix_metadata(
+    enrollments,
+    user,
+    filter_type=None,
+    recommendation_rank_map=None,
+):
     """
     Filter enrollments based on Chalix course metadata.
     
@@ -213,6 +220,7 @@ def filter_enrollments_by_chalix_metadata(enrollments, user, filter_type=None):
         enrollments: List of CourseEnrollment objects
         user: The learner user
         filter_type: Type of filter to apply:
+            - 'ai_recommended': Return recommendation-ranked visible courses for learner
             - 'all_visible': Return all visible courses (Bo public + same org courses) - for AI suggested
             - 'mandatory': Return courses with course_category='mandatory' or is_mandatory_course=True
             - 'elective': Return courses with course_category='elective'
@@ -226,6 +234,21 @@ def filter_enrollments_by_chalix_metadata(enrollments, user, filter_type=None):
     """
     if not filter_type or filter_type == 'all':
         return enrollments
+
+    if filter_type == 'ai_recommended':
+        rank_map = recommendation_rank_map or CourseSuggestionService.get_recommendation_rank_map(
+            user,
+            limit=200,
+        )
+        if not rank_map:
+            return enrollments
+
+        filtered = [
+            enrollment for enrollment in enrollments
+            if str(enrollment.course_id) in rank_map
+        ]
+        filtered.sort(key=lambda enrollment: rank_map.get(str(enrollment.course_id), 10 ** 9))
+        return filtered
     
     try:
         from lms.djangoapps.course_home_api.models import ChalixCourseMetadataLMS
@@ -325,7 +348,14 @@ def filter_enrollments_by_chalix_metadata(enrollments, user, filter_type=None):
 
 
 @function_trace("get_enrollments")
-def get_enrollments(user, org_allow_list, org_block_list, course_limit=None, filter_type=None):
+def get_enrollments(
+    user,
+    org_allow_list,
+    org_block_list,
+    course_limit=None,
+    filter_type=None,
+    recommendation_rank_map=None,
+):
     """Get enrollments and enrollment course modes for user"""
 
     course_enrollments = list(
@@ -335,7 +365,10 @@ def get_enrollments(user, org_allow_list, org_block_list, course_limit=None, fil
     # Apply Chalix metadata filtering if requested
     if filter_type:
         course_enrollments = filter_enrollments_by_chalix_metadata(
-            course_enrollments, user, filter_type
+            course_enrollments,
+            user,
+            filter_type,
+            recommendation_rank_map=recommendation_rank_map,
         )
 
     # Sort the enrollments by enrollment date
@@ -588,11 +621,47 @@ def get_course_programs(user, course_enrollments, site):
 
 
 @function_trace("get_suggested_courses")
-def get_suggested_courses():
+def get_suggested_courses(user=None, limit=5):
     """
-    Currently just returns general recommendations from settings
+    Return personalized recommended courses when possible.
+    Falls back to GENERAL_RECOMMENDATION setting.
     """
     empty_course_suggestions = {"courses": [], "is_personalized_recommendation": False}
+
+    if user and getattr(user, "is_authenticated", False):
+        rank_map = CourseSuggestionService.get_recommendation_rank_map(user, limit=limit)
+        if rank_map:
+            ranked_ids = sorted(rank_map.keys(), key=lambda cid: rank_map[cid])
+            overview_by_id = {
+                str(overview.id): overview
+                for overview in CourseOverview.objects.filter(id__in=ranked_ids)
+            }
+
+            courses = []
+            for course_id in ranked_ids:
+                overview = overview_by_id.get(course_id)
+                if not overview:
+                    continue
+
+                image_url = getattr(overview, "course_image_url", None)
+                if image_url:
+                    image_url = urljoin(settings.LMS_ROOT_URL, image_url)
+
+                courses.append(
+                    {
+                        "course_key": course_id,
+                        "logo_image_url": image_url,
+                        "marketing_url": f"{settings.LMS_ROOT_URL.rstrip('/')}/courses/{course_id}/about",
+                        "title": overview.display_name,
+                    }
+                )
+
+            if courses:
+                return {
+                    "courses": courses,
+                    "is_personalized_recommendation": True,
+                }
+
     return (
         configuration_helpers.get_value(
             "GENERAL_RECOMMENDATION", settings.GENERAL_RECOMMENDATION
@@ -736,16 +805,35 @@ class InitializeView(APIView):  # pylint: disable=unused-argument
             unfulfilled_entitlement_pseudo_sessions
         )
 
+        recommendation_rank_map = {}
+        if filter_type == 'ai_recommended':
+            recommendation_rank_map = CourseSuggestionService.get_recommendation_rank_map(
+                user,
+                limit=200,
+            )
+
         # Get enrollments with optional filter
         course_enrollments, course_mode_info = get_enrollments(
-            user, site_org_whitelist, site_org_blacklist, filter_type=filter_type
+            user,
+            site_org_whitelist,
+            site_org_blacklist,
+            filter_type=filter_type,
+            recommendation_rank_map=recommendation_rank_map,
         )
         
-        # Get available courses (unenrolled but visible) when filter_type is all_visible
+        # Get available courses (unenrolled but visible) when requested.
         available_courses = []
-        if filter_type == 'all_visible':
+        if filter_type in ('all_visible', 'ai_recommended'):
             enrolled_course_ids = {str(e.course_id) for e in course_enrollments}
             available_courses = get_available_courses_for_user(user, enrolled_course_ids)
+            if filter_type == 'ai_recommended' and recommendation_rank_map:
+                available_courses = [
+                    course for course in available_courses
+                    if str(course.id) in recommendation_rank_map
+                ]
+                available_courses.sort(
+                    key=lambda course: recommendation_rank_map.get(str(course.id), 10 ** 9)
+                )
 
         # Get audit access deadlines
         audit_access_deadlines = get_audit_access_deadlines(user, course_enrollments)
@@ -776,7 +864,7 @@ class InitializeView(APIView):  # pylint: disable=unused-argument
         )
 
         # Get suggested courses
-        suggested_courses = get_suggested_courses().get("courses", [])
+        suggested_courses = get_suggested_courses(user=user).get("courses", [])
 
         # Get social media sharing config
         course_share_urls = get_course_share_urls(course_enrollments)
@@ -813,6 +901,7 @@ class InitializeView(APIView):  # pylint: disable=unused-argument
             "pseudo_session_course_overviews": pseudo_session_course_overviews,
             "programs": programs,
             "filter_type": filter_type,  # Pass filter_type so serializer can merge available courses
+            "ai_recommendation_rank": recommendation_rank_map,
         }
 
         response_data = serialize_learner_home_data(learner_dash_data, context)
