@@ -26,7 +26,7 @@ from .models import (
     LearnerRecommendation,
     StudentLearningProcessSnapshot,
 )
-from .services import LearningHoursService, StudentLearningProcessService
+from .services import CourseSuggestionService, LearningHoursService, StudentLearningProcessService
 from .serializers import (
     LearnerStatsSerializer,
     CourseProgressSerializer,
@@ -225,44 +225,34 @@ class RecommendationsAPIView(APIView):
         user = request.user
         limit = int(request.query_params.get('limit', 5))
 
-        # Get existing recommendations
-        recommendations = LearnerRecommendation.objects.filter(
-            user=user,
-            is_active=True
-        )[:limit]
+        rank_map = CourseSuggestionService.get_recommendation_rank_map(user, limit=limit * 4)
+        ranked_ids = sorted(rank_map.keys(), key=lambda course_id: rank_map[course_id])
 
         recommendation_data = []
-
-        for rec in recommendations:
+        for course_id in ranked_ids:
             try:
-                course_overview = CourseOverview.objects.get(id=rec.course_id)
-
-                # Check if already enrolled
-                is_enrolled = CourseEnrollment.objects.filter(
+                if CourseEnrollment.objects.filter(
                     user=user,
-                    course_id=rec.course_id,
-                    is_active=True
-                ).exists()
+                    course_id=course_id,
+                    is_active=True,
+                ).exists():
+                    continue
 
-                if not is_enrolled:  # Only show courses not already enrolled
-                    rec_data = {
-                        'course_id': rec.course_id,
-                        'course_name': course_overview.display_name,
-                        'course_number': course_overview.number,
-                        'recommendation_type': rec.recommendation_type,
-                        'confidence_score': rec.confidence_score,
-                        'reason': rec.reason,
-                        'course_image_url': course_overview.course_image_url,
-                        'instructor_name': getattr(course_overview, 'instructor', 'Unknown'),
-                    }
-                    recommendation_data.append(rec_data)
-
+                course_overview = CourseOverview.objects.get(id=course_id)
+                recommendation_data.append({
+                    'course_id': course_id,
+                    'course_name': course_overview.display_name,
+                    'course_number': course_overview.number,
+                    'recommendation_type': 'ai_recommended',
+                    'confidence_score': max(0.1, 1 - (rank_map[course_id] * 0.05)),
+                    'reason': 'Được gợi ý dựa trên độ phổ biến, nhóm khóa học và hồ sơ công việc của bạn',
+                    'course_image_url': course_overview.course_image_url,
+                    'instructor_name': getattr(course_overview, 'instructor', 'Unknown'),
+                })
+                if len(recommendation_data) >= limit:
+                    break
             except CourseOverview.DoesNotExist:
                 continue
-
-        # If we don't have enough recommendations, generate some based on completed courses
-        if len(recommendation_data) < limit:
-            self._generate_recommendations(user, limit - len(recommendation_data))
 
         serializer = LearnerRecommendationSerializer(recommendation_data, many=True)
         return Response(serializer.data)
