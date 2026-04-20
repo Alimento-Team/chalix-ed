@@ -35,17 +35,31 @@ class CourseReviewView(CreateAPIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
-        review, _ = CourseEmojiReview.objects.update_or_create(
+        unit_usage_key = data.get('unit_usage_key') or None
+        rating = data['rating']
+
+        existing_review = CourseEmojiReview.objects.filter(
             user=request.user,
             course_key=course_key_string,
-            unit_usage_key=data.get('unit_usage_key') or None,
+            unit_usage_key=unit_usage_key,
+        ).first()
+
+        # Clicking the same emoji again removes the existing reaction.
+        if existing_review and existing_review.rating == rating:
+            existing_review.delete()
+            return Response({'ok': True, 'removed': True, 'rating': None})
+
+        CourseEmojiReview.objects.update_or_create(
+            user=request.user,
+            course_key=course_key_string,
+            unit_usage_key=unit_usage_key,
             defaults={
-                'rating': data['rating'],
+                'rating': rating,
                 'comment': data.get('comment', ''),
             }
         )
 
-        return Response({'ok': True})
+        return Response({'ok': True, 'removed': False, 'rating': rating})
 
 
 class CourseReviewSummaryView(APIView):
@@ -73,5 +87,7 @@ class CourseReviewSummaryView(APIView):
         summary = {'like': 0, 'neutral': 0, 'dislike': 0}
         for row in aggregation:
             summary[row['rating']] = row['total']
+
+        summary['my_rating'] = qs.filter(user=request.user).values_list('rating', flat=True).first()
 
         return Response(CourseEmojiReviewSummarySerializer(summary).data)

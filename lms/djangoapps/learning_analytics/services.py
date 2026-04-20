@@ -52,7 +52,7 @@ class CourseSuggestionService:
             with connection.cursor() as cursor:
                 cursor.execute(
                     """
-                    SELECT organization_id, professional_field_id
+                    SELECT organization_id
                     FROM contentstore_chalixuserrole
                     WHERE user_id = %s AND is_active = TRUE
                     ORDER BY id DESC
@@ -63,7 +63,6 @@ class CourseSuggestionService:
                 row = cursor.fetchone()
                 if row:
                     context['organization_id'] = row[0]
-                    context['professional_field_id'] = row[1]
         except Exception:  # pragma: no cover - defensive fallback
             LOGGER.exception('Unable to load Chalix user context for recommendations')
         return context

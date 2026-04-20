@@ -26,7 +26,9 @@
             container.innerHTML = '';
 
             // Check user role
-            const userRole = options.user_role;
+            const roleData = window.CMS_ROLE_DATA || {};
+            const userRole = options.user_role || roleData.user_role_code || roleData.user_role || '';
+            const isAgencyUser = userRole === 'co_quan';
 
             // Create statistics interface
             const statisticsHTML = `
@@ -35,9 +37,20 @@
                         <h2>${contentTitle}</h2>
                         <p class="statistics-description">${contentDescription}</p>
                         
+                        ${isAgencyUser ? `
+                        <div class="statistics-toolbar">
+                            <div class="statistics-year-filter">
+                                <label for="filter-year">Năm</label>
+                                <select id="filter-year" class="year-dropdown" aria-label="Lọc theo năm">
+                                    <option value="">Tất cả năm</option>
+                                </select>
+                            </div>
+                        </div>
+                        ` : ''}
+
                         <!-- Table navigation buttons -->
                         <div class="statistics-nav-buttons">
-                            ${userRole === 'co_quan' ? `
+                            ${isAgencyUser ? `
                             <button class="stat-nav-btn active" data-table="statistics-table-section-1">
                                 <i class="fa fa-clock-o"></i>
                                 <span>Giờ học công chức</span>
@@ -68,10 +81,10 @@
                     </div>
                     <div class="statistics-content">
                         <div class="statistics-tables-container">
-                            ${userRole === 'co_quan' ? `
+                            ${isAgencyUser ? `
                             <!-- Co Quan sees only 2 tables for their organization -->
                             <div class="statistics-table-section" id="statistics-table-section-1">
-                                <h3 class="table-section-title">THỐNG KÊ SỐ GIỜ HỌC CỦA CÔNG CHỨC, VIÊN CHỨC NĂM 2025</h3>
+                                <h3 class="table-section-title" data-base-title="THỐNG KÊ SỐ GIỜ HỌC CỦA CÔNG CHỨC, VIÊN CHỨC">THỐNG KÊ SỐ GIỜ HỌC CỦA CÔNG CHỨC, VIÊN CHỨC NĂM 2025</h3>
                                 <div class="statistics-table-container">
                                     <table class="table table-striped" id="statistics-table">
                                         <thead>
@@ -94,7 +107,7 @@
                                 </div>
                             </div>
                             <div class="statistics-table-section">
-                                <h3 class="table-section-title">THỐNG KÊ SỐ NGƯỜI HỌC CỦA CÁC KHÓA HỌC NĂM 2025</h3>
+                                <h3 class="table-section-title" data-base-title="THỐNG KÊ SỐ NGƯỜI HỌC CỦA CÁC KHÓA HỌC">THỐNG KÊ SỐ NGƯỜI HỌC CỦA CÁC KHÓA HỌC NĂM 2025</h3>
                                 <div class="statistics-table-container">
                                     <table class="table table-striped" id="course-completion-table">
                                         <thead>
@@ -116,7 +129,7 @@
                             ` : `
                             <!-- Bo and other roles see all 4 tables -->
                             <div class="statistics-table-section" id="statistics-table-section-1">
-                                <h3 class="table-section-title">THỐNG KÊ SỐ NGƯỜI HỌC THEO CƠ QUAN NĂM 2025</h3>
+                                <h3 class="table-section-title" data-base-title="THỐNG KÊ SỐ NGƯỜI HỌC THEO CƠ QUAN">THỐNG KÊ SỐ NGƯỜI HỌC THEO CƠ QUAN NĂM 2025</h3>
                                 <div class="statistics-table-container">
                                     <table class="table table-striped" id="organization-completion-table">
                                         <thead>
@@ -136,7 +149,7 @@
                                 </div>
                             </div>
                             <div class="statistics-table-section" id="statistics-table-section-2">
-                                <h3 class="table-section-title">THỐNG KÊ SỐ NGƯỜI HỌC CỦA CÁC KHÓA HỌC NĂM 2025</h3>
+                                <h3 class="table-section-title" data-base-title="THỐNG KÊ SỐ NGƯỜI HỌC CỦA CÁC KHÓA HỌC">THỐNG KÊ SỐ NGƯỜI HỌC CỦA CÁC KHÓA HỌC NĂM 2025</h3>
                                 <div class="statistics-table-container">
                                     <table class="table table-striped" id="course-completion-table">
                                         <thead>
@@ -156,7 +169,7 @@
                                 </div>
                             </div>
                             <div class="statistics-table-section" id="statistics-table-section-3">
-                                <h3 class="table-section-title">THỐNG KÊ SỐ KHÓA HỌC THEO CƠ QUAN NĂM 2025</h3>
+                                <h3 class="table-section-title" data-base-title="THỐNG KÊ SỐ KHÓA HỌC THEO CƠ QUAN">THỐNG KÊ SỐ KHÓA HỌC THEO CƠ QUAN NĂM 2025</h3>
                                 <div class="statistics-table-container">
                                     <table class="table table-striped" id="organization-courses-table">
                                         <thead>
@@ -175,7 +188,7 @@
                                 </div>
                             </div>
                             <div class="statistics-table-section" id="statistics-table-section-4">
-                                <h3 class="table-section-title">THỐNG KÊ SỐ GIỜ HỌC CỦA CÔNG CHỨC, VIÊN CHỨC NĂM 2025</h3>
+                                <h3 class="table-section-title" data-base-title="THỐNG KÊ SỐ GIỜ HỌC CỦA CÔNG CHỨC, VIÊN CHỨC">THỐNG KÊ SỐ GIỜ HỌC CỦA CÔNG CHỨC, VIÊN CHỨC NĂM 2025</h3>
                                 <div class="statistics-table-container">
                                     <table class="table table-striped" id="statistics-table">
                                         <thead>
@@ -205,25 +218,30 @@
 
             container.innerHTML = statisticsHTML;
 
-            // Populate last 3 years (including current year) in the year filter
+            // Populate year filter from current year - 3 up to current year.
             try {
                 const yearSelect = container.querySelector('#filter-year');
                 if (yearSelect) {
-                    // Clear existing options except the first (Tất cả năm)
-                    yearSelect.innerHTML = '<option value="">Tất cả năm</option>';
+                    yearSelect.innerHTML = '';
                     const currentYear = new Date().getFullYear();
-                    for (let i = 0; i < 3; i++) {
-                        const y = currentYear - i;
+                    for (let y = currentYear - 3; y <= currentYear; y++) {
                         const opt = document.createElement('option');
                         opt.value = String(y);
                         opt.textContent = String(y);
                         yearSelect.appendChild(opt);
+                    }
+
+                    // Co quan defaults to current year for yearly reporting.
+                    if (isAgencyUser) {
+                        yearSelect.value = String(currentYear);
                     }
                 }
             } catch (err) {
                 // Non-fatal — continue rendering
                 // debug removed
             }
+
+            this.updateSectionTitles();
 
             // Apply CSS styles
             this.applyStyles();
@@ -310,6 +328,35 @@
                     margin-top: 20px;
                     margin-bottom: 30px;
                     flex-wrap: wrap;
+                }
+
+                .statistics-toolbar {
+                    display: flex;
+                    justify-content: flex-end;
+                    margin-top: 8px;
+                    margin-bottom: 14px;
+                }
+
+                .statistics-year-filter {
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                }
+
+                .statistics-year-filter label {
+                    font-weight: 600;
+                    color: #2c5aa0;
+                    margin: 0;
+                }
+
+                .statistics-year-filter .year-dropdown {
+                    min-width: 130px;
+                    padding: 8px 12px;
+                    border: 1px solid #9fb8d8;
+                    border-radius: 6px;
+                    background: #fff;
+                    color: #2c5aa0;
+                    font-weight: 600;
                 }
 
                 .stat-nav-btn {
@@ -713,9 +760,12 @@
 
                     if (phoneInput) phoneInput.value = '';
                     if (nameInput) nameInput.value = '';
-                    if (yearSelect) yearSelect.value = '';
+                    if (yearSelect) {
+                        yearSelect.value = String(new Date().getFullYear());
+                    }
                     if (completionSelect) completionSelect.value = '';
 
+                    self.updateSectionTitles();
                     self.loadStatisticsData();
                 });
             }
@@ -744,6 +794,14 @@
                     if (e.key === 'Enter') {
                         self.loadStatisticsData();
                     }
+                });
+            }
+
+            const yearSelect = document.getElementById('filter-year');
+            if (yearSelect) {
+                yearSelect.addEventListener('change', function() {
+                    self.updateSectionTitles();
+                    self.loadStatisticsData();
                 });
             }
         },
@@ -821,6 +879,7 @@
 
         renderStatisticsData: function(data) {
             // Debug logging removed in production
+            this.updateSectionTitles();
             
             // Update summary cards
             const totalLearners = document.getElementById('total-learners');
@@ -1028,13 +1087,26 @@
             updateNumber();
         },
 
+        updateSectionTitles: function() {
+            const selectedYear = document.getElementById('filter-year')?.value;
+            const displayYear = selectedYear || String(new Date().getFullYear());
+            const titleNodes = document.querySelectorAll('.table-section-title[data-base-title]');
+
+            titleNodes.forEach((node) => {
+                const baseTitle = node.getAttribute('data-base-title');
+                if (baseTitle) {
+                    node.textContent = `${baseTitle} NĂM ${displayYear}`;
+                }
+            });
+        },
+
         exportStatisticsData: function() {
             // Get current filter parameters
             const filters = {
-                phone: document.getElementById('filter-phone').value.trim(),
-                name: document.getElementById('filter-name').value.trim(),
-                year: document.getElementById('filter-year').value,
-                completion: document.getElementById('filter-completion').value,
+                phone: (document.getElementById('filter-phone')?.value || '').trim(),
+                name: (document.getElementById('filter-name')?.value || '').trim(),
+                year: document.getElementById('filter-year')?.value || '',
+                completion: document.getElementById('filter-completion')?.value || '',
                 export: 'csv'
             };
 

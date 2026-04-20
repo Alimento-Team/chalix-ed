@@ -2072,6 +2072,12 @@ def _get_statistics_data(request):
     phone_filter = request.GET.get('phone', '').strip()
     name_filter = request.GET.get('name', '').strip()
     year_filter = request.GET.get('year', '').strip()
+    year_filter_int = None
+    if year_filter:
+        try:
+            year_filter_int = int(year_filter)
+        except (TypeError, ValueError):
+            year_filter_int = None
     completion_filter = request.GET.get('completion', '').strip()
     page = int(request.GET.get('page', 1))
     per_page = 10
@@ -2101,9 +2107,9 @@ def _get_statistics_data(request):
         )
     
     # Apply year filter (based on enrollment date)
-    if year_filter:
+    if year_filter_int:
         users_query = users_query.filter(
-            courseenrollment__created__year=int(year_filter)
+            courseenrollment__created__year=year_filter_int
         )
     
     # Get learner statistics
@@ -2119,6 +2125,9 @@ def _get_statistics_data(request):
             user=user, 
             is_active=True
         ).select_related('course')
+
+        if year_filter_int:
+            enrollments = enrollments.filter(created__year=year_filter_int)
         
         if not enrollments.exists():
             continue
@@ -2247,7 +2256,13 @@ def _get_course_completion_stats(request):
     from lms.djangoapps.grades.models import PersistentCourseGrade
     from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
     from cms.djangoapps.contentstore.chalix_roles import get_user_primary_role
-    from django.db.models import Count, Q
+    year_filter = request.GET.get('year', '').strip()
+    year_filter_int = None
+    if year_filter:
+        try:
+            year_filter_int = int(year_filter)
+        except (TypeError, ValueError):
+            year_filter_int = None
     
     # Check user role for organization filtering
     user_role = get_user_primary_role(request.user)
@@ -2260,12 +2275,15 @@ def _get_course_completion_stats(request):
         # For co_quan: only courses with enrollments from their organization
         courses = CourseOverview.objects.filter(
             courseenrollment__is_active=True,
-                courseenrollment__user__profile__meta__icontains=org_filter
+            courseenrollment__user__profile__meta__icontains=org_filter
         ).distinct()
     else:
         courses = CourseOverview.objects.filter(
             courseenrollment__is_active=True
         ).distinct()
+
+    if year_filter_int:
+        courses = courses.filter(courseenrollment__created__year=year_filter_int)
     
     course_stats = []
     for course in courses:
@@ -2275,8 +2293,10 @@ def _get_course_completion_stats(request):
             current_learners_query = CourseEnrollment.objects.filter(
                 course_id=course.id,
                 is_active=True,
-                    user__profile__meta__icontains=org_filter
+                user__profile__meta__icontains=org_filter
             )
+            if year_filter_int:
+                current_learners_query = current_learners_query.filter(created__year=year_filter_int)
             completed_query = PersistentCourseGrade.objects.filter(
                 course_id=course.id,
                 percent_grade__gte=0.6,
@@ -2288,6 +2308,8 @@ def _get_course_completion_stats(request):
                 course_id=course.id,
                 is_active=True
             )
+            if year_filter_int:
+                current_learners_query = current_learners_query.filter(created__year=year_filter_int)
             completed_query = PersistentCourseGrade.objects.filter(
                 course_id=course.id,
                 percent_grade__gte=0.6
@@ -2317,11 +2339,17 @@ def _get_organization_completion_stats(request):
     Column TT (row number) should be displayed as smaller column
     """
     from cms.djangoapps.contentstore.models import ChalixOrganization, ChalixUserRole
-    from common.djangoapps.student.models import User
-    from lms.djangoapps.grades.models import PersistentCourseGrade
     from common.djangoapps.student.models import CourseEnrollment
-    from django.db.models import Count, Q
+    from lms.djangoapps.grades.models import PersistentCourseGrade
     import logging
+
+    year_filter = request.GET.get('year', '').strip()
+    year_filter_int = None
+    if year_filter:
+        try:
+            year_filter_int = int(year_filter)
+        except (TypeError, ValueError):
+            year_filter_int = None
     
     logger = logging.getLogger(__name__)
     
@@ -2342,15 +2370,27 @@ def _get_organization_completion_stats(request):
         if not org_users:
             continue
         
-        # Count total learners from this organization
-        learner_count = len(org_users)
+        # Count total learners from this organization that started learning in selected year.
+        learner_count = 0
         
         # Count how many completed at least one course
         completed_learners = 0
         for user_id in org_users:
-            # Check if user has any course with passing grade
+            user_enrollments = CourseEnrollment.objects.filter(
+                user_id=user_id,
+                is_active=True,
+            )
+            if year_filter_int:
+                user_enrollments = user_enrollments.filter(created__year=year_filter_int)
+
+            if not user_enrollments.exists():
+                continue
+
+            learner_count += 1
+            enrolled_course_ids = user_enrollments.values_list('course_id', flat=True).distinct()
             has_completed = PersistentCourseGrade.objects.filter(
                 user_id=user_id,
+                course_id__in=enrolled_course_ids,
                 percent_grade__gte=0.6  # 60% passing grade
             ).exists()
             
@@ -2385,6 +2425,14 @@ def _get_organization_courses_stats(request):
     from cms.djangoapps.contentstore.models import ChalixOrganization, ChalixUserRole
     from common.djangoapps.student.models import CourseEnrollment
     import logging
+
+    year_filter = request.GET.get('year', '').strip()
+    year_filter_int = None
+    if year_filter:
+        try:
+            year_filter_int = int(year_filter)
+        except (TypeError, ValueError):
+            year_filter_int = None
     
     logger = logging.getLogger(__name__)
     
@@ -2406,10 +2454,13 @@ def _get_organization_courses_stats(request):
             continue
         
         # Count distinct courses that members of this organization are enrolled in
-        courses_count = CourseEnrollment.objects.filter(
+        enrollment_query = CourseEnrollment.objects.filter(
             user_id__in=org_users,
             is_active=True
-        ).values('course_id').distinct().count()
+        )
+        if year_filter_int:
+            enrollment_query = enrollment_query.filter(created__year=year_filter_int)
+        courses_count = enrollment_query.values('course_id').distinct().count()
         
         logger.info(f"[Organization Courses Stats] Org: {org.display_name}, Courses: {courses_count}")
         
@@ -2441,6 +2492,12 @@ def _export_statistics_csv(request):
     phone_filter = request.GET.get('phone', '').strip()
     name_filter = request.GET.get('name', '').strip()
     year_filter = request.GET.get('year', '').strip()
+    year_filter_int = None
+    if year_filter:
+        try:
+            year_filter_int = int(year_filter)
+        except (TypeError, ValueError):
+            year_filter_int = None
     completion_filter = request.GET.get('completion', '').strip()
     
     # Base queryset
@@ -2457,8 +2514,8 @@ def _export_statistics_csv(request):
             Q(first_name__icontains=name_filter) |
             Q(last_name__icontains=name_filter)
         )
-    if year_filter:
-        users_query = users_query.filter(courseenrollment__created__year=int(year_filter))
+    if year_filter_int:
+        users_query = users_query.filter(courseenrollment__created__year=year_filter_int)
     
     # Create HTTP response with CSV content type
     response = HttpResponse(content_type='text/csv; charset=utf-8')
@@ -2476,6 +2533,8 @@ def _export_statistics_csv(request):
     row_num = 1
     for user in users_query:
         enrollments = CourseEnrollment.objects.filter(user=user, is_active=True).select_related('course')
+        if year_filter_int:
+            enrollments = enrollments.filter(created__year=year_filter_int)
         if not enrollments.exists():
             continue
             
