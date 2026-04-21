@@ -68,8 +68,7 @@ class CourseSearchView(View):
         # Basic search in course overviews
         course_overviews = CourseOverview.objects.filter(
             Q(display_name__icontains=query) |
-            Q(short_description__icontains=query) |
-            Q(overview__icontains=query)
+            Q(short_description__icontains=query)
         ).filter(
             catalog_visibility='both'  # Only show publicly visible courses
         ).order_by('-modified')
