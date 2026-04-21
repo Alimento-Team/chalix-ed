@@ -195,11 +195,16 @@ def get_available_courses_for_user(user, enrolled_course_ids):
             except Exception as e:
                 logger.warning(f"[AVAILABLE COURSES] Invalid course_id {metadata.course_id}: {e}")
         
-        # Fetch course overviews
+        # Fetch course overviews. Some keys may resolve to None (e.g. deleted/missing overview),
+        # so filter them out before returning.
         available_courses = CourseOverview.get_from_ids(course_keys)
-        logger.info(f"[AVAILABLE COURSES] Returning {len(available_courses)} course overviews")
-        
-        return list(available_courses.values())
+        non_null_courses = [course for course in available_courses.values() if course is not None]
+        logger.info(
+            f"[AVAILABLE COURSES] Returning {len(non_null_courses)} course overviews "
+            f"({len(available_courses) - len(non_null_courses)} missing)"
+        )
+
+        return non_null_courses
         
     except Exception as e:
         logger.error(f"[AVAILABLE COURSES] Error getting available courses: {e}", exc_info=True)
@@ -829,7 +834,7 @@ class InitializeView(APIView):  # pylint: disable=unused-argument
             if filter_type == 'ai_recommended' and recommendation_rank_map:
                 available_courses = [
                     course for course in available_courses
-                    if str(course.id) in recommendation_rank_map
+                    if course is not None and str(course.id) in recommendation_rank_map
                 ]
                 available_courses.sort(
                     key=lambda course: recommendation_rank_map.get(str(course.id), 10 ** 9)
