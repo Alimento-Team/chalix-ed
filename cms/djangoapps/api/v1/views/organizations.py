@@ -1,5 +1,5 @@
 from rest_framework import viewsets, permissions
-from cms.djangoapps.contentstore.models import ChalixOrganization
+from cms.djangoapps.contentstore.models import ChalixOrganization, ChalixUserRole
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.decorators import action
@@ -19,13 +19,17 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         or only the organization they admin for regular users.
         """
         user = self.request.user
+        # Exclude organizations associated with bo-role users (ministry-level accounts)
+        bo_org_ids = ChalixUserRole.objects.filter(
+            role='bo', is_active=True
+        ).values_list('organization_id', flat=True)
         # Check if user is GlobalStaff or has 'bo' role
         if is_bo_user(user):
-            # Bộ can see all active organizations
-            return ChalixOrganization.objects.filter(is_active=True)
+            # Bộ can see all active organizations except other bo-level organizations
+            return ChalixOrganization.objects.filter(is_active=True).exclude(id__in=bo_org_ids)
         else:
             # Regular users can only see their own organization
-            return ChalixOrganization.objects.filter(admin=user, is_active=True)
+            return ChalixOrganization.objects.filter(admin=user, is_active=True).exclude(id__in=bo_org_ids)
 
     def create(self, request, *args, **kwargs):
         # Only superusers or 'bo' role can create organizations

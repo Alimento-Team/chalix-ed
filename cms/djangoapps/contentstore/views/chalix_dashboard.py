@@ -256,15 +256,125 @@ def dashboard_api(request):
 
 
 def _get_statistics_data(request):
-    """Get statistics data for the dashboard"""
-    courses, _ = get_courses_accessible_to_user(request)
-    courses_list = list(courses)
-    
+    """Get statistics data for the dashboard statistics tab."""
+    from django.contrib.auth import get_user_model
+    from django.db.models import Q
+    from cms.djangoapps.contentstore.models import ChalixUserRole
+
+    User = get_user_model()
+
+    def _to_number(value, default=0):
+        try:
+            if value in (None, ''):
+                return default
+            return float(value)
+        except (TypeError, ValueError):
+            return default
+
+    try:
+        page = int(request.GET.get('page', 1))
+    except (TypeError, ValueError):
+        page = 1
+
+    if page < 1:
+        page = 1
+
+    per_page = 50
+    year_value = 2026
+
+    # Scope learners by current user's role visibility.
+    current_role = get_user_primary_role(request.user)
+    role_qs = ChalixUserRole.objects.filter(is_active=True).select_related('organization')
+
+    if is_bo_user(request.user):
+        pass
+    elif current_role and getattr(current_role, 'organization_id', None):
+        role_qs = role_qs.filter(organization_id=current_role.organization_id)
+    else:
+        role_qs = role_qs.none()
+
+    visible_user_ids = role_qs.values_list('user_id', flat=True).distinct()
+    users_qs = User.objects.filter(id__in=visible_user_ids).select_related('profile').order_by('id')
+
+    name_query = (request.GET.get('name') or '').strip()
+    if name_query:
+        users_qs = users_qs.filter(
+            Q(profile__name__icontains=name_query)
+            | Q(username__icontains=name_query)
+            | Q(email__icontains=name_query)
+        )
+
+    total_items = users_qs.count()
+    start = (page - 1) * per_page
+    end = start + per_page
+    users_page = list(users_qs[start:end])
+
+    learners = []
+    completed_count = 0
+    total_hours_sum = 0
+
+    for user in users_page:
+        profile = getattr(user, 'profile', None)
+        full_name = None
+        if profile and getattr(profile, 'name', None):
+            full_name = profile.name
+        else:
+            full_name = f"{user.first_name or ''} {user.last_name or ''}".strip() or user.username
+
+        meta = {}
+        if profile:
+            try:
+                meta = profile.get_meta() if hasattr(profile, 'get_meta') else {}
+            except Exception:
+                meta = {}
+
+        total_studied_time = _to_number(
+            meta.get('total_studied_time', meta.get('total_hours', 0)),
+            default=0,
+        )
+        completed_percentage = _to_number(
+            meta.get('completed_percentage', meta.get('completion_percentage', 0)),
+            default=0,
+        )
+        status_raw = meta.get('status', '')
+        status_value = status_raw.strip() if isinstance(status_raw, str) else status_raw
+
+        if completed_percentage >= 100:
+            completed_count += 1
+        total_hours_sum += total_studied_time
+
+        learners.append({
+            'name': full_name,
+            'phone': '',
+            'year': year_value,
+            'total_studied_time': total_studied_time,
+            'completed_percentage': completed_percentage,
+            'status': status_value,
+            # Backward-compatible aliases for older frontend code paths.
+            'total_hours': total_studied_time,
+            'completion_percentage': completed_percentage,
+        })
+
+    total_pages = (total_items + per_page - 1) // per_page if total_items else 0
+    average_hours = (total_hours_sum / len(learners)) if learners else 0
+
     return {
-        'total_courses': len(courses_list),
-        'active_courses': len([c for c in courses_list if not c.get('archived', False)]),
-        'total_users': 0,  # Will be implemented later
-        'active_users': 0,  # Will be implemented later
+        'summary': {
+            'total_learners': total_items,
+            'completed_learners': completed_count,
+            'completion_rate': round((completed_count / len(learners)) * 100, 2) if learners else 0,
+            'average_hours': round(average_hours, 2),
+        },
+        'course_completions': [],
+        'organization_completions': [],
+        'organization_courses': [],
+        'learners': learners,
+        'pagination': {
+            'current_page': page,
+            'total_pages': total_pages,
+            'total_items': total_items,
+            'per_page': per_page,
+        },
     }
 
 
@@ -2071,13 +2181,8 @@ def _get_statistics_data(request):
     # Get filter parameters
     phone_filter = request.GET.get('phone', '').strip()
     name_filter = request.GET.get('name', '').strip()
-    year_filter = request.GET.get('year', '').strip()
-    year_filter_int = None
-    if year_filter:
-        try:
-            year_filter_int = int(year_filter)
-        except (TypeError, ValueError):
-            year_filter_int = None
+    # Requirement: year displayed for this statistics table is fixed to 2026.
+    year_filter_int = 2026
     completion_filter = request.GET.get('completion', '').strip()
     page = int(request.GET.get('page', 1))
     per_page = 10
@@ -2187,29 +2292,42 @@ def _get_statistics_data(request):
             elif completion_filter == 'under_50' and completion_percentage >= 50:
                 continue
         
-        # Get enrollment year (most recent)
-        latest_enrollment = enrollments.order_by('-created').first()
-        enrollment_year = latest_enrollment.created.year if latest_enrollment else datetime.now().year
-        
+        profile_meta = {}
+        if hasattr(user, 'profile') and user.profile:
+            try:
+                profile_meta = user.profile.get_meta() if hasattr(user.profile, 'get_meta') else {}
+            except Exception:
+                profile_meta = {}
+
+        calculated_total_hours = round(total_estimated_hours * (completion_percentage / 100), 1)
+        total_studied_time = profile_meta.get('total_studied_time', calculated_total_hours)
+        completed_percentage = profile_meta.get('completed_percentage', round(completion_percentage, 1))
+        status_value = profile_meta.get('status', '')
+
         learner_data = {
             'id': user.id,
             'name': user.profile.name if hasattr(user, 'profile') and user.profile.name else f"{user.first_name} {user.last_name}".strip(),
-            'phone': user.profile.phone_number if hasattr(user, 'profile') else None,
-            'year': enrollment_year,
-            'total_hours': round(total_estimated_hours * (completion_percentage / 100), 1),
-            'completion_percentage': round(completion_percentage, 1),
+            # Requirement: keep phone column with no data.
+            'phone': '',
+            'year': 2026,
+            'total_studied_time': total_studied_time,
+            'completed_percentage': completed_percentage,
+            'status': status_value,
+            # Backward-compatible aliases for existing frontend code paths.
+            'total_hours': total_studied_time,
+            'completion_percentage': completed_percentage,
             'enrollments_count': enrollments.count()
         }
         
         learners_data.append(learner_data)
-        total_completion_sum += completion_percentage
-        total_hours_sum += learner_data['total_hours']
+        total_completion_sum += float(completed_percentage or 0)
+        total_hours_sum += float(total_studied_time or 0)
         
-        if completion_percentage >= 100:
+        if float(completed_percentage or 0) >= 100:
             completed_learners += 1
     
-    # Sort learners by completion percentage (descending)
-    learners_data.sort(key=lambda x: x['completion_percentage'], reverse=True)
+    # Sort learners by completed percentage (descending)
+    learners_data.sort(key=lambda x: x['completed_percentage'], reverse=True)
     
     # Paginate results
     paginator = Paginator(learners_data, per_page)

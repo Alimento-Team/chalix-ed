@@ -500,14 +500,14 @@ def list_users(request):
       - page (int, default=1)
       - per_page (int, default=50)
 
-    Response shape:
-      {
-        'success': True,
-        'users': [ { id, username, full_name, phone, email, organization, role }, ... ],
-        'total': <int>,
-        'page': <int>,
-        'per_page': <int>
-      }
+        Response shape:
+            {
+                'success': True,
+                'users': [ { id, username, name, gender, email, department, system_user_role }, ... ],
+                'total': <int>,
+                'page': <int>,
+                'per_page': <int>
+            }
     """
     try:
         current_role = get_user_current_role(request.user)
@@ -610,14 +610,17 @@ def list_users(request):
             users_data.append({
                 'id': u.id,
                 'username': u.username,
+                'name': full_name,
                 'full_name': full_name,
                 'phone': phone,
                 'email': u.email,
+                'department': org_display,
                 'organization': org_display,
                 'role': role_display,
                 'gender': gender_display,
+                'system_user_role': 'Tài khoản Công chức/Viên chức',
                 'meta': meta_data,
-                'user_role': role_display  # Include role for the last column
+                'user_role': 'Tài khoản Công chức/Viên chức'
             })
 
         return Response({

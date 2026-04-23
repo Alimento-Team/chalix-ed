@@ -192,9 +192,10 @@
             <div class="header-actions">
               % if user.is_authenticated:
               <span class="user-display-name">
-                ${user.get_full_name() or user.username}
                 % if org_name:
-                 - ${org_name}
+                ${org_name}
+                % else:
+                ${user.get_full_name() or user.username}
                 % endif
               </span>
               % endif

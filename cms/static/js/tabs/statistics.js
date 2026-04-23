@@ -42,7 +42,7 @@
                             <div class="statistics-year-filter">
                                 <label for="filter-year">Năm</label>
                                 <select id="filter-year" class="year-dropdown" aria-label="Lọc theo năm">
-                                    <option value="">Tất cả năm</option>
+                                    <option value="2026" selected>2026</option>
                                 </select>
                             </div>
                         </div>
@@ -218,23 +218,17 @@
 
             container.innerHTML = statisticsHTML;
 
-            // Populate year filter from current year - 3 up to current year.
+            // Statistics requirement: fixed display year is 2026.
             try {
                 const yearSelect = container.querySelector('#filter-year');
                 if (yearSelect) {
                     yearSelect.innerHTML = '';
-                    const currentYear = new Date().getFullYear();
-                    for (let y = currentYear - 3; y <= currentYear; y++) {
-                        const opt = document.createElement('option');
-                        opt.value = String(y);
-                        opt.textContent = String(y);
-                        yearSelect.appendChild(opt);
-                    }
-
-                    // Co quan defaults to current year for yearly reporting.
-                    if (isAgencyUser) {
-                        yearSelect.value = String(currentYear);
-                    }
+                    const fixedYear = '2026';
+                    const opt = document.createElement('option');
+                    opt.value = fixedYear;
+                    opt.textContent = fixedYear;
+                    yearSelect.appendChild(opt);
+                    yearSelect.value = fixedYear;
                 }
             } catch (err) {
                 // Non-fatal — continue rendering
@@ -761,7 +755,7 @@
                     if (phoneInput) phoneInput.value = '';
                     if (nameInput) nameInput.value = '';
                     if (yearSelect) {
-                        yearSelect.value = String(new Date().getFullYear());
+                        yearSelect.value = '2026';
                     }
                     if (completionSelect) completionSelect.value = '';
 
@@ -989,18 +983,20 @@
 
             let html = '';
             learners.forEach((learner, index) => {
-                const statusClass = this.getStatusClass(learner.completion_percentage);
-                const statusText = this.getStatusText(learner.completion_percentage);
+                const learnerName = this.escapeHtml(learner.name || 'N/A');
+                const totalStudiedTime = learner.total_studied_time ?? learner.total_hours ?? 0;
+                const completedPercentage = learner.completed_percentage ?? learner.completion_percentage ?? 0;
+                const status = this.escapeHtml(learner.status || '');
                 
                 html += `
                     <tr>
                         <td>${index + 1}</td>
-                        <td>${learner.name || 'N/A'}</td>
-                        <td>${learner.phone || 'N/A'}</td>
-                        <td>${learner.year || 'N/A'}</td>
-                        <td>${learner.total_hours || 0} giờ</td>
-                        <td>${learner.completion_percentage || 0}%</td>
-                        <td><span class="completion-status ${statusClass}">${statusText}</span></td>
+                        <td>${learnerName}</td>
+                        <td></td>
+                        <td>2026</td>
+                        <td>${totalStudiedTime}</td>
+                        <td>${completedPercentage}%</td>
+                        <td>${status}</td>
                     </tr>
                 `;
             });
@@ -1089,7 +1085,7 @@
 
         updateSectionTitles: function() {
             const selectedYear = document.getElementById('filter-year')?.value;
-            const displayYear = selectedYear || String(new Date().getFullYear());
+            const displayYear = selectedYear || '2026';
             const titleNodes = document.querySelectorAll('.table-section-title[data-base-title]');
 
             titleNodes.forEach((node) => {
@@ -1133,6 +1129,15 @@
                 .find(row => row.startsWith('csrftoken='))
                 ?.split('=')[1];
             return cookieValue || '';
+        },
+
+        escapeHtml: function(value) {
+            return String(value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
         },
 
         showError: function(message) {
