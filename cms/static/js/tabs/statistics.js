@@ -37,7 +37,7 @@
                         <h2>${contentTitle}</h2>
                         <p class="statistics-description">${contentDescription}</p>
                         
-                        ${isAgencyUser ? `
+                        ${`
                         <div class="statistics-toolbar">
                             <div class="statistics-year-filter">
                                 <label for="filter-year">Năm</label>
@@ -46,7 +46,7 @@
                                 </select>
                             </div>
                         </div>
-                        ` : ''}
+                        `}
 
                         <!-- Table navigation buttons -->
                         <div class="statistics-nav-buttons">
