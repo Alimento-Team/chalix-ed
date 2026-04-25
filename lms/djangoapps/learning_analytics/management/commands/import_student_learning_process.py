@@ -20,6 +20,97 @@ from lms.djangoapps.learning_analytics.models import StudentLearningProcessSnaps
 class Command(BaseCommand):
     help = 'One-time import for student learning-process snapshots.'
 
+    DEFAULT_CODEBOOKS = {
+        'position': {
+            'nhan vien': 0,
+            'chuyen vien': 1,
+            'chuyen vien chinh': 2,
+            'lanh dao': 3,
+        },
+        'gender': {
+            'nam': 0,
+            'nu': 1,
+        },
+        'age': {
+            'tu 20 den 25 tuoi': 1,
+            'tren 25 tuoi': 2,
+        },
+        'job_title': {
+            'cong chuc': 0,
+            'vien chuc': 1,
+        },
+        'experience': {
+            'duoi 5 nam': 0,
+            'tu 5 den 10 nam': 1,
+            'tren 10 nam': 2,
+        },
+        'location': {
+            'ha noi': 1,
+            'bac ninh': 2,
+            'nam dinh': 3,
+            'bac giang': 4,
+            'quang ninh': 5,
+            'hai phong': 6,
+            'hai duong': 7,
+            'hung yen': 8,
+            'thai binh': 9,
+            'ninh binh': 10,
+            'ha nam': 11,
+            'ha giang': 12,
+            'cao bang': 13,
+            'lao cai': 14,
+            'son la': 15,
+            'lai chau': 16,
+            'bac can': 17,
+            'lang son': 18,
+            'tuyen quang': 19,
+            'yen bai': 20,
+            'thai nguyen': 21,
+            'dien bien': 22,
+            'phu tho': 23,
+            'vinh phuc': 24,
+            'hoa binh': 25,
+            'thanh hoa': 26,
+            'nghe an': 27,
+            'ha tinh': 28,
+            'quang binh': 29,
+            'quang tri': 30,
+            'thua thien hue': 31,
+            'da nang': 32,
+            'quang nam': 33,
+            'quang ngai': 34,
+            'kon tum': 35,
+            'gia lai': 36,
+            'binh dinh': 37,
+            'phu yen': 38,
+            'dak lak': 39,
+            'khanh hoa': 40,
+            'dak nong': 41,
+            'lam dong': 42,
+            'ninh thuan': 43,
+            'binh phuoc': 44,
+            'dong nai': 45,
+            'binh thuan': 46,
+            'tp ho chi minh': 47,
+            'long an': 48,
+            'ba ria-vung tau': 49,
+            'dong thap': 50,
+            'an giang': 51,
+            'tien giang': 52,
+            'vinh long': 53,
+            'ben tre': 54,
+            'can tho': 55,
+            'kien giang': 56,
+            'tra vinh': 57,
+            'hau giang': 58,
+            'soc trang': 59,
+            'bac lieu': 60,
+            'ca mau': 61,
+            'tay ninh': 62,
+            'binh duong': 63,
+        },
+    }
+
     REQUIRED_BASE_COLUMNS = [
         'course_id',
         'position',
@@ -50,7 +141,7 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument('--csv-path', required=True, help='Path to source CSV file.')
-        parser.add_argument('--schema-path', required=True, help='Path to dataset description JSON file.')
+        parser.add_argument('--schema-path', required=False, help='Optional path to dataset description JSON file.')
         parser.add_argument(
             '--prepared-input',
             action='store_true',
@@ -74,7 +165,8 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         csv_path = Path(options['csv_path']).expanduser().resolve()
-        schema_path = Path(options['schema_path']).expanduser().resolve()
+        schema_path_option = options.get('schema_path')
+        schema_path = Path(schema_path_option).expanduser().resolve() if schema_path_option else None
         prepared_input = options['prepared_input']
         dry_run = options['dry_run']
         create_missing_users = options['create_missing_users']
@@ -82,10 +174,12 @@ class Command(BaseCommand):
 
         if not csv_path.exists():
             raise CommandError(f'CSV file does not exist: {csv_path}')
-        if not schema_path.exists():
-            raise CommandError(f'Schema file does not exist: {schema_path}')
 
-        codebooks = self._load_codebooks(schema_path)
+        codebooks = self._default_codebooks()
+        if schema_path is not None:
+            if not schema_path.exists():
+                raise CommandError(f'Schema file does not exist: {schema_path}')
+            codebooks = self._load_codebooks(schema_path, base_codebooks=codebooks)
 
         created_count = 0
         updated_count = 0
@@ -159,7 +253,10 @@ class Command(BaseCommand):
         for msg in error_examples:
             self.stdout.write(self.style.WARNING(msg))
 
-    def _load_codebooks(self, schema_path):
+    def _default_codebooks(self):
+        return {field: dict(entries) for field, entries in self.DEFAULT_CODEBOOKS.items()}
+
+    def _load_codebooks(self, schema_path, base_codebooks=None):
         with schema_path.open('r', encoding='utf-8') as handle:
             schema = json.load(handle)
 
@@ -168,11 +265,16 @@ class Command(BaseCommand):
         def make_reverse_map(field_name, value_key='values'):
             source = fields.get(field_name, {}).get(value_key, {})
             reverse_map = {}
-            for code, label in source.items():
-                reverse_map[self._normalize_text(label)] = int(code)
+            if isinstance(source, dict):
+                for code, label in source.items():
+                    reverse_map[self._normalize_text(label)] = int(code)
+            elif isinstance(source, list):
+                for index, label in enumerate(source):
+                    reverse_map[self._normalize_text(label)] = index
             return reverse_map
 
-        return {
+        codebooks = base_codebooks or self._default_codebooks()
+        schema_books = {
             'position': make_reverse_map('position'),
             'gender': make_reverse_map('gender'),
             'location': make_reverse_map('location', value_key='all_possible_values'),
@@ -180,6 +282,10 @@ class Command(BaseCommand):
             'job_title': make_reverse_map('job_title'),
             'experience': make_reverse_map('experience'),
         }
+        for key, reverse_map in schema_books.items():
+            if reverse_map:
+                codebooks[key] = reverse_map
+        return codebooks
 
     def _validate_header(self, fieldnames):
         if not fieldnames:
