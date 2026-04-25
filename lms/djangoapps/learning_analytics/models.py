@@ -430,6 +430,7 @@ class StudentLearningProcessSnapshot(models.Model):
     )
     student_id = models.CharField(max_length=32)
     course_id = models.CharField(max_length=255)
+    external_user_id = models.CharField(max_length=64, blank=True)
 
     position_code = models.PositiveSmallIntegerField()
     position_text = models.CharField(max_length=64)
@@ -450,6 +451,9 @@ class StudentLearningProcessSnapshot(models.Model):
     vle_1 = models.PositiveIntegerField()
     vle_2 = models.PositiveIntegerField()
     vle_3 = models.PositiveIntegerField()
+    total_studied_time = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    completed_percentage = models.PositiveSmallIntegerField(null=True, blank=True)
+    status = models.CharField(max_length=32, blank=True)
     final_score = models.DecimalField(max_digits=4, decimal_places=2, null=True, blank=True)
     predicted_final_score = models.DecimalField(max_digits=4, decimal_places=2, null=True, blank=True)
     prediction_source = models.CharField(max_length=32, blank=True)
@@ -500,6 +504,20 @@ class StudentLearningProcessSnapshot(models.Model):
                     (models.Q(final_score__gte=0) & models.Q(final_score__lte=10))
                 ),
                 name='la_snapshot_final_0_10',
+            ),
+            models.CheckConstraint(
+                check=(
+                    models.Q(completed_percentage__isnull=True) |
+                    (models.Q(completed_percentage__gte=0) & models.Q(completed_percentage__lte=100))
+                ),
+                name='la_snapshot_completed_pct_0_100',
+            ),
+            models.CheckConstraint(
+                check=(
+                    models.Q(total_studied_time__isnull=True) |
+                    models.Q(total_studied_time__gte=0)
+                ),
+                name='la_snapshot_total_studied_time_non_negative',
             ),
             models.CheckConstraint(
                 check=(

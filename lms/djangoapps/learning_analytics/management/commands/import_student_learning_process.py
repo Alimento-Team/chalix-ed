@@ -8,7 +8,8 @@ from pathlib import Path
 
 from django.contrib.auth.models import User
 from django.core.management.base import BaseCommand, CommandError
-from django.db import transaction
+from django.db import connection, transaction
+from django.utils import timezone
 from opaque_keys.edx.keys import CourseKey
 
 from common.djangoapps.student.models import UserProfile
@@ -21,7 +22,6 @@ class Command(BaseCommand):
 
     REQUIRED_BASE_COLUMNS = [
         'course_id',
-        'student_id',
         'position',
         'gender',
         'location',
@@ -33,6 +33,7 @@ class Command(BaseCommand):
         'week_3',
         'final_score',
     ]
+    IDENTITY_COLUMNS = ['username', 'student_id', 'id']
     LEGACY_VLE_COLUMNS = ['vle_1', 'vle_2', 'vle_3']
     ACTIVITY_COLUMNS = [
         'video_1',
@@ -50,6 +51,11 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument('--csv-path', required=True, help='Path to source CSV file.')
         parser.add_argument('--schema-path', required=True, help='Path to dataset description JSON file.')
+        parser.add_argument(
+            '--prepared-input',
+            action='store_true',
+            help='Treat the CSV as normalized CMS staging output and skip user/profile/org sync.',
+        )
         parser.add_argument(
             '--dry-run',
             action='store_true',
@@ -69,6 +75,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         csv_path = Path(options['csv_path']).expanduser().resolve()
         schema_path = Path(options['schema_path']).expanduser().resolve()
+        prepared_input = options['prepared_input']
         dry_run = options['dry_run']
         create_missing_users = options['create_missing_users']
         replace_existing = options['replace_existing']
@@ -99,6 +106,8 @@ class Command(BaseCommand):
                         row_number,
                         codebooks,
                         create_missing_users=create_missing_users,
+                        source_file=csv_path.name,
+                        prepared_input=prepared_input,
                     )
                 except ValueError as exc:
                     failed_count += 1
@@ -120,7 +129,10 @@ class Command(BaseCommand):
             for parsed_row in parsed_rows:
                 try:
                     with transaction.atomic():
-                        self._sync_user_profile(parsed_row)
+                        if not prepared_input:
+                            self._sync_user_account(parsed_row)
+                            self._sync_user_profile(parsed_row)
+                            self._sync_user_organization(parsed_row)
                         self._ensure_enrollment(parsed_row['user'], parsed_row['course_key'], parsed_row['normalized_course_id'])
 
                         payload = parsed_row['snapshot']
@@ -175,6 +187,10 @@ class Command(BaseCommand):
         missing = [name for name in self.REQUIRED_BASE_COLUMNS if name not in fieldnames]
         if missing:
             raise CommandError(f'CSV is missing required columns: {missing}')
+        if not any(name in fieldnames for name in self.IDENTITY_COLUMNS):
+            raise CommandError(
+                f'CSV must include at least one identity column from: {self.IDENTITY_COLUMNS}'
+            )
 
         has_legacy_vle = all(name in fieldnames for name in self.LEGACY_VLE_COLUMNS)
         has_activity_columns = all(name in fieldnames for name in self.ACTIVITY_COLUMNS)
@@ -184,7 +200,7 @@ class Command(BaseCommand):
                 'video_n/quiz_n/resource_n for n=1..3.'
             )
 
-    def _parse_row(self, row, row_number, codebooks, create_missing_users=False):
+    def _parse_row(self, row, row_number, codebooks, create_missing_users=False, source_file='', prepared_input=False):
         raw_course_id = row['course_id'].strip()
         if not raw_course_id:
             raise ValueError('course_id is empty')
@@ -192,11 +208,20 @@ class Command(BaseCommand):
         if course_key is None:
             raise ValueError(f'invalid course_id for enrollment: {raw_course_id}')
 
-        student_id = row['student_id'].strip()
+        student_id = self._first_present_value(row, self.IDENTITY_COLUMNS)
         if not student_id:
-            raise ValueError('student_id is empty')
+            raise ValueError('student identifier is empty')
 
-        user = self._get_or_create_user(student_id, create_missing_users=create_missing_users)
+        external_user_id = (row.get('external_user_id') or row.get('id') or '').strip()
+        email = (row.get('email') or '').strip()
+        organization_name = (row.get('co_quan') or '').strip()
+        raw_status = (row.get('status') or '').strip()
+
+        user = self._get_or_create_user(
+            student_id,
+            email=email,
+            create_missing_users=create_missing_users,
+        )
         if user is None:
             raise ValueError(f'user not found for student_id {student_id}')
 
@@ -216,19 +241,30 @@ class Command(BaseCommand):
 
         parsed_name = (row.get('name') or '').strip()
         parsed_dob = (row.get('date_of_birth') or '').strip()
+        total_studied_time = self._parse_optional_decimal(
+            row.get('total_studied_time'),
+            'total_studied_time',
+            minimum=Decimal('0.0'),
+        )
+        completed_percentage = self._parse_optional_percentage(row.get('completed_percentage'))
+        source_row_number = self._parse_optional_int(row.get('source_row_number'), 'source_row_number') or row_number
 
         return {
             'user': user,
             'course_key': course_key,
             'normalized_course_id': course_id,
+            'email': email,
+            'organization_name': organization_name,
             'profile_name': parsed_name or student_id,
             'profile_name_was_provided': bool(parsed_name),
+            'raw_date_of_birth': parsed_dob,
             'year_of_birth': self._resolve_birth_year(parsed_dob),
             'dob_was_provided': bool(parsed_dob),
             'snapshot': {
                 'user': user,
                 'student_id': student_id,
                 'course_id': course_id,
+                'external_user_id': external_user_id,
                 'position_code': position_code,
                 'position_text': position_text,
                 'gender_code': gender_code,
@@ -247,9 +283,12 @@ class Command(BaseCommand):
                 'vle_1': vle_1,
                 'vle_2': vle_2,
                 'vle_3': vle_3,
+                'total_studied_time': total_studied_time,
+                'completed_percentage': completed_percentage,
+                'status': raw_status,
                 'final_score': final_score,
-                'source_file': 'dataset/log.csv',
-                'source_row_number': row_number,
+                'source_file': source_file or 'dataset/log.csv',
+                'source_row_number': source_row_number,
             },
         }
 
@@ -298,6 +337,41 @@ class Command(BaseCommand):
             raise ValueError(f'{field_name} out of range: {parsed}')
         return parsed
 
+    def _parse_optional_decimal(self, value, field_name, minimum=None, maximum=None):
+        if value is None or str(value).strip() == '':
+            return None
+
+        try:
+            parsed = Decimal(str(value).strip())
+        except (InvalidOperation, AttributeError):
+            raise ValueError(f'invalid decimal for {field_name}: {value}')
+
+        if minimum is not None and parsed < minimum:
+            raise ValueError(f'{field_name} out of range: {parsed}')
+        if maximum is not None and parsed > maximum:
+            raise ValueError(f'{field_name} out of range: {parsed}')
+        return parsed
+
+    def _parse_optional_percentage(self, value):
+        if value is None:
+            return None
+
+        raw_value = str(value).strip()
+        if not raw_value:
+            return None
+
+        if raw_value.endswith('%'):
+            raw_value = raw_value[:-1].strip()
+
+        try:
+            parsed = int(Decimal(raw_value))
+        except (InvalidOperation, ValueError):
+            raise ValueError(f'invalid completed_percentage: {value}')
+
+        if parsed < 0 or parsed > 100:
+            raise ValueError(f'completed_percentage out of range: {parsed}')
+        return parsed
+
     def _parse_int(self, value, field_name, minimum=0):
         try:
             parsed = int(str(value).strip())
@@ -307,8 +381,20 @@ class Command(BaseCommand):
             raise ValueError(f'{field_name} must be >= {minimum}: {parsed}')
         return parsed
 
+    def _parse_optional_int(self, value, field_name, minimum=0):
+        if value is None or str(value).strip() == '':
+            return None
+        return self._parse_int(value, field_name, minimum=minimum)
+
     def _normalize_text(self, value):
         return ' '.join(str(value).strip().split()).lower()
+
+    def _first_present_value(self, row, column_names):
+        for name in column_names:
+            value = row.get(name)
+            if value is not None and str(value).strip():
+                return str(value).strip()
+        return ''
 
     def _normalize_course_id(self, raw_course_id):
         candidates = [raw_course_id]
@@ -344,7 +430,7 @@ class Command(BaseCommand):
             return max_year
         return parsed_year
 
-    def _get_or_create_user(self, student_id, create_missing_users=False):
+    def _get_or_create_user(self, student_id, email='', create_missing_users=False):
         user = User.objects.filter(username=student_id).first()
         if user:
             return user
@@ -355,10 +441,22 @@ class Command(BaseCommand):
         # This import is one-time bootstrap data; set unusable password to prevent unknown credentials.
         user = User.objects.create_user(
             username=student_id,
-            email=f'{student_id}@example.local',
+            email=email or f'{student_id}@example.local',
             password=None,
         )
         return user
+
+    def _sync_user_account(self, parsed_row):
+        user = parsed_row['user']
+        email = parsed_row['email']
+        update_fields = []
+
+        if email and user.email != email:
+            user.email = email
+            update_fields.append('email')
+
+        if update_fields:
+            user.save(update_fields=update_fields)
 
     def _sync_user_profile(self, parsed_row):
         user = parsed_row['user']
@@ -366,6 +464,8 @@ class Command(BaseCommand):
         profile_name_was_provided = parsed_row['profile_name_was_provided']
         year_of_birth = parsed_row['year_of_birth']
         dob_was_provided = parsed_row['dob_was_provided']
+        raw_date_of_birth = parsed_row['raw_date_of_birth']
+        organization_name = parsed_row['organization_name']
 
         profile, _ = UserProfile.objects.get_or_create(
             user=user,
@@ -392,8 +492,92 @@ class Command(BaseCommand):
             profile.year_of_birth = year_of_birth
             update_fields.append('year_of_birth')
 
+        meta = profile.get_meta()
+        meta_changed = False
+        if raw_date_of_birth and meta.get('ngay_sinh') != raw_date_of_birth:
+            meta['ngay_sinh'] = raw_date_of_birth
+            meta_changed = True
+        if organization_name:
+            if meta.get('ten_co_quan') != organization_name:
+                meta['ten_co_quan'] = organization_name
+                meta_changed = True
+            if meta.get('don_vi_cong_tac') != organization_name:
+                meta['don_vi_cong_tac'] = organization_name
+                meta_changed = True
+        if meta_changed:
+            profile.set_meta(meta)
+            update_fields.append('meta')
+
         if update_fields:
             profile.save(update_fields=update_fields)
+
+    def _sync_user_organization(self, parsed_row):
+        organization_name = parsed_row['organization_name']
+        if not organization_name:
+            return
+
+        organization_id = self._get_chalix_organization_id(organization_name)
+        if organization_id is None:
+            raise ValueError(f'unmapped co_quan: {organization_name}')
+
+        now = timezone.now()
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                UPDATE contentstore_chalixuserrole
+                SET is_active = FALSE, updated_at = %s
+                WHERE user_id = %s AND role = %s AND is_active = TRUE AND organization_id <> %s
+                """,
+                [now, parsed_row['user'].id, 'cong_chuc', organization_id],
+            )
+
+            cursor.execute(
+                """
+                SELECT id
+                FROM contentstore_chalixuserrole
+                WHERE user_id = %s AND role = %s AND organization_id = %s
+                LIMIT 1
+                """,
+                [parsed_row['user'].id, 'cong_chuc', organization_id],
+            )
+            existing_row = cursor.fetchone()
+
+            if existing_row:
+                cursor.execute(
+                    """
+                    UPDATE contentstore_chalixuserrole
+                    SET is_active = TRUE, updated_at = %s
+                    WHERE id = %s
+                    """,
+                    [now, existing_row[0]],
+                )
+            else:
+                cursor.execute(
+                    """
+                    INSERT INTO contentstore_chalixuserrole
+                        (user_id, role, organization_id, is_active, created_at, updated_at, created_by_id)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    [parsed_row['user'].id, 'cong_chuc', organization_id, True, now, now, None],
+                )
+
+    def _get_chalix_organization_id(self, organization_name):
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT id
+                    FROM contentstore_chalixorganization
+                    WHERE name = %s OR LOWER(name) = LOWER(%s) OR LOWER(display_name) = LOWER(%s)
+                    ORDER BY id ASC
+                    LIMIT 1
+                    """,
+                    [organization_name, organization_name, organization_name],
+                )
+                row = cursor.fetchone()
+                return row[0] if row else None
+        except Exception as exc:
+            raise ValueError(f'failed to resolve co_quan {organization_name}: {exc}')
 
     def _ensure_enrollment(self, user, course_key, course_id):
         try:

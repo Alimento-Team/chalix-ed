@@ -1,0 +1,360 @@
+"""Prepare learner accounts and normalized staging CSV for LMS learning-process import."""
+
+import csv
+from datetime import datetime
+from decimal import Decimal, InvalidOperation
+from pathlib import Path
+
+from django.contrib.auth.models import User
+from django.core.management.base import BaseCommand, CommandError
+from django.db import transaction
+
+from cms.djangoapps.contentstore.models import ChalixOrganization, ChalixUserRole
+from common.djangoapps.student.models import UserProfile
+
+
+class Command(BaseCommand):
+    help = 'Prepare student learning-process data in CMS and write a normalized CSV for LMS import.'
+
+    REQUIRED_COLUMNS = [
+        'course_id',
+        'position',
+        'gender',
+        'location',
+        'email',
+        'age',
+        'job_title',
+        'experience',
+        'co_quan',
+        'week_1',
+        'week_2',
+        'week_3',
+        'final_score',
+    ]
+    IDENTITY_COLUMNS = ['username', 'student_id', 'id']
+    LEGACY_VLE_COLUMNS = ['vle_1', 'vle_2', 'vle_3']
+    ACTIVITY_COLUMNS = [
+        'video_1',
+        'quiz_1',
+        'resource_1',
+        'video_2',
+        'quiz_2',
+        'resource_2',
+        'video_3',
+        'quiz_3',
+        'resource_3',
+    ]
+    OUTPUT_HEADERS = [
+        'course_id',
+        'student_id',
+        'external_user_id',
+        'position',
+        'gender',
+        'location',
+        'age',
+        'job_title',
+        'experience',
+        'week_1',
+        'week_2',
+        'week_3',
+        'vle_1',
+        'vle_2',
+        'vle_3',
+        'total_studied_time',
+        'completed_percentage',
+        'status',
+        'final_score',
+        'source_row_number',
+    ]
+    DEFAULT_DOB = '01/01/1870'
+
+    def add_arguments(self, parser):
+        parser.add_argument('--csv-path', required=True, help='Path to the raw source CSV file.')
+        parser.add_argument('--output-path', required=True, help='Path to write the normalized staging CSV.')
+        parser.add_argument(
+            '--create-missing-users',
+            action='store_true',
+            help='Create auth users when the learner username is missing.',
+        )
+
+    def handle(self, *args, **options):
+        csv_path = Path(options['csv_path']).expanduser().resolve()
+        output_path = Path(options['output_path']).expanduser().resolve()
+        create_missing_users = options['create_missing_users']
+
+        if not csv_path.exists():
+            raise CommandError(f'CSV file does not exist: {csv_path}')
+
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        prepared_rows = []
+        failed_count = 0
+        error_examples = []
+
+        with csv_path.open('r', encoding='utf-8-sig', newline='') as handle:
+            reader = csv.DictReader(handle, skipinitialspace=True)
+            self._validate_header(reader.fieldnames)
+
+            for row_number, row in enumerate(reader, start=2):
+                try:
+                    prepared_rows.append(
+                        self._prepare_row(
+                            row,
+                            row_number,
+                            create_missing_users=create_missing_users,
+                        )
+                    )
+                except ValueError as exc:
+                    failed_count += 1
+                    if len(error_examples) < 10:
+                        error_examples.append(f'row {row_number}: {exc}')
+
+        with output_path.open('w', encoding='utf-8', newline='') as handle:
+            writer = csv.DictWriter(handle, fieldnames=self.OUTPUT_HEADERS)
+            writer.writeheader()
+            writer.writerows(prepared_rows)
+
+        self.stdout.write(self.style.SUCCESS('CMS PREP complete'))
+        self.stdout.write(f'Prepared rows: {len(prepared_rows)}')
+        self.stdout.write(f'Failed: {failed_count}')
+        self.stdout.write(f'Output: {output_path}')
+        for msg in error_examples:
+            self.stdout.write(self.style.WARNING(msg))
+
+    def _validate_header(self, fieldnames):
+        if not fieldnames:
+            raise CommandError('CSV header is missing.')
+
+        missing = [name for name in self.REQUIRED_COLUMNS if name not in fieldnames]
+        if missing:
+            raise CommandError(f'CSV is missing required columns: {missing}')
+
+        if not any(name in fieldnames for name in self.IDENTITY_COLUMNS):
+            raise CommandError(
+                f'CSV must include at least one identity column from: {self.IDENTITY_COLUMNS}'
+            )
+
+        has_legacy_vle = all(name in fieldnames for name in self.LEGACY_VLE_COLUMNS)
+        has_activity_columns = all(name in fieldnames for name in self.ACTIVITY_COLUMNS)
+        if not has_legacy_vle and not has_activity_columns:
+            raise CommandError(
+                'CSV must include either legacy vle_1..vle_3 columns or activity columns '
+                'video_n/quiz_n/resource_n for n=1..3.'
+            )
+
+    def _prepare_row(self, row, row_number, create_missing_users=False):
+        student_id = self._first_present_value(row, self.IDENTITY_COLUMNS)
+        if not student_id:
+            raise ValueError('student identifier is empty')
+
+        user = self._get_or_create_user(
+            student_id,
+            email=(row.get('email') or '').strip(),
+            create_missing_users=create_missing_users,
+        )
+        if user is None:
+            raise ValueError(f'user not found for student_id {student_id}')
+
+        with transaction.atomic():
+            self._sync_user_account(user, (row.get('email') or '').strip())
+            self._sync_user_profile(
+                user=user,
+                profile_name=(row.get('name') or '').strip() or student_id,
+                profile_name_was_provided=bool((row.get('name') or '').strip()),
+                raw_date_of_birth=(row.get('date_of_birth') or '').strip(),
+                organization_name=(row.get('co_quan') or '').strip(),
+            )
+            self._sync_user_organization(user, (row.get('co_quan') or '').strip())
+
+        vle_1, vle_2, vle_3 = self._resolve_vle_values(row)
+
+        return {
+            'course_id': (row.get('course_id') or '').strip(),
+            'student_id': student_id,
+            'external_user_id': (row.get('id') or '').strip(),
+            'position': (row.get('position') or '').strip(),
+            'gender': (row.get('gender') or '').strip(),
+            'location': (row.get('location') or '').strip(),
+            'age': (row.get('age') or '').strip(),
+            'job_title': (row.get('job_title') or '').strip(),
+            'experience': (row.get('experience') or '').strip(),
+            'week_1': (row.get('week_1') or '').strip(),
+            'week_2': (row.get('week_2') or '').strip(),
+            'week_3': (row.get('week_3') or '').strip(),
+            'vle_1': vle_1,
+            'vle_2': vle_2,
+            'vle_3': vle_3,
+            'total_studied_time': self._format_optional_decimal(row.get('total_studied_time')),
+            'completed_percentage': self._format_optional_percentage(row.get('completed_percentage')),
+            'status': (row.get('status') or '').strip(),
+            'final_score': (row.get('final_score') or '').strip(),
+            'source_row_number': row_number,
+        }
+
+    def _resolve_vle_values(self, row):
+        has_activity_columns = all(str(row.get(name, '')).strip() != '' for name in self.ACTIVITY_COLUMNS)
+
+        if has_activity_columns:
+            return (
+                self._parse_int(row['video_1'], 'video_1') + self._parse_int(row['quiz_1'], 'quiz_1') + self._parse_int(row['resource_1'], 'resource_1'),
+                self._parse_int(row['video_2'], 'video_2') + self._parse_int(row['quiz_2'], 'quiz_2') + self._parse_int(row['resource_2'], 'resource_2'),
+                self._parse_int(row['video_3'], 'video_3') + self._parse_int(row['quiz_3'], 'quiz_3') + self._parse_int(row['resource_3'], 'resource_3'),
+            )
+
+        return (
+            self._parse_int(row['vle_1'], 'vle_1'),
+            self._parse_int(row['vle_2'], 'vle_2'),
+            self._parse_int(row['vle_3'], 'vle_3'),
+        )
+
+    def _parse_int(self, value, field_name):
+        try:
+            parsed = int(str(value).strip())
+        except (ValueError, TypeError):
+            raise ValueError(f'invalid integer for {field_name}: {value}')
+        if parsed < 0:
+            raise ValueError(f'{field_name} must be >= 0: {parsed}')
+        return parsed
+
+    def _format_optional_decimal(self, value):
+        if value is None or str(value).strip() == '':
+            return ''
+        try:
+            return str(Decimal(str(value).strip()))
+        except (InvalidOperation, AttributeError):
+            raise ValueError(f'invalid decimal value: {value}')
+
+    def _format_optional_percentage(self, value):
+        if value is None:
+            return ''
+        raw_value = str(value).strip()
+        if not raw_value:
+            return ''
+        if raw_value.endswith('%'):
+            raw_value = raw_value[:-1].strip()
+        try:
+            parsed = int(Decimal(raw_value))
+        except (InvalidOperation, ValueError):
+            raise ValueError(f'invalid completed_percentage: {value}')
+        if parsed < 0 or parsed > 100:
+            raise ValueError(f'completed_percentage out of range: {parsed}')
+        return str(parsed)
+
+    def _first_present_value(self, row, column_names):
+        for name in column_names:
+            value = row.get(name)
+            if value is not None and str(value).strip():
+                return str(value).strip()
+        return ''
+
+    def _get_or_create_user(self, username, email='', create_missing_users=False):
+        user = User.objects.filter(username=username).first()
+        if user:
+            return user
+        if not create_missing_users:
+            return None
+        return User.objects.create_user(
+            username=username,
+            email=email or f'{username}@example.local',
+            password=None,
+        )
+
+    def _sync_user_account(self, user, email):
+        if email and user.email != email:
+            user.email = email
+            user.save(update_fields=['email'])
+
+    def _sync_user_profile(self, user, profile_name, profile_name_was_provided, raw_date_of_birth, organization_name):
+        year_of_birth = self._resolve_birth_year(raw_date_of_birth)
+        profile, _ = UserProfile.objects.get_or_create(
+            user=user,
+            defaults={
+                'name': profile_name,
+                'year_of_birth': year_of_birth,
+            },
+        )
+
+        update_fields = []
+        if profile_name_was_provided:
+            if profile.name != profile_name:
+                profile.name = profile_name
+                update_fields.append('name')
+        elif not profile.name:
+            profile.name = profile_name
+            update_fields.append('name')
+
+        if raw_date_of_birth:
+            if profile.year_of_birth != year_of_birth:
+                profile.year_of_birth = year_of_birth
+                update_fields.append('year_of_birth')
+        elif profile.year_of_birth is None:
+            profile.year_of_birth = year_of_birth
+            update_fields.append('year_of_birth')
+
+        meta = profile.get_meta()
+        meta_changed = False
+        if raw_date_of_birth and meta.get('ngay_sinh') != raw_date_of_birth:
+            meta['ngay_sinh'] = raw_date_of_birth
+            meta_changed = True
+        if organization_name:
+            if meta.get('ten_co_quan') != organization_name:
+                meta['ten_co_quan'] = organization_name
+                meta_changed = True
+            if meta.get('don_vi_cong_tac') != organization_name:
+                meta['don_vi_cong_tac'] = organization_name
+                meta_changed = True
+        if meta_changed:
+            profile.set_meta(meta)
+            update_fields.append('meta')
+
+        if update_fields:
+            profile.save(update_fields=update_fields)
+
+    def _sync_user_organization(self, user, organization_name):
+        if not organization_name:
+            raise ValueError('co_quan is empty')
+
+        organization = ChalixOrganization.objects.filter(name=organization_name).first()
+        if organization is None:
+            organization = ChalixOrganization.objects.filter(name__iexact=organization_name).first()
+        if organization is None:
+            organization = ChalixOrganization.objects.filter(display_name__iexact=organization_name).first()
+        if organization is None:
+            raise ValueError(f'unmapped co_quan: {organization_name}')
+
+        ChalixUserRole.objects.filter(
+            user=user,
+            role='cong_chuc',
+            is_active=True,
+        ).exclude(organization=organization).update(is_active=False)
+
+        role, created = ChalixUserRole.objects.get_or_create(
+            user=user,
+            role='cong_chuc',
+            organization=organization,
+            defaults={'is_active': True},
+        )
+        if not created and not role.is_active:
+            role.is_active = True
+            role.save(update_fields=['is_active', 'updated_at'])
+
+    def _resolve_birth_year(self, raw_date_of_birth):
+        date_value = raw_date_of_birth or self.DEFAULT_DOB
+        parsed_year = None
+        for date_format in ('%d/%m/%Y', '%Y-%m-%d', '%d-%m-%Y', '%Y'):
+            try:
+                parsed_year = datetime.strptime(date_value, date_format).year
+                break
+            except ValueError:
+                continue
+
+        if parsed_year is None:
+            parsed_year = datetime.strptime(self.DEFAULT_DOB, '%d/%m/%Y').year
+
+        min_year = min(UserProfile.VALID_YEARS)
+        max_year = max(UserProfile.VALID_YEARS)
+        if parsed_year < min_year:
+            return min_year
+        if parsed_year > max_year:
+            return max_year
+        return parsed_year

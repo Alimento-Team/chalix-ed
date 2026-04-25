@@ -6,6 +6,7 @@ from unittest.mock import Mock, patch
 
 from django.contrib.auth.models import User
 from django.core.management import call_command
+from django.db import connection
 from django.test import TestCase
 from django.utils import timezone
 from opaque_keys.edx.keys import CourseKey
@@ -18,6 +19,48 @@ from common.djangoapps.student.models import UserProfile
 
 
 class StudentLearningProcessImportCommandTests(TestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls._ensure_chalix_tables()
+
+    @classmethod
+    def _ensure_chalix_tables(cls):
+        existing_tables = set(connection.introspection.table_names())
+        with connection.cursor() as cursor:
+            if 'contentstore_chalixorganization' not in existing_tables:
+                cursor.execute(
+                    """
+                    CREATE TABLE contentstore_chalixorganization (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        name VARCHAR(255) NOT NULL UNIQUE,
+                        display_name VARCHAR(255) NOT NULL,
+                        code VARCHAR(50) NOT NULL UNIQUE,
+                        description TEXT NOT NULL DEFAULT '',
+                        is_active BOOLEAN NOT NULL DEFAULT 1,
+                        admin_id INTEGER NULL,
+                        parent_id INTEGER NULL,
+                        created_at DATETIME NULL,
+                        updated_at DATETIME NULL
+                    )
+                    """
+                )
+            if 'contentstore_chalixuserrole' not in existing_tables:
+                cursor.execute(
+                    """
+                    CREATE TABLE contentstore_chalixuserrole (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_id INTEGER NOT NULL,
+                        role VARCHAR(20) NOT NULL,
+                        organization_id INTEGER NULL,
+                        is_active BOOLEAN NOT NULL DEFAULT 1,
+                        created_at DATETIME NULL,
+                        updated_at DATETIME NULL,
+                        created_by_id INTEGER NULL
+                    )
+                    """
+                )
+
     def setUp(self):
         self.user = User.objects.create_user(username='student_001', email='s1@example.com')
         self.course_id = 'course-v1:chalix+course_6f694e29+2024'
@@ -60,6 +103,149 @@ class StudentLearningProcessImportCommandTests(TestCase):
         self.assertEqual(snapshot.position_code, 0)
         self.assertEqual(snapshot.location_code, 9)
         self.assertEqual(float(snapshot.final_score), 4.0)
+
+    def test_import_real_header_syncs_account_org_and_progress_fields(self):
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO contentstore_chalixorganization
+                    (name, display_name, code, description, is_active, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """,
+                [
+                    'Học viện chiến lược, bồi dưỡng cán bộ xây dựng',
+                    'Học viện chiến lược, bồi dưỡng cán bộ xây dựng',
+                    '40000000',
+                    '',
+                    True,
+                    timezone.now(),
+                    timezone.now(),
+                ],
+            )
+        csv_content = (
+            'course_id,id,username,name,date_of_birth,position,gender,location,email,age,job_title,experience,co_quan,total_studied_time,completed_percentage,status,week_1,week_2,week_3,video_1,quiz_1,resource_1,video_2,quiz_2,resource_2,video_3,quiz_3,resource_3,final_score\n'
+            'chalix+course_6f694e29+2024,20260001,20260001,Đoàn Xuân Hòa,1979,Nhân viên,Nữ,Điện Biên,20260001@itg-acst.edu.vn,Trên 25 tuổi,Viên chức,Từ 5 đến 10 năm,"Học viện chiến lược, bồi dưỡng cán bộ xây dựng",40,100%,Hoàn thành,2.5,2.25,1,5,14,34,12,1,4,20,7,75,4\n'
+        )
+        schema = {
+            'fields': [
+                {'name': 'position', 'values': {'0': 'Nhân viên'}},
+                {'name': 'gender', 'values': {'1': 'Nữ'}},
+                {'name': 'location', 'all_possible_values': {'22': 'Điện Biên'}},
+                {'name': 'age', 'values': {'2': 'Trên 25 tuổi'}},
+                {'name': 'job_title', 'values': {'1': 'Viên chức'}},
+                {'name': 'experience', 'values': {'1': 'Từ 5 đến 10 năm'}},
+            ]
+        }
+
+        with tempfile.NamedTemporaryFile('w', encoding='utf-8', delete=False) as csv_file:
+            csv_file.write(csv_content)
+            csv_path = csv_file.name
+
+        with tempfile.NamedTemporaryFile('w', encoding='utf-8', delete=False) as schema_file:
+            schema_file.write(json.dumps(schema, ensure_ascii=False))
+            schema_path = schema_file.name
+
+        call_command(
+            'import_student_learning_process',
+            '--csv-path',
+            csv_path,
+            '--schema-path',
+            schema_path,
+            '--create-missing-users',
+        )
+
+        snapshot = StudentLearningProcessSnapshot.objects.get(student_id='20260001')
+        self.assertEqual(snapshot.external_user_id, '20260001')
+        self.assertEqual(snapshot.course_id, 'course-v1:chalix+course_6f694e29+2024')
+        self.assertEqual(snapshot.vle_1, 53)
+        self.assertEqual(snapshot.vle_2, 17)
+        self.assertEqual(snapshot.vle_3, 102)
+        self.assertEqual(float(snapshot.total_studied_time), 40.0)
+        self.assertEqual(snapshot.completed_percentage, 100)
+        self.assertEqual(snapshot.status, 'Hoàn thành')
+
+        imported_user = User.objects.get(username='20260001')
+        self.assertEqual(imported_user.email, '20260001@itg-acst.edu.vn')
+
+        profile = UserProfile.objects.get(user=imported_user)
+        self.assertEqual(profile.name, 'Đoàn Xuân Hòa')
+        self.assertEqual(profile.year_of_birth, 1979)
+        self.assertEqual(profile.get_meta()['ngay_sinh'], '1979')
+        self.assertEqual(profile.get_meta()['ten_co_quan'], 'Học viện chiến lược, bồi dưỡng cán bộ xây dựng')
+        self.assertEqual(profile.get_meta()['don_vi_cong_tac'], 'Học viện chiến lược, bồi dưỡng cán bộ xây dựng')
+
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT COUNT(*)
+                FROM contentstore_chalixuserrole ur
+                INNER JOIN contentstore_chalixorganization org ON org.id = ur.organization_id
+                WHERE ur.user_id = %s AND ur.role = %s AND ur.is_active = TRUE AND org.name = %s
+                """,
+                [imported_user.id, 'cong_chuc', 'Học viện chiến lược, bồi dưỡng cán bộ xây dựng'],
+            )
+            role_count = cursor.fetchone()[0]
+        self.assertEqual(role_count, 1)
+        self.assertTrue(
+            CourseEnrollment.objects.filter(
+                user=imported_user,
+                course_id=CourseKey.from_string('course-v1:chalix+course_6f694e29+2024'),
+                is_active=True,
+            ).exists()
+        )
+
+    def test_import_prepared_input_creates_snapshot_and_enrollment_only(self):
+        prepared_user = User.objects.create_user(username='prepared_001', email='prepared@example.com')
+        UserProfile.objects.create(user=prepared_user, name='Prepared User', year_of_birth=1980)
+
+        csv_content = (
+            'course_id,student_id,external_user_id,position,gender,location,age,job_title,experience,week_1,week_2,week_3,vle_1,vle_2,vle_3,total_studied_time,completed_percentage,status,final_score,source_row_number\n'
+            'chalix+course_6f694e29+2024,prepared_001,raw-001,Chuyên viên,Nữ,Thái Bình,Trên 25 tuổi,Viên chức,Từ 5 đến 10 năm,2.5,2.25,1.0,53,17,102,40,100,Hoàn thành,4.0,88\n'
+        )
+        schema = {
+            'fields': [
+                {'name': 'position', 'values': {'0': 'Chuyên viên'}},
+                {'name': 'gender', 'values': {'1': 'Nữ'}},
+                {'name': 'location', 'all_possible_values': {'9': 'Thái Bình'}},
+                {'name': 'age', 'values': {'2': 'Trên 25 tuổi'}},
+                {'name': 'job_title', 'values': {'1': 'Viên chức'}},
+                {'name': 'experience', 'values': {'1': 'Từ 5 đến 10 năm'}},
+            ]
+        }
+
+        with tempfile.NamedTemporaryFile('w', encoding='utf-8', delete=False) as csv_file:
+            csv_file.write(csv_content)
+            csv_path = csv_file.name
+
+        with tempfile.NamedTemporaryFile('w', encoding='utf-8', delete=False) as schema_file:
+            schema_file.write(json.dumps(schema, ensure_ascii=False))
+            schema_path = schema_file.name
+
+        call_command(
+            'import_student_learning_process',
+            '--csv-path',
+            csv_path,
+            '--schema-path',
+            schema_path,
+            '--prepared-input',
+        )
+
+        snapshot = StudentLearningProcessSnapshot.objects.get(student_id='prepared_001')
+        self.assertEqual(snapshot.external_user_id, 'raw-001')
+        self.assertEqual(snapshot.source_row_number, 88)
+        self.assertEqual(float(snapshot.total_studied_time), 40.0)
+        self.assertEqual(snapshot.completed_percentage, 100)
+
+        prepared_user.refresh_from_db()
+        self.assertEqual(prepared_user.email, 'prepared@example.com')
+        self.assertEqual(prepared_user.profile.name, 'Prepared User')
+        self.assertTrue(
+            CourseEnrollment.objects.filter(
+                user=prepared_user,
+                course_id=CourseKey.from_string('course-v1:chalix+course_6f694e29+2024'),
+                is_active=True,
+            ).exists()
+        )
 
     def test_import_derives_vle_creates_profile_and_enrollment(self):
         csv_content = (
