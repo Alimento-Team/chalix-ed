@@ -2,6 +2,7 @@
 
 import csv
 import tempfile
+from unittest.mock import patch
 
 from django.contrib.auth.models import User
 from django.core.management import call_command
@@ -42,16 +43,24 @@ class PrepareStudentLearningProcessImportCommandTests(TestCase):
             mapping_file.write(courses_mapping_content)
             mapping_path = mapping_file.name
 
-        call_command(
-            'prepare_student_learning_process_import',
-            '--csv-path',
-            csv_path,
-            '--output-path',
-            output_path,
-            '--courses-mapping-path',
-            mapping_path,
-            '--create-missing-users',
-        )
+        course_id_by_name = {
+            'Khóa 01': 'course-v1:chalix+course_6f694e29+2024',
+            'Khóa 02': 'course-v1:chalix+course_24f4eb44+2024',
+        }
+        with patch(
+            'cms.djangoapps.contentstore.management.commands.prepare_student_learning_process_import.Command._lookup_actual_course_id'
+        ) as mock_lookup:
+            mock_lookup.side_effect = lambda name: course_id_by_name.get(name, '')
+            call_command(
+                'prepare_student_learning_process_import',
+                '--csv-path',
+                csv_path,
+                '--output-path',
+                output_path,
+                '--courses-mapping-path',
+                mapping_path,
+                '--create-missing-users',
+            )
 
         user = User.objects.get(username='20260001')
         self.assertEqual(user.email, '20260001@itg-acst.edu.vn')
@@ -78,8 +87,8 @@ class PrepareStudentLearningProcessImportCommandTests(TestCase):
         self.assertEqual(len(rows), 2)
         self.assertEqual(rows[0]['student_id'], '20260001')
         self.assertEqual(rows[0]['external_user_id'], '20260001')
-        self.assertEqual(rows[0]['course_id'], 'course_01')
-        self.assertEqual(rows[1]['course_id'], 'course_02')
+        self.assertEqual(rows[0]['course_id'], 'course-v1:chalix+course_6f694e29+2024')
+        self.assertEqual(rows[1]['course_id'], 'course-v1:chalix+course_24f4eb44+2024')
         self.assertEqual(rows[0]['vle_1'], '53')
         self.assertEqual(rows[0]['vle_2'], '17')
         self.assertEqual(rows[0]['vle_3'], '102')

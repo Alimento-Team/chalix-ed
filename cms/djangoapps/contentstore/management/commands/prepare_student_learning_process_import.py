@@ -8,9 +8,11 @@ from pathlib import Path
 from django.contrib.auth.models import User
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
+from django.db.models.functions import Lower
 
 from cms.djangoapps.contentstore.models import ChalixOrganization, ChalixUserRole
 from common.djangoapps.student.models import UserProfile
+from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
 
 
 class Command(BaseCommand):
@@ -74,6 +76,11 @@ class Command(BaseCommand):
             help='Optional path to courses_mapping.csv for validating enrolled course IDs.',
         )
         parser.add_argument(
+            '--course-id-mapping-output-path',
+            required=False,
+            help='Optional path to write resolved source->actual course id mapping CSV.',
+        )
+        parser.add_argument(
             '--create-missing-users',
             action='store_true',
             help='Create auth users when the learner username is missing.',
@@ -87,6 +94,11 @@ class Command(BaseCommand):
             Path(courses_mapping_path_option).expanduser().resolve()
             if courses_mapping_path_option else None
         )
+        mapping_output_path_option = options.get('course_id_mapping_output_path')
+        mapping_output_path = (
+            Path(mapping_output_path_option).expanduser().resolve()
+            if mapping_output_path_option else None
+        )
         create_missing_users = options['create_missing_users']
 
         if not csv_path.exists():
@@ -95,7 +107,12 @@ class Command(BaseCommand):
             raise CommandError(f'Courses mapping file does not exist: {courses_mapping_path}')
 
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        courses_mapping = self._load_courses_mapping(courses_mapping_path)
+        if mapping_output_path is not None:
+            mapping_output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        courses_mapping, resolved_mapping_rows = self._load_courses_mapping(courses_mapping_path)
+        if mapping_output_path is not None:
+            self._write_resolved_mapping_csv(mapping_output_path, resolved_mapping_rows)
 
         prepared_rows = []
         failed_count = 0
@@ -129,6 +146,8 @@ class Command(BaseCommand):
         self.stdout.write(f'Prepared rows: {len(prepared_rows)}')
         self.stdout.write(f'Failed: {failed_count}')
         self.stdout.write(f'Output: {output_path}')
+        if mapping_output_path is not None:
+            self.stdout.write(f'Course ID Mapping Output: {mapping_output_path}')
         for msg in error_examples:
             self.stdout.write(self.style.WARNING(msg))
 
@@ -216,19 +235,76 @@ class Command(BaseCommand):
 
     def _load_courses_mapping(self, mapping_path):
         if mapping_path is None:
-            return {}
+            return {}, []
 
         mapping = {}
+        resolved_rows = []
+        unresolved = []
         with mapping_path.open('r', encoding='utf-8-sig', newline='') as handle:
             reader = csv.DictReader(handle)
             for row in reader:
                 course_id = (row.get('course_id') or '').strip()
+                course_name = (row.get('course_name') or '').strip()
                 if not course_id:
                     continue
+
+                if not course_name:
+                    unresolved.append(f'{course_id} (missing course_name)')
+                    continue
+
+                actual_course_id = self._lookup_actual_course_id(course_name)
+                if not actual_course_id:
+                    unresolved.append(f'{course_id} ({course_name})')
+                    continue
+
                 mapping[course_id] = {
-                    'course_name': (row.get('course_name') or '').strip(),
+                    'course_name': course_name,
+                    'actual_course_id': actual_course_id,
                 }
-        return mapping
+                resolved_rows.append(
+                    {
+                        'source_course_id': course_id,
+                        'course_name': course_name,
+                        'actual_course_id': actual_course_id,
+                    }
+                )
+
+        if unresolved:
+            preview = unresolved[:10]
+            remaining = len(unresolved) - len(preview)
+            detail = ', '.join(preview)
+            if remaining > 0:
+                detail = f'{detail}, ... (+{remaining} more)'
+            raise CommandError(
+                'Unable to resolve course_name to actual course id for: '
+                f'{detail}'
+            )
+
+        return mapping, resolved_rows
+
+    def _write_resolved_mapping_csv(self, output_path, rows):
+        headers = ['source_course_id', 'course_name', 'actual_course_id']
+        with output_path.open('w', encoding='utf-8', newline='') as handle:
+            writer = csv.DictWriter(handle, fieldnames=headers)
+            writer.writeheader()
+            writer.writerows(rows)
+
+    def _lookup_actual_course_id(self, course_name):
+        normalized_name = self._normalize_text(course_name)
+        if not normalized_name:
+            return ''
+
+        overview = (
+            CourseOverview.objects
+            .annotate(normalized_display_name=Lower('display_name'))
+            .filter(normalized_display_name=normalized_name)
+            .order_by('id')
+            .first()
+        )
+        return str(overview.id) if overview else ''
+
+    def _normalize_text(self, value):
+        return ' '.join(str(value).strip().split()).lower()
 
     def _resolve_course_ids(self, row, courses_mapping):
         course_ids = []
@@ -258,6 +334,7 @@ class Command(BaseCommand):
             unknown = [course_id for course_id in unique_course_ids if course_id not in courses_mapping]
             if unknown:
                 raise ValueError(f'unknown course_id(s): {unknown}')
+            return [courses_mapping[course_id]['actual_course_id'] for course_id in unique_course_ids]
 
         return unique_course_ids
 
