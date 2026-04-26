@@ -17,15 +17,12 @@ class Command(BaseCommand):
     help = 'Prepare student learning-process data in CMS and write a normalized CSV for LMS import.'
 
     REQUIRED_COLUMNS = [
-        'course_id',
         'position',
         'gender',
         'location',
-        'email',
         'age',
         'job_title',
         'experience',
-        'co_quan',
         'week_1',
         'week_2',
         'week_3',
@@ -72,6 +69,11 @@ class Command(BaseCommand):
         parser.add_argument('--csv-path', required=True, help='Path to the raw source CSV file.')
         parser.add_argument('--output-path', required=True, help='Path to write the normalized staging CSV.')
         parser.add_argument(
+            '--courses-mapping-path',
+            required=False,
+            help='Optional path to courses_mapping.csv for validating enrolled course IDs.',
+        )
+        parser.add_argument(
             '--create-missing-users',
             action='store_true',
             help='Create auth users when the learner username is missing.',
@@ -80,12 +82,20 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         csv_path = Path(options['csv_path']).expanduser().resolve()
         output_path = Path(options['output_path']).expanduser().resolve()
+        courses_mapping_path_option = options.get('courses_mapping_path')
+        courses_mapping_path = (
+            Path(courses_mapping_path_option).expanduser().resolve()
+            if courses_mapping_path_option else None
+        )
         create_missing_users = options['create_missing_users']
 
         if not csv_path.exists():
             raise CommandError(f'CSV file does not exist: {csv_path}')
+        if courses_mapping_path is not None and not courses_mapping_path.exists():
+            raise CommandError(f'Courses mapping file does not exist: {courses_mapping_path}')
 
         output_path.parent.mkdir(parents=True, exist_ok=True)
+        courses_mapping = self._load_courses_mapping(courses_mapping_path)
 
         prepared_rows = []
         failed_count = 0
@@ -97,10 +107,11 @@ class Command(BaseCommand):
 
             for row_number, row in enumerate(reader, start=2):
                 try:
-                    prepared_rows.append(
-                        self._prepare_row(
+                    prepared_rows.extend(
+                        self._prepare_rows(
                             row,
                             row_number,
+                            courses_mapping=courses_mapping,
                             create_missing_users=create_missing_users,
                         )
                     )
@@ -133,6 +144,8 @@ class Command(BaseCommand):
             raise CommandError(
                 f'CSV must include at least one identity column from: {self.IDENTITY_COLUMNS}'
             )
+        if 'course_id' not in fieldnames and 'enrolled_courses' not in fieldnames:
+            raise CommandError('CSV must include either course_id or enrolled_courses.')
 
         has_legacy_vle = all(name in fieldnames for name in self.LEGACY_VLE_COLUMNS)
         has_activity_columns = all(name in fieldnames for name in self.ACTIVITY_COLUMNS)
@@ -142,7 +155,7 @@ class Command(BaseCommand):
                 'video_n/quiz_n/resource_n for n=1..3.'
             )
 
-    def _prepare_row(self, row, row_number, create_missing_users=False):
+    def _prepare_rows(self, row, row_number, courses_mapping=None, create_missing_users=False):
         student_id = self._first_present_value(row, self.IDENTITY_COLUMNS)
         if not student_id:
             raise ValueError('student identifier is empty')
@@ -157,39 +170,96 @@ class Command(BaseCommand):
 
         with transaction.atomic():
             self._sync_user_account(user, (row.get('email') or '').strip())
+            organization_name = self._resolve_organization_name(row)
             self._sync_user_profile(
                 user=user,
                 profile_name=(row.get('name') or '').strip() or student_id,
                 profile_name_was_provided=bool((row.get('name') or '').strip()),
                 raw_date_of_birth=(row.get('date_of_birth') or '').strip(),
-                organization_name=(row.get('co_quan') or '').strip(),
+                organization_name=organization_name,
             )
-            self._sync_user_organization(user, (row.get('co_quan') or '').strip())
+            self._sync_user_organization(user, organization_name)
 
         vle_1, vle_2, vle_3 = self._resolve_vle_values(row)
 
-        return {
-            'course_id': (row.get('course_id') or '').strip(),
-            'student_id': student_id,
-            'external_user_id': (row.get('id') or '').strip(),
-            'position': (row.get('position') or '').strip(),
-            'gender': (row.get('gender') or '').strip(),
-            'location': (row.get('location') or '').strip(),
-            'age': (row.get('age') or '').strip(),
-            'job_title': (row.get('job_title') or '').strip(),
-            'experience': (row.get('experience') or '').strip(),
-            'week_1': (row.get('week_1') or '').strip(),
-            'week_2': (row.get('week_2') or '').strip(),
-            'week_3': (row.get('week_3') or '').strip(),
-            'vle_1': vle_1,
-            'vle_2': vle_2,
-            'vle_3': vle_3,
-            'total_studied_time': self._format_optional_decimal(row.get('total_studied_time')),
-            'completed_percentage': self._format_optional_percentage(row.get('completed_percentage')),
-            'status': (row.get('status') or '').strip(),
-            'final_score': (row.get('final_score') or '').strip(),
-            'source_row_number': row_number,
-        }
+        course_ids = self._resolve_course_ids(row, courses_mapping)
+        rows = []
+        for course_id in course_ids:
+            rows.append(
+                {
+                    'course_id': course_id,
+                    'student_id': student_id,
+                    'external_user_id': (row.get('id') or '').strip(),
+                    'position': (row.get('position') or '').strip(),
+                    'gender': (row.get('gender') or '').strip(),
+                    'location': (row.get('location') or '').strip(),
+                    'age': (row.get('age') or '').strip(),
+                    'job_title': (row.get('job_title') or '').strip(),
+                    'experience': (row.get('experience') or '').strip(),
+                    'week_1': (row.get('week_1') or '').strip(),
+                    'week_2': (row.get('week_2') or '').strip(),
+                    'week_3': (row.get('week_3') or '').strip(),
+                    'vle_1': vle_1,
+                    'vle_2': vle_2,
+                    'vle_3': vle_3,
+                    'total_studied_time': self._format_optional_decimal(row.get('total_studied_time')),
+                    'completed_percentage': self._format_optional_percentage(row.get('completed_percentage')),
+                    'status': (row.get('status') or '').strip(),
+                    'final_score': (row.get('final_score') or '').strip(),
+                    'source_row_number': row_number,
+                }
+            )
+        return rows
+
+    def _resolve_organization_name(self, row):
+        return (row.get('co_quan') or row.get('department') or '').strip()
+
+    def _load_courses_mapping(self, mapping_path):
+        if mapping_path is None:
+            return {}
+
+        mapping = {}
+        with mapping_path.open('r', encoding='utf-8-sig', newline='') as handle:
+            reader = csv.DictReader(handle)
+            for row in reader:
+                course_id = (row.get('course_id') or '').strip()
+                if not course_id:
+                    continue
+                mapping[course_id] = {
+                    'course_name': (row.get('course_name') or '').strip(),
+                }
+        return mapping
+
+    def _resolve_course_ids(self, row, courses_mapping):
+        course_ids = []
+
+        single_course = (row.get('course_id') or '').strip()
+        if single_course:
+            course_ids.append(single_course)
+
+        enrolled_courses = (row.get('enrolled_courses') or '').strip()
+        if enrolled_courses:
+            for course_id in enrolled_courses.split(';'):
+                cleaned = course_id.strip()
+                if cleaned:
+                    course_ids.append(cleaned)
+
+        unique_course_ids = []
+        seen = set()
+        for course_id in course_ids:
+            if course_id not in seen:
+                seen.add(course_id)
+                unique_course_ids.append(course_id)
+
+        if not unique_course_ids:
+            raise ValueError('course_id/enrolled_courses is empty')
+
+        if courses_mapping:
+            unknown = [course_id for course_id in unique_course_ids if course_id not in courses_mapping]
+            if unknown:
+                raise ValueError(f'unknown course_id(s): {unknown}')
+
+        return unique_course_ids
 
     def _resolve_vle_values(self, row):
         has_activity_columns = all(str(row.get(name, '')).strip() != '' for name in self.ACTIVITY_COLUMNS)

@@ -22,8 +22,13 @@ class PrepareStudentLearningProcessImportCommandTests(TestCase):
 
     def test_prepare_command_syncs_user_and_writes_normalized_csv(self):
         csv_content = (
-            'course_id,id,username,name,date_of_birth,position,gender,location,email,age,job_title,experience,co_quan,total_studied_time,completed_percentage,status,week_1,week_2,week_3,video_1,quiz_1,resource_1,video_2,quiz_2,resource_2,video_3,quiz_3,resource_3,final_score\n'
-            'chalix+course_6f694e29+2024,20260001,20260001,Đoàn Xuân Hòa,1979,Nhân viên,Nữ,Điện Biên,20260001@itg-acst.edu.vn,Trên 25 tuổi,Viên chức,Từ 5 đến 10 năm,"Học viện chiến lược, bồi dưỡng cán bộ xây dựng",40,100%,Hoàn thành,2.5,2.25,1,5,14,34,12,1,4,20,7,75,4\n'
+            'enrolled_courses,id,username,name,department,date_of_birth,position,gender,location,email,age,job_title,experience,total_studied_time,completed_percentage,status,week_1,week_2,week_3,video_1,quiz_1,resource_1,video_2,quiz_2,resource_2,video_3,quiz_3,resource_3,final_score\n'
+            'course_01;course_02,20260001,20260001,Đoàn Xuân Hòa,"Học viện chiến lược, bồi dưỡng cán bộ xây dựng",1979,Nhân viên,Nữ,Điện Biên,20260001@itg-acst.edu.vn,Trên 25 tuổi,Viên chức,Từ 5 đến 10 năm,40,100%,Hoàn thành,2.5,2.25,1,5,14,34,12,1,4,20,7,75,4\n'
+        )
+        courses_mapping_content = (
+            'course_id,course_name\n'
+            'course_01,Khóa 01\n'
+            'course_02,Khóa 02\n'
         )
 
         with tempfile.NamedTemporaryFile('w', encoding='utf-8', delete=False) as csv_file:
@@ -33,12 +38,18 @@ class PrepareStudentLearningProcessImportCommandTests(TestCase):
         with tempfile.NamedTemporaryFile('w', encoding='utf-8', delete=False) as output_file:
             output_path = output_file.name
 
+        with tempfile.NamedTemporaryFile('w', encoding='utf-8', delete=False) as mapping_file:
+            mapping_file.write(courses_mapping_content)
+            mapping_path = mapping_file.name
+
         call_command(
             'prepare_student_learning_process_import',
             '--csv-path',
             csv_path,
             '--output-path',
             output_path,
+            '--courses-mapping-path',
+            mapping_path,
             '--create-missing-users',
         )
 
@@ -64,9 +75,11 @@ class PrepareStudentLearningProcessImportCommandTests(TestCase):
         with open(output_path, 'r', encoding='utf-8', newline='') as handle:
             rows = list(csv.DictReader(handle))
 
-        self.assertEqual(len(rows), 1)
+        self.assertEqual(len(rows), 2)
         self.assertEqual(rows[0]['student_id'], '20260001')
         self.assertEqual(rows[0]['external_user_id'], '20260001')
+        self.assertEqual(rows[0]['course_id'], 'course_01')
+        self.assertEqual(rows[1]['course_id'], 'course_02')
         self.assertEqual(rows[0]['vle_1'], '53')
         self.assertEqual(rows[0]['vle_2'], '17')
         self.assertEqual(rows[0]['vle_3'], '102')
