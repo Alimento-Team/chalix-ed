@@ -2,6 +2,7 @@
 
 import csv
 import json
+import unicodedata
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -493,7 +494,12 @@ class Command(BaseCommand):
         return self._parse_int(value, field_name, minimum=minimum)
 
     def _normalize_text(self, value):
-        return ' '.join(str(value).strip().split()).lower()
+        text = ' '.join(str(value).strip().split()).lower()
+        # đ/Đ (d-with-stroke, U+0111/U+0110) does not decompose via NFKD; replace manually first
+        text = text.replace('\u0111', 'd').replace('\u0110', 'D')
+        # Strip all remaining Vietnamese (and other) diacritics via NFKD decomposition
+        nfkd = unicodedata.normalize('NFKD', text)
+        return ''.join(c for c in nfkd if not unicodedata.combining(c))
 
     def _first_present_value(self, row, column_names):
         for name in column_names:

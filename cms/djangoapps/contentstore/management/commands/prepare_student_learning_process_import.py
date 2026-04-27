@@ -114,6 +114,10 @@ class Command(BaseCommand):
         if mapping_output_path is not None:
             self._write_resolved_mapping_csv(mapping_output_path, resolved_mapping_rows)
 
+        unresolved_count = sum(
+            1 for row in resolved_mapping_rows if not row.get('actual_course_id')
+        )
+
         prepared_rows = []
         failed_count = 0
         error_examples = []
@@ -148,6 +152,13 @@ class Command(BaseCommand):
         self.stdout.write(f'Output: {output_path}')
         if mapping_output_path is not None:
             self.stdout.write(f'Course ID Mapping Output: {mapping_output_path}')
+        if unresolved_count:
+            self.stdout.write(
+                self.style.WARNING(
+                    f'Course mapping unresolved: {unresolved_count} row(s); '
+                    'source course_id will be used for those entries.'
+                )
+            )
         for msg in error_examples:
             self.stdout.write(self.style.WARNING(msg))
 
@@ -239,7 +250,6 @@ class Command(BaseCommand):
 
         mapping = {}
         resolved_rows = []
-        unresolved = []
         with mapping_path.open('r', encoding='utf-8-sig', newline='') as handle:
             reader = csv.DictReader(handle)
             for row in reader:
@@ -249,12 +259,36 @@ class Command(BaseCommand):
                     continue
 
                 if not course_name:
-                    unresolved.append(f'{course_id} (missing course_name)')
+                    mapping[course_id] = {
+                        'course_name': course_name,
+                        'actual_course_id': '',
+                    }
+                    resolved_rows.append(
+                        {
+                            'source_course_id': course_id,
+                            'course_name': course_name,
+                            'actual_course_id': '',
+                            'status': 'unresolved',
+                            'note': 'missing course_name',
+                        }
+                    )
                     continue
 
                 actual_course_id = self._lookup_actual_course_id(course_name)
                 if not actual_course_id:
-                    unresolved.append(f'{course_id} ({course_name})')
+                    mapping[course_id] = {
+                        'course_name': course_name,
+                        'actual_course_id': '',
+                    }
+                    resolved_rows.append(
+                        {
+                            'source_course_id': course_id,
+                            'course_name': course_name,
+                            'actual_course_id': '',
+                            'status': 'unresolved',
+                            'note': 'course_name not found in CourseOverview',
+                        }
+                    )
                     continue
 
                 mapping[course_id] = {
@@ -266,24 +300,15 @@ class Command(BaseCommand):
                         'source_course_id': course_id,
                         'course_name': course_name,
                         'actual_course_id': actual_course_id,
+                        'status': 'resolved',
+                        'note': '',
                     }
                 )
-
-        if unresolved:
-            preview = unresolved[:10]
-            remaining = len(unresolved) - len(preview)
-            detail = ', '.join(preview)
-            if remaining > 0:
-                detail = f'{detail}, ... (+{remaining} more)'
-            raise CommandError(
-                'Unable to resolve course_name to actual course id for: '
-                f'{detail}'
-            )
 
         return mapping, resolved_rows
 
     def _write_resolved_mapping_csv(self, output_path, rows):
-        headers = ['source_course_id', 'course_name', 'actual_course_id']
+        headers = ['source_course_id', 'course_name', 'actual_course_id', 'status', 'note']
         with output_path.open('w', encoding='utf-8', newline='') as handle:
             writer = csv.DictWriter(handle, fieldnames=headers)
             writer.writeheader()
@@ -331,10 +356,14 @@ class Command(BaseCommand):
             raise ValueError('course_id/enrolled_courses is empty')
 
         if courses_mapping:
-            unknown = [course_id for course_id in unique_course_ids if course_id not in courses_mapping]
-            if unknown:
-                raise ValueError(f'unknown course_id(s): {unknown}')
-            return [courses_mapping[course_id]['actual_course_id'] for course_id in unique_course_ids]
+            resolved_course_ids = []
+            for course_id in unique_course_ids:
+                mapping_entry = courses_mapping.get(course_id)
+                if mapping_entry and mapping_entry.get('actual_course_id'):
+                    resolved_course_ids.append(mapping_entry['actual_course_id'])
+                else:
+                    resolved_course_ids.append(course_id)
+            return resolved_course_ids
 
         return unique_course_ids
 

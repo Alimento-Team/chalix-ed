@@ -527,8 +527,8 @@ def list_users(request):
         except Exception:
             per_page = 50
 
-        # Base queryset
-        users_qs = User.objects.select_related('profile').all().order_by('id')
+        # Base queryset: only active accounts are listed in create-account view.
+        users_qs = User.objects.select_related('profile').filter(is_active=True).order_by('id')
 
         # Optional search filter
         q = request.GET.get('q', '').strip()
@@ -567,9 +567,32 @@ def list_users(request):
         end = start + per_page
         users_page = list(users_qs[start:end])
 
-        # Prefetch roles for the selected users to avoid N+1
-        role_objs = ChalixUserRole.objects.filter(user__in=users_page, is_active=True).select_related('organization')
-        role_map = {r.user_id: r for r in role_objs}
+        # Prefetch active roles for selected users and choose one display role per user.
+        role_objs = list(
+            ChalixUserRole.objects.filter(user__in=users_page, is_active=True).select_related('organization')
+        )
+
+        role_priority = {
+            'bo': 4,
+            'co_quan': 3,
+            'giang_vien': 2,
+            'cong_chuc': 1,
+        }
+        role_label_map = {
+            'bo': 'Tài khoản Bộ',
+            'co_quan': 'Tài khoản Cơ quan',
+            'giang_vien': 'Tài khoản Giảng viên',
+            'cong_chuc': 'Tài khoản Công chức/Viên chức',
+        }
+
+        role_map = {}
+        for role_obj in role_objs:
+            existing = role_map.get(role_obj.user_id)
+            if existing is None:
+                role_map[role_obj.user_id] = role_obj
+                continue
+            if role_priority.get(role_obj.role, 0) > role_priority.get(existing.role, 0):
+                role_map[role_obj.user_id] = role_obj
 
         users_data = []
         for u in users_page:
@@ -587,12 +610,14 @@ def list_users(request):
             r = role_map.get(u.id)
             org_display = None
             role_display = None
+            system_user_role = 'Tài khoản Công chức/Viên chức'
             if r:
                 org_display = r.organization.display_name if r.organization else None
                 try:
                     role_display = r.get_role_display()
                 except Exception:
                     role_display = getattr(r, 'role', None)
+                system_user_role = role_label_map.get(r.role, system_user_role)
             
             # Get meta data from profile
             meta_data = {}
@@ -618,9 +643,9 @@ def list_users(request):
                 'organization': org_display,
                 'role': role_display,
                 'gender': gender_display,
-                'system_user_role': 'Tài khoản Công chức/Viên chức',
+                'system_user_role': system_user_role,
                 'meta': meta_data,
-                'user_role': 'Tài khoản Công chức/Viên chức'
+                'user_role': system_user_role
             })
 
         return Response({

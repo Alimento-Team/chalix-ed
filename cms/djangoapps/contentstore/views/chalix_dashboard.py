@@ -2164,15 +2164,11 @@ def _get_statistics_data(request):
     Column TT (row number) should be displayed as smaller column
     """
     from django.core.paginator import Paginator
-    from django.db.models import Q, Count, Sum, Avg
-    from common.djangoapps.student.models import UserProfile, CourseEnrollment, User
-    from lms.djangoapps.grades.models import PersistentCourseGrade
-    from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
+    from django.db.models import Q, Avg, Sum
+    from common.djangoapps.student.models import User
+    from lms.djangoapps.learning_analytics.models import StudentLearningProcessSnapshot
+    from cms.djangoapps.contentstore.models import ChalixUserRole
     from cms.djangoapps.contentstore.chalix_roles import get_user_primary_role
-    import csv
-    from django.http import HttpResponse
-    from datetime import datetime
-    import re
     
     # Check if this is an export request
     if request.GET.get('export') == 'csv':
@@ -2187,15 +2183,25 @@ def _get_statistics_data(request):
     page = int(request.GET.get('page', 1))
     per_page = 10
     
-    # Base queryset - get all users with profiles and enrollments
+    # Base queryset - only learner accounts (cong_chuc), excluding bo/co_quan role users.
+    learner_role_qs = ChalixUserRole.objects.filter(
+        role='cong_chuc',
+        is_active=True,
+    )
+
     users_query = User.objects.select_related('profile').filter(
-        courseenrollment__is_active=True
+        is_active=True,
+        id__in=learner_role_qs.values_list('user_id', flat=True),
+        learning_process_snapshots__isnull=False,
     ).distinct()
     
     # Filter by organization for co_quan role
     user_role = get_user_primary_role(request.user)
     if user_role and user_role.role == 'co_quan' and user_role.organization:
-               users_query = users_query.filter(profile__meta__icontains=user_role.organization.display_name)
+        scoped_user_ids = learner_role_qs.filter(
+            organization=user_role.organization,
+        ).values_list('user_id', flat=True)
+        users_query = users_query.filter(id__in=scoped_user_ids)
     
     # Apply phone filter
     if phone_filter:
@@ -2211,12 +2217,6 @@ def _get_statistics_data(request):
             Q(last_name__icontains=name_filter)
         )
     
-    # Apply year filter (based on enrollment date)
-    if year_filter_int:
-        users_query = users_query.filter(
-            courseenrollment__created__year=year_filter_int
-        )
-    
     # Get learner statistics
     learners_data = []
     total_learners = users_query.count()
@@ -2225,59 +2225,16 @@ def _get_statistics_data(request):
     total_hours_sum = 0
     
     for user in users_query:
-        # Get user's enrollments
-        enrollments = CourseEnrollment.objects.filter(
-            user=user, 
-            is_active=True
-        ).select_related('course')
-
-        if year_filter_int:
-            enrollments = enrollments.filter(created__year=year_filter_int)
-        
-        if not enrollments.exists():
+        user_snapshots = StudentLearningProcessSnapshot.objects.filter(user=user)
+        if not user_snapshots.exists():
             continue
-            
-        # Calculate total estimated hours and completion
-        total_estimated_hours = 0
-        completion_percentage = 0
-        
-        for enrollment in enrollments:
-            try:
-                # Get course overview for estimated hours
-                course_overview = CourseOverview.objects.get(id=enrollment.course_id)
-                # Use effort field if available, otherwise estimate based on course length
-                if hasattr(course_overview, 'effort') and course_overview.effort:
-                    # Parse effort string like "2-3 hours/week" or "10 hours"
-                    effort_str = str(course_overview.effort).lower()
-                    hours_match = re.search(r'(\d+)', effort_str)
-                    if hours_match:
-                        weekly_hours = int(hours_match.group(1))
-                        # Estimate total hours (assuming 10-week course)
-                        total_estimated_hours += weekly_hours * 10
-                else:
-                    # Default estimate: 20 hours per course
-                    total_estimated_hours += 20
-                
-                # Get grade/completion data
-                try:
-                    grade = PersistentCourseGrade.objects.get(
-                        user_id=user.id,
-                        course_id=enrollment.course_id
-                    )
-                    if grade.percent_grade is not None:
-                        # Convert grade percentage to completion hours
-                        completion_percentage += (grade.percent_grade * 100)
-                except PersistentCourseGrade.DoesNotExist:
-                    completion_percentage += 0
-                    
-            except CourseOverview.DoesNotExist:
-                # If course overview doesn't exist, use default
-                total_estimated_hours += 20
-                completion_percentage += 0
-        
-        # Calculate average completion percentage across all courses
-        if enrollments.count() > 0:
-            completion_percentage = completion_percentage / enrollments.count()
+
+        agg = user_snapshots.aggregate(
+            avg_completed=Avg('completed_percentage'),
+            total_hours=Sum('total_studied_time'),
+        )
+        completion_percentage = float(agg.get('avg_completed') or 0)
+        total_studied_time_from_snapshot = agg.get('total_hours')
         
         # Apply completion filter
         if completion_filter:
@@ -2299,10 +2256,14 @@ def _get_statistics_data(request):
             except Exception:
                 profile_meta = {}
 
-        calculated_total_hours = round(total_estimated_hours * (completion_percentage / 100), 1)
+        calculated_total_hours = float(total_studied_time_from_snapshot or 0)
         total_studied_time = profile_meta.get('total_studied_time', calculated_total_hours)
         completed_percentage = profile_meta.get('completed_percentage', round(completion_percentage, 1))
         status_value = profile_meta.get('status', '')
+
+        if not status_value:
+            latest_snapshot = user_snapshots.order_by('-updated_at').first()
+            status_value = (latest_snapshot.status if latest_snapshot else '') or ''
 
         learner_data = {
             'id': user.id,
@@ -2316,7 +2277,7 @@ def _get_statistics_data(request):
             # Backward-compatible aliases for existing frontend code paths.
             'total_hours': total_studied_time,
             'completion_percentage': completed_percentage,
-            'enrollments_count': enrollments.count()
+            'enrollments_count': user_snapshots.values('course_id').distinct().count(),
         }
         
         learners_data.append(learner_data)
@@ -2370,9 +2331,9 @@ def _get_course_completion_stats(request):
     For co_quan role: only count learners from their organization
     Column TT (row number) should be displayed as smaller column
     """
-    from common.djangoapps.student.models import CourseEnrollment
-    from lms.djangoapps.grades.models import PersistentCourseGrade
+    from lms.djangoapps.learning_analytics.models import StudentLearningProcessSnapshot
     from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
+    from cms.djangoapps.contentstore.models import ChalixUserRole
     from cms.djangoapps.contentstore.chalix_roles import get_user_primary_role
     year_filter = request.GET.get('year', '').strip()
     year_filter_int = None
@@ -2386,58 +2347,38 @@ def _get_course_completion_stats(request):
     user_role = get_user_primary_role(request.user)
     org_filter = None
     if user_role and user_role.role == 'co_quan' and user_role.organization:
-            org_filter = user_role.organization.display_name
-    
-    # Get all courses with enrollments
-    if org_filter:
-        # For co_quan: only courses with enrollments from their organization
-        courses = CourseOverview.objects.filter(
-            courseenrollment__is_active=True,
-            courseenrollment__user__profile__meta__icontains=org_filter
-        ).distinct()
-    else:
-        courses = CourseOverview.objects.filter(
-            courseenrollment__is_active=True
-        ).distinct()
+        org_filter = user_role.organization
 
-    if year_filter_int:
-        courses = courses.filter(courseenrollment__created__year=year_filter_int)
+    learner_role_qs = ChalixUserRole.objects.filter(
+        role='cong_chuc',
+        is_active=True,
+        user__is_active=True,
+    )
+    if org_filter:
+        learner_role_qs = learner_role_qs.filter(organization=org_filter)
+    learner_user_ids = learner_role_qs.values_list('user_id', flat=True)
+
+    snapshot_qs = StudentLearningProcessSnapshot.objects.filter(user_id__in=learner_user_ids)
+    course_ids = snapshot_qs.values_list('course_id', flat=True).distinct()
     
     course_stats = []
-    for course in courses:
-        # Base query for counting learners
-        if org_filter:
-            # For co_quan: only count learners from their organization
-            current_learners_query = CourseEnrollment.objects.filter(
-                course_id=course.id,
-                is_active=True,
-                user__profile__meta__icontains=org_filter
-            )
-            if year_filter_int:
-                current_learners_query = current_learners_query.filter(created__year=year_filter_int)
-            completed_query = PersistentCourseGrade.objects.filter(
-                course_id=course.id,
-                percent_grade__gte=0.6,
-                user_id__in=current_learners_query.values_list('user_id', flat=True)
-            )
-        else:
-            # For other roles: count all learners
-            current_learners_query = CourseEnrollment.objects.filter(
-                course_id=course.id,
-                is_active=True
-            )
-            if year_filter_int:
-                current_learners_query = current_learners_query.filter(created__year=year_filter_int)
-            completed_query = PersistentCourseGrade.objects.filter(
-                course_id=course.id,
-                percent_grade__gte=0.6
-            )
-        
-        current_learners_count = current_learners_query.count()
-        completed_count = completed_query.count()
+    for course_id in course_ids:
+        current_learners_count = snapshot_qs.filter(course_id=course_id).values('user_id').distinct().count()
+        completed_count = snapshot_qs.filter(
+            course_id=course_id,
+            completed_percentage__gte=60,
+        ).values('user_id').distinct().count()
+
+        course_name = course_id
+        try:
+            overview = CourseOverview.objects.filter(id=course_id).only('display_name').first()
+            if overview and overview.display_name:
+                course_name = overview.display_name
+        except Exception:
+            pass
         
         course_stats.append({
-            'course_name': course.display_name,
+            'course_name': course_name,
             'current_learners': current_learners_count,
             'completed_count': completed_count
         })
@@ -2457,8 +2398,7 @@ def _get_organization_completion_stats(request):
     Column TT (row number) should be displayed as smaller column
     """
     from cms.djangoapps.contentstore.models import ChalixOrganization, ChalixUserRole
-    from common.djangoapps.student.models import CourseEnrollment
-    from lms.djangoapps.grades.models import PersistentCourseGrade
+    from lms.djangoapps.learning_analytics.models import StudentLearningProcessSnapshot
     import logging
 
     year_filter = request.GET.get('year', '').strip()
@@ -2480,7 +2420,9 @@ def _get_organization_completion_stats(request):
         # Get users in this organization
         org_users = ChalixUserRole.objects.filter(
             organization=org,
-            is_active=True
+            role='cong_chuc',
+            is_active=True,
+            user__is_active=True,
         ).values_list('user_id', flat=True)
         
         logger.info(f"[Organization Stats] Org: {org.display_name}, Users: {len(org_users)}")
@@ -2488,32 +2430,12 @@ def _get_organization_completion_stats(request):
         if not org_users:
             continue
         
-        # Count total learners from this organization that started learning in selected year.
-        learner_count = 0
-        
-        # Count how many completed at least one course
-        completed_learners = 0
-        for user_id in org_users:
-            user_enrollments = CourseEnrollment.objects.filter(
-                user_id=user_id,
-                is_active=True,
-            )
-            if year_filter_int:
-                user_enrollments = user_enrollments.filter(created__year=year_filter_int)
+        snapshot_qs = StudentLearningProcessSnapshot.objects.filter(user_id__in=org_users)
+        learner_count = snapshot_qs.values('user_id').distinct().count()
 
-            if not user_enrollments.exists():
-                continue
-
-            learner_count += 1
-            enrolled_course_ids = user_enrollments.values_list('course_id', flat=True).distinct()
-            has_completed = PersistentCourseGrade.objects.filter(
-                user_id=user_id,
-                course_id__in=enrolled_course_ids,
-                percent_grade__gte=0.6  # 60% passing grade
-            ).exists()
-            
-            if has_completed:
-                completed_learners += 1
+        completed_learners = snapshot_qs.filter(
+            completed_percentage__gte=60,
+        ).values('user_id').distinct().count()
         
         # Calculate completion percentage
         completion_percentage = round((completed_learners / learner_count * 100), 1) if learner_count > 0 else 0
@@ -2541,7 +2463,7 @@ def _get_organization_courses_stats(request):
     Column TT (row number) should be displayed as smaller column
     """
     from cms.djangoapps.contentstore.models import ChalixOrganization, ChalixUserRole
-    from common.djangoapps.student.models import CourseEnrollment
+    from lms.djangoapps.learning_analytics.models import StudentLearningProcessSnapshot
     import logging
 
     year_filter = request.GET.get('year', '').strip()
@@ -2563,7 +2485,9 @@ def _get_organization_courses_stats(request):
         # Get users in this organization
         org_users = ChalixUserRole.objects.filter(
             organization=org,
-            is_active=True
+            role='cong_chuc',
+            is_active=True,
+            user__is_active=True,
         ).values_list('user_id', flat=True)
         
         logger.info(f"[Organization Courses Stats] Org: {org.display_name}, Users: {len(org_users)}")
@@ -2571,14 +2495,10 @@ def _get_organization_courses_stats(request):
         if not org_users:
             continue
         
-        # Count distinct courses that members of this organization are enrolled in
-        enrollment_query = CourseEnrollment.objects.filter(
+        # Count distinct courses that members of this organization have imported learning snapshots for.
+        courses_count = StudentLearningProcessSnapshot.objects.filter(
             user_id__in=org_users,
-            is_active=True
-        )
-        if year_filter_int:
-            enrollment_query = enrollment_query.filter(created__year=year_filter_int)
-        courses_count = enrollment_query.values('course_id').distinct().count()
+        ).values('course_id').distinct().count()
         
         logger.info(f"[Organization Courses Stats] Org: {org.display_name}, Courses: {courses_count}")
         

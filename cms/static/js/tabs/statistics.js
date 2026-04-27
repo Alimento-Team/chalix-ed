@@ -809,6 +809,8 @@
                 loadingIndicator.style.display = 'block';
             }
 
+            this.renderLoadingState();
+
             // Collect filter values
             const filters = {
                 phone: (document.getElementById('filter-phone')?.value || '').trim(),
@@ -869,6 +871,32 @@
                 console.error('Error loading statistics:', error);
                 this.showError(error.message || 'Có lỗi xảy ra khi tải dữ liệu thống kê. Vui lòng thử lại.');
             });
+        },
+
+        renderLoadingState: function() {
+            const loadingRow = '<tr><td colspan="7" class="text-center"><i class="fa fa-spinner fa-spin"></i> Đang tải dữ liệu...</td></tr>';
+            const loadingRow4 = '<tr><td colspan="4" class="text-center"><i class="fa fa-spinner fa-spin"></i> Đang tải dữ liệu...</td></tr>';
+            const loadingRow3 = '<tr><td colspan="3" class="text-center"><i class="fa fa-spinner fa-spin"></i> Đang tải dữ liệu...</td></tr>';
+
+            const mainTableBody = document.querySelector('#statistics-table tbody');
+            if (mainTableBody) {
+                mainTableBody.innerHTML = loadingRow;
+            }
+
+            const courseTableBody = document.querySelector('#course-completion-table tbody');
+            if (courseTableBody) {
+                courseTableBody.innerHTML = loadingRow4;
+            }
+
+            const orgCompletionBody = document.querySelector('#organization-completion-table tbody');
+            if (orgCompletionBody) {
+                orgCompletionBody.innerHTML = loadingRow4;
+            }
+
+            const orgCoursesBody = document.querySelector('#organization-courses-table tbody');
+            if (orgCoursesBody) {
+                orgCoursesBody.innerHTML = loadingRow3;
+            }
         },
 
         renderStatisticsData: function(data) {
