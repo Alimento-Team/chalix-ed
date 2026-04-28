@@ -2164,7 +2164,7 @@ def _get_statistics_data(request):
     Column TT (row number) should be displayed as smaller column
     """
     from django.core.paginator import Paginator
-    from django.db.models import Q, Avg, Sum
+    from django.db.models import Q, Avg, Max
     from common.djangoapps.student.models import User
     from lms.djangoapps.learning_analytics.models import StudentLearningProcessSnapshot
     from cms.djangoapps.contentstore.models import ChalixUserRole
@@ -2244,10 +2244,10 @@ def _get_statistics_data(request):
 
         agg = user_snapshots.aggregate(
             avg_completed=Avg('completed_percentage'),
-            total_hours=Sum('total_studied_time'),
+            max_total_hours=Max('total_studied_time'),
         )
         completion_percentage = float(agg.get('avg_completed') or 0)
-        total_studied_time_from_snapshot = agg.get('total_hours')
+        total_studied_time_from_snapshot = agg.get('max_total_hours')
         
         # Apply completion filter
         if completion_filter:
@@ -2270,8 +2270,9 @@ def _get_statistics_data(request):
                 profile_meta = {}
 
         calculated_total_hours = float(total_studied_time_from_snapshot or 0)
-        total_studied_time = profile_meta.get('total_studied_time', calculated_total_hours)
-        completed_percentage = profile_meta.get('completed_percentage', round(completion_percentage, 1))
+        # Snapshot values are course-analytics source of truth for this table.
+        total_studied_time = calculated_total_hours
+        completed_percentage = round(completion_percentage, 1)
         status_value = profile_meta.get('status', '')
 
         if not status_value:

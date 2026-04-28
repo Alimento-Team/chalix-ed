@@ -17,6 +17,8 @@ from openedx.core.djangoapps.content.course_overviews.models import CourseOvervi
 
 class Command(BaseCommand):
     help = 'Prepare student learning-process data in CMS and write a normalized CSV for LMS import.'
+    DEFAULT_EMAIL_DOMAIN = 'itg-acst.edu.vn'
+    DEFAULT_IMPORTED_USER_PASSWORD = 'Itg@cst2025'
 
     REQUIRED_COLUMNS = [
         'position',
@@ -85,6 +87,11 @@ class Command(BaseCommand):
             action='store_true',
             help='Create auth users when the learner username is missing.',
         )
+        parser.add_argument(
+            '--sync-user-credentials',
+            action='store_true',
+            help='Update processed users to use import email (or username@itg-acst.edu.vn) and default password.',
+        )
 
     def handle(self, *args, **options):
         csv_path = Path(options['csv_path']).expanduser().resolve()
@@ -100,6 +107,7 @@ class Command(BaseCommand):
             if mapping_output_path_option else None
         )
         create_missing_users = options['create_missing_users']
+        sync_user_credentials = options['sync_user_credentials']
 
         if not csv_path.exists():
             raise CommandError(f'CSV file does not exist: {csv_path}')
@@ -134,6 +142,7 @@ class Command(BaseCommand):
                             row_number,
                             courses_mapping=courses_mapping,
                             create_missing_users=create_missing_users,
+                            sync_user_credentials=sync_user_credentials,
                         )
                     )
                 except ValueError as exc:
@@ -185,7 +194,14 @@ class Command(BaseCommand):
                 'video_n/quiz_n/resource_n for n=1..3.'
             )
 
-    def _prepare_rows(self, row, row_number, courses_mapping=None, create_missing_users=False):
+    def _prepare_rows(
+        self,
+        row,
+        row_number,
+        courses_mapping=None,
+        create_missing_users=False,
+        sync_user_credentials=False,
+    ):
         student_id = self._first_present_value(row, self.IDENTITY_COLUMNS)
         if not student_id:
             raise ValueError('student identifier is empty')
@@ -200,6 +216,11 @@ class Command(BaseCommand):
 
         with transaction.atomic():
             self._sync_user_account(user, (row.get('email') or '').strip())
+            self._sync_user_account(
+                user,
+                (row.get('email') or '').strip(),
+                sync_user_credentials=sync_user_credentials,
+            )
             organization_name = self._resolve_organization_name(row)
             self._sync_user_profile(
                 user=user,
@@ -431,14 +452,24 @@ class Command(BaseCommand):
             return None
         return User.objects.create_user(
             username=username,
-            email=email or f'{username}@example.local',
-            password=None,
+            email=email or f'{username}@{self.DEFAULT_EMAIL_DOMAIN}',
+            password=self.DEFAULT_IMPORTED_USER_PASSWORD,
         )
 
-    def _sync_user_account(self, user, email):
-        if email and user.email != email:
-            user.email = email
-            user.save(update_fields=['email'])
+    def _sync_user_account(self, user, email, sync_user_credentials=False):
+        desired_email = email or f'{user.username}@{self.DEFAULT_EMAIL_DOMAIN}'
+        update_fields = []
+
+        if desired_email and user.email != desired_email:
+            user.email = desired_email
+            update_fields.append('email')
+
+        if sync_user_credentials:
+            user.set_password(self.DEFAULT_IMPORTED_USER_PASSWORD)
+            update_fields.append('password')
+
+        if update_fields:
+            user.save(update_fields=list(dict.fromkeys(update_fields)))
 
     def _sync_user_profile(self, user, profile_name, profile_name_was_provided, raw_date_of_birth, organization_name):
         year_of_birth = self._resolve_birth_year(raw_date_of_birth)
