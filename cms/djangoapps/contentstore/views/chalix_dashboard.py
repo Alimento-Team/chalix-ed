@@ -2189,10 +2189,15 @@ def _get_statistics_data(request):
         is_active=True,
     )
 
+    snapshot_user_ids = StudentLearningProcessSnapshot.objects.filter(
+        user_id__isnull=False,
+    ).values_list('user_id', flat=True).distinct()
+
     users_query = User.objects.select_related('profile').filter(
         is_active=True,
         id__in=learner_role_qs.values_list('user_id', flat=True),
-        learning_process_snapshots__isnull=False,
+    ).filter(
+        id__in=snapshot_user_ids,
     ).distinct()
     
     # Filter by organization for co_quan role
