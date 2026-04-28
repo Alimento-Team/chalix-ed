@@ -233,6 +233,10 @@ class Command(BaseCommand):
         vle_1, vle_2, vle_3 = self._resolve_vle_values(row)
 
         course_ids = self._resolve_course_ids(row, courses_mapping)
+        per_course_total_studied_time = self._resolve_per_course_total_studied_time(
+            row.get('total_studied_time'),
+            len(course_ids),
+        )
         rows = []
         for course_id in course_ids:
             rows.append(
@@ -252,7 +256,7 @@ class Command(BaseCommand):
                     'vle_1': vle_1,
                     'vle_2': vle_2,
                     'vle_3': vle_3,
-                    'total_studied_time': self._format_optional_decimal(row.get('total_studied_time')),
+                    'total_studied_time': per_course_total_studied_time,
                     'completed_percentage': self._format_optional_percentage(row.get('completed_percentage')),
                     'status': (row.get('status') or '').strip(),
                     'final_score': (row.get('final_score') or '').strip(),
@@ -435,6 +439,26 @@ class Command(BaseCommand):
         if parsed < 0 or parsed > 100:
             raise ValueError(f'completed_percentage out of range: {parsed}')
         return str(parsed)
+
+    def _resolve_per_course_total_studied_time(self, value, course_count):
+        if value is None or str(value).strip() == '':
+            return ''
+        if course_count <= 0:
+            raise ValueError('course_count must be > 0 when total_studied_time is provided')
+
+        try:
+            total_hours = Decimal(str(value).strip())
+        except (InvalidOperation, AttributeError):
+            raise ValueError(f'invalid decimal value: {value}')
+
+        per_course_hours = total_hours / Decimal(course_count)
+        normalized = per_course_hours.normalize()
+
+        # Keep plain decimal formatting without scientific notation for CSV output.
+        as_text = format(normalized, 'f')
+        if '.' in as_text:
+            as_text = as_text.rstrip('0').rstrip('.')
+        return as_text
 
     def _first_present_value(self, row, column_names):
         for name in column_names:

@@ -2244,10 +2244,18 @@ def _get_statistics_data(request):
 
         agg = user_snapshots.aggregate(
             avg_completed=Avg('completed_percentage'),
-            max_total_hours=Max('total_studied_time'),
         )
         completion_percentage = float(agg.get('avg_completed') or 0)
-        total_studied_time_from_snapshot = agg.get('max_total_hours')
+
+        # Source rows are expanded per enrolled course. To reconstruct the learner-level
+        # total, take the latest/max hours per course and then sum across courses.
+        per_course_hours = user_snapshots.values('course_id').annotate(
+            course_hours=Max('total_studied_time'),
+        )
+        total_studied_time_from_snapshot = sum(
+            float(row.get('course_hours') or 0)
+            for row in per_course_hours
+        )
         
         # Apply completion filter
         if completion_filter:

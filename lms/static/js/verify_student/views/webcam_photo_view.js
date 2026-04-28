@@ -28,25 +28,18 @@ var edx = edx || {},
                     this.stream = null;
 
                     // Start the capture
-                    var getUserMedia = this.getUserMediaFunc();
-                    if (getUserMedia) {
-                        getUserMedia(
-                            {
-                                video: true,
-
-                                // Specify the `fake` constraint if we detect we are running in a test
-                                // environment. In Chrome, this will do nothing, but in Firefox, it will
-                                // instruct the browser to use a fake video device.
-                                fake: window.location.hostname === 'localhost'
-                            },
-                            _.bind(this.getUserMediaCallback, this),
-                            _.bind(this.handleVideoFailure, this)
-                        );
+                    if (this.isSupported()) {
+                        this.getUserMediaPromise()
+                            .then(_.bind(this.getUserMediaCallback, this))
+                            .catch(_.bind(this.handleVideoFailure, this));
                     }
                 },
 
                 isSupported: function() {
-                    return this.getUserMediaFunc() !== undefined;
+                    return !!(
+                        navigator.mediaDevices
+                        && typeof navigator.mediaDevices.getUserMedia === 'function'
+                    ) || this.getUserMediaFunc() !== undefined;
                 },
 
                 snapshot: function() {
@@ -86,10 +79,53 @@ var edx = edx || {},
                     }
                 },
 
+                getConstraints: function(useLegacyApi) {
+                    var constraints = {
+                        video: true
+                    };
+
+                    // Firefox test runs rely on this legacy fake-device constraint.
+                    if (useLegacyApi && window.location.hostname === 'localhost') {
+                        constraints.fake = true;
+                    }
+
+                    return constraints;
+                },
+
+                getUserMediaPromise: function() {
+                    var mediaDevices = navigator.mediaDevices;
+                    var legacyGetUserMedia = this.getUserMediaFunc();
+                    var constraints;
+
+                    if (mediaDevices && typeof mediaDevices.getUserMedia === 'function') {
+                        constraints = this.getConstraints(false);
+                        return mediaDevices.getUserMedia(constraints);
+                    }
+
+                    if (legacyGetUserMedia) {
+                        constraints = this.getConstraints(true);
+                        return new Promise(function(resolve, reject) {
+                            legacyGetUserMedia(constraints, resolve, reject);
+                        });
+                    }
+
+                    return Promise.reject(new Error('getUserMedia is not supported'));
+                },
+
                 getUserMediaCallback: function(stream) {
                     var video = this.getVideo();
                     this.stream = stream;
-                    video.srcObject = stream;
+                    video.autoplay = true;
+                    video.muted = true;
+                    video.playsInline = true;
+                    video.setAttribute('playsinline', 'true');
+
+                    if ('srcObject' in video) {
+                        video.srcObject = stream;
+                    } else {
+                        video.src = this.URL.createObjectURL(stream);
+                    }
+
                     video.play();
                     this.trigger('webcam-loaded');
                 },
