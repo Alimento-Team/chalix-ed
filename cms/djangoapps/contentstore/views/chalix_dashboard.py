@@ -2177,6 +2177,7 @@ def _get_statistics_data(request):
     # Get filter parameters
     phone_filter = request.GET.get('phone', '').strip()
     name_filter = request.GET.get('name', '').strip()
+    id_filter = request.GET.get('student_id', '').strip()
     # Requirement: year displayed for this statistics table is fixed to 2026.
     year_filter_int = 2026
     completion_filter = request.GET.get('completion', '').strip()
@@ -2220,6 +2221,13 @@ def _get_statistics_data(request):
             Q(profile__name__icontains=name_filter) |
             Q(first_name__icontains=name_filter) |
             Q(last_name__icontains=name_filter)
+        )
+    
+    # Apply student ID filter
+    if id_filter:
+        users_query = users_query.filter(
+            Q(id__icontains=id_filter) |
+            Q(username__icontains=id_filter)
         )
     
     # Get learner statistics
@@ -2364,7 +2372,8 @@ def _get_course_completion_stats(request):
     learner_user_ids = learner_role_qs.values_list('user_id', flat=True)
 
     snapshot_qs = StudentLearningProcessSnapshot.objects.filter(user_id__in=learner_user_ids)
-    course_ids = snapshot_qs.values_list('course_id', flat=True).distinct()
+    # Use values().distinct() then extract course_ids to avoid duplicate iteration
+    course_ids = list(snapshot_qs.values('course_id').distinct().values_list('course_id', flat=True))
     
     course_stats = []
     for course_id in course_ids:

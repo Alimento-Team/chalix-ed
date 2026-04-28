@@ -84,7 +84,23 @@
                             ${isAgencyUser ? `
                             <!-- Co Quan sees only 2 tables for their organization -->
                             <div class="statistics-table-section" id="statistics-table-section-1">
-                                <h3 class="table-section-title" data-base-title="THỐNG KÊ SỐ GIỜ HỌC CỦA CÔNG CHỨC, VIÊN CHỨC">THỐNG KÊ SỐ GIỜ HỌC CỦA CÔNG CHỨC, VIÊN CHỨC NĂM 2025</h3>
+                                <h3 class="table-section-title" data-base-title="THỐNG KÊ SỐ GIỜ HỌC CỦA CÔNG CHỨC, VIÊN CHỨC">THỐNG KÊ SỐ GIỜ HỌC CỦA CÔNG CHỨC, VIÊN CHỨC NĂM 2026</h3>
+                                
+                                <!-- Search and Filter Controls -->
+                                <div class="statistics-filters">
+                                    <div class="filter-row">
+                                        <div class="filter-group">
+                                            <label for="filter-search-id">Tìm kiếm theo ID/Tên:</label>
+                                            <input type="text" id="filter-search-id" class="form-control" placeholder="Nhập ID hoặc tên người học..." />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Pagination Top -->
+                                <div id="pagination-container-top" style="display: none; text-align: center; margin-bottom: 15px;">
+                                    <ul id="pagination-list-top" class="pagination" style="display: inline-block; list-style: none; padding: 0;"></ul>
+                                </div>
+
                                 <div class="statistics-table-container">
                                     <table class="table table-striped" id="statistics-table">
                                         <thead>
@@ -104,6 +120,11 @@
                                             </tr>
                                         </tbody>
                                     </table>
+                                </div>
+
+                                <!-- Pagination Bottom -->
+                                <div id="pagination-container" style="display: none; text-align: center; margin-top: 15px;">
+                                    <ul id="pagination-list" class="pagination" style="display: inline-block; list-style: none; padding: 0;"></ul>
                                 </div>
                             </div>
                             <div class="statistics-table-section">
@@ -188,7 +209,23 @@
                                 </div>
                             </div>
                             <div class="statistics-table-section" id="statistics-table-section-4">
-                                <h3 class="table-section-title" data-base-title="THỐNG KÊ SỐ GIỜ HỌC CỦA CÔNG CHỨC, VIÊN CHỨC">THỐNG KÊ SỐ GIỜ HỌC CỦA CÔNG CHỨC, VIÊN CHỨC NĂM 2025</h3>
+                                <h3 class="table-section-title" data-base-title="THỐNG KÊ SỐ GIỜ HỌC CỦA CÔNG CHỨC, VIÊN CHỨC">THỐNG KÊ SỐ GIỜ HỌC CỦA CÔNG CHỨC, VIÊN CHỨC NĂM 2026</h3>
+                                
+                                <!-- Search and Filter Controls -->
+                                <div class="statistics-filters">
+                                    <div class="filter-row">
+                                        <div class="filter-group">
+                                            <label for="filter-search-id">Tìm kiếm theo ID/Tên:</label>
+                                            <input type="text" id="filter-search-id" class="form-control" placeholder="Nhập ID hoặc tên người học..." />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Pagination Top -->
+                                <div id="pagination-container-top" style="display: none; text-align: center; margin-bottom: 15px;">
+                                    <ul id="pagination-list-top" class="pagination" style="display: inline-block; list-style: none; padding: 0;"></ul>
+                                </div>
+
                                 <div class="statistics-table-container">
                                     <table class="table table-striped" id="statistics-table">
                                         <thead>
@@ -208,6 +245,11 @@
                                             </tr>
                                         </tbody>
                                     </table>
+                                </div>
+
+                                <!-- Pagination Bottom -->
+                                <div id="pagination-container" style="display: none; text-align: center; margin-top: 15px;">
+                                    <ul id="pagination-list" class="pagination" style="display: inline-block; list-style: none; padding: 0;"></ul>
                                 </div>
                             </div>
                             `}
@@ -728,6 +770,57 @@
                         padding: 10px 16px;
                     }
                 }
+
+                /* Pagination Styles */
+                #pagination-container, #pagination-container-top {
+                    display: none;
+                    text-align: center;
+                    margin: 20px 0;
+                }
+
+                .pagination {
+                    list-style: none;
+                    padding: 0;
+                    margin: 0;
+                    display: inline-block;
+                }
+
+                .pagination li {
+                    display: inline-block;
+                    margin: 0 3px;
+                }
+
+                .pagination a {
+                    padding: 8px 12px;
+                    border: 1px solid #ddd;
+                    background-color: #ffffff;
+                    color: #333;
+                    text-decoration: none;
+                    border-radius: 4px;
+                    transition: all 0.2s ease;
+                }
+
+                .pagination a:hover {
+                    background-color: #e9ecef;
+                    color: #333;
+                    border-color: #3494c8;
+                }
+
+                .pagination li.active a {
+                    background-color: #3494c8;
+                    color: white;
+                    border-color: #3494c8;
+                }
+
+                /* Search Input Styles */
+                .statistics-filters .filter-group {
+                    margin-bottom: 0;
+                }
+
+                .statistics-filters .filter-group input[type="text"] {
+                    width: 100%;
+                    max-width: 400px;
+                }
             `;
             document.head.appendChild(style);
         },
@@ -791,6 +884,15 @@
                 });
             }
 
+            const searchIdInput = document.getElementById('filter-search-id');
+            if (searchIdInput) {
+                searchIdInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        self.loadStatisticsData();
+                    }
+                });
+            }
+
             const yearSelect = document.getElementById('filter-year');
             if (yearSelect) {
                 yearSelect.addEventListener('change', function() {
@@ -815,6 +917,7 @@
             const filters = {
                 phone: (document.getElementById('filter-phone')?.value || '').trim(),
                 name: (document.getElementById('filter-name')?.value || '').trim(),
+                student_id: (document.getElementById('filter-search-id')?.value || '').trim(),
                 year: document.getElementById('filter-year')?.value || '',
                 completion: document.getElementById('filter-completion')?.value || '',
                 page: page
@@ -1050,14 +1153,19 @@
         updatePagination: function(pagination) {
             const paginationContainer = document.getElementById('pagination-container');
             const paginationList = document.getElementById('pagination-list');
+            const paginationContainerTop = document.getElementById('pagination-container-top');
+            const paginationListTop = document.getElementById('pagination-list-top');
+            
             if (!paginationContainer || !paginationList) return;
             
             if (!pagination.total_pages || pagination.total_pages <= 1) {
                 paginationContainer.style.display = 'none';
+                if (paginationContainerTop) paginationContainerTop.style.display = 'none';
                 return;
             }
 
             paginationContainer.style.display = 'block';
+            if (paginationContainerTop) paginationContainerTop.style.display = 'block';
             
             let html = '';
             const currentPage = pagination.current_page || 1;
@@ -1065,21 +1173,23 @@
 
             // Previous button
             if (currentPage > 1) {
-                html += `<li><a href="#" onclick="window.CMS_TABS.statistics.loadStatisticsData(${currentPage - 1}); return false;">‹</a></li>`;
+                html += `<li style="display: inline-block; margin: 0 2px;"><a href="#" style="padding: 8px 12px; border: 1px solid #ddd; text-decoration: none;" onclick="window.CMS_TABS.statistics.loadStatisticsData(${currentPage - 1}); return false;">‹</a></li>`;
             }
 
             // Page numbers
             for (let i = Math.max(1, currentPage - 2); i <= Math.min(totalPages, currentPage + 2); i++) {
                 const activeClass = i === currentPage ? 'active' : '';
-                html += `<li class="${activeClass}"><a href="#" onclick="window.CMS_TABS.statistics.loadStatisticsData(${i}); return false;">${i}</a></li>`;
+                const bgColor = i === currentPage ? 'background-color: #007bff; color: white;' : '';
+                html += `<li style="display: inline-block; margin: 0 2px;" class="${activeClass}"><a href="#" style="padding: 8px 12px; border: 1px solid #ddd; text-decoration: none; ${bgColor}" onclick="window.CMS_TABS.statistics.loadStatisticsData(${i}); return false;">${i}</a></li>`;
             }
 
             // Next button
             if (currentPage < totalPages) {
-                html += `<li><a href="#" onclick="window.CMS_TABS.statistics.loadStatisticsData(${currentPage + 1}); return false;">›</a></li>`;
+                html += `<li style="display: inline-block; margin: 0 2px;"><a href="#" style="padding: 8px 12px; border: 1px solid #ddd; text-decoration: none;" onclick="window.CMS_TABS.statistics.loadStatisticsData(${currentPage + 1}); return false;">›</a></li>`;
             }
 
             paginationList.innerHTML = html;
+            if (paginationListTop) paginationListTop.innerHTML = html;
         },
 
         animateNumbers: function() {
