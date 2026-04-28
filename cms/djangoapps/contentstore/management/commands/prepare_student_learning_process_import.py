@@ -215,7 +215,6 @@ class Command(BaseCommand):
             raise ValueError(f'user not found for student_id {student_id}')
 
         with transaction.atomic():
-            self._sync_user_account(user, (row.get('email') or '').strip())
             self._sync_user_account(
                 user,
                 (row.get('email') or '').strip(),
