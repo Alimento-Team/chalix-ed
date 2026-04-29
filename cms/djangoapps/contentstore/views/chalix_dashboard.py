@@ -2353,6 +2353,7 @@ def _get_course_completion_stats(request):
     For co_quan role: only count learners from their organization
     Column TT (row number) should be displayed as smaller column
     """
+    from django.db.models import Count, Q
     from lms.djangoapps.learning_analytics.models import StudentLearningProcessSnapshot
     from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
     from cms.djangoapps.contentstore.models import ChalixUserRole
@@ -2381,34 +2382,40 @@ def _get_course_completion_stats(request):
     learner_user_ids = learner_role_qs.values_list('user_id', flat=True)
 
     snapshot_qs = StudentLearningProcessSnapshot.objects.filter(user_id__in=learner_user_ids)
-    # Use values().distinct() then extract course_ids to avoid duplicate iteration
-    course_ids = list(snapshot_qs.values('course_id').distinct().values_list('course_id', flat=True))
-    
-    course_stats = []
-    for course_id in course_ids:
-        current_learners_count = snapshot_qs.filter(course_id=course_id).values('user_id').distinct().count()
-        completed_count = snapshot_qs.filter(
-            course_id=course_id,
-            completed_percentage__gte=60,
-        ).values('user_id').distinct().count()
 
-        course_name = course_id
-        try:
-            overview = CourseOverview.objects.filter(id=course_id).only('display_name').first()
-            if overview and overview.display_name:
-                course_name = overview.display_name
-        except Exception:
-            pass
-        
+    # Aggregate by canonical course_id to guarantee exactly one row per course.
+    # This avoids duplicated rows caused by iterating raw snapshot records.
+    aggregated = list(
+        snapshot_qs.exclude(course_id__isnull=True)
+        .exclude(course_id='')
+        .values('course_id')
+        .annotate(
+            current_learners=Count('user_id', distinct=True),
+            completed_count=Count(
+                'user_id',
+                filter=Q(completed_percentage__gte=60),
+                distinct=True,
+            ),
+        )
+        .order_by('-completed_count', 'course_id')
+    )
+
+    course_ids = [row['course_id'] for row in aggregated]
+    overview_map = {}
+    if course_ids:
+        for overview in CourseOverview.objects.filter(id__in=course_ids).only('id', 'display_name'):
+            overview_map[str(overview.id)] = overview.display_name or str(overview.id)
+
+    course_stats = []
+    for row in aggregated:
+        course_id = row['course_id']
+        course_name = overview_map.get(str(course_id), course_id)
         course_stats.append({
             'course_name': course_name,
-            'current_learners': current_learners_count,
-            'completed_count': completed_count
+            'current_learners': row['current_learners'],
+            'completed_count': row['completed_count'],
         })
-    
-    # Sort by completed count (descending)
-    course_stats.sort(key=lambda x: x['completed_count'], reverse=True)
-    
+
     return course_stats
 
 

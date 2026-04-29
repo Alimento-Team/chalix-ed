@@ -127,7 +127,7 @@
                                     <ul id="pagination-list" class="pagination" style="display: inline-block; list-style: none; padding: 0;"></ul>
                                 </div>
                             </div>
-                            <div class="statistics-table-section">
+                            <div class="statistics-table-section" id="statistics-table-section-2">
                                 <h3 class="table-section-title" data-base-title="THỐNG KÊ SỐ NGƯỜI HỌC CỦA CÁC KHÓA HỌC">THỐNG KÊ SỐ NGƯỜI HỌC CỦA CÁC KHÓA HỌC NĂM 2025</h3>
                                 <div class="statistics-table-container">
                                     <table class="table table-striped" id="course-completion-table">
