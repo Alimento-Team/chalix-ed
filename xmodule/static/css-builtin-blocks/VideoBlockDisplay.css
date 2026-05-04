@@ -165,9 +165,10 @@
 }
 
 .xmodule_display.xmodule_VideoBlock .video .video-wrapper {
-    float: left;
-    margin-right: 2.27273%;
-    width: 65.90909%;
+    float: none;
+    margin: 0 auto;
+    width: 100%;
+    max-width: 980px;
     background-color: black;
     position: relative;
 }

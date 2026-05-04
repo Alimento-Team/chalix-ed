@@ -279,31 +279,11 @@ class CourseEndDate(DateSummary):
     """
     css_class = 'end-date'
     title = gettext_lazy('Course ends')
-    is_enabled = True
+    is_enabled = False
 
     @property
     def description(self):
-        """
-        Returns a description for what experience changes a learner encounters when the course end date passes.
-        Note that this currently contains 4 scenarios:
-            1. End date is in the future and learner is enrolled in a certificate earning mode
-            2. End date is in the future and learner is not enrolled at all or not enrolled
-                in a certificate earning mode
-            3. End date is in the past
-            4. End date does not exist (and now neither does the description)
-        """
-        if self.date and self.current_time <= self.date:
-            mode, is_active = CourseEnrollment.enrollment_mode_for_user(self.user, self.course_id)
-            if is_active and CourseMode.is_eligible_for_certificate(mode):
-                return _('After this date, the course will be archived, which means you can review the '
-                         'course content but can no longer participate in graded assignments or work towards earning '
-                         'a certificate.')
-            else:
-                return _('After the course ends, the course content will be archived and no longer active.')
-        elif self.date:
-            return _('This course is archived, which means you can review course content but it is no longer active.')
-        else:
-            return ''
+        return ''
 
     @property
     def date(self):

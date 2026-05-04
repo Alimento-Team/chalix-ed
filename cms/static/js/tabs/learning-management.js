@@ -1121,6 +1121,10 @@
         courses.forEach(course => {
             const card = document.createElement('div');
             card.className = 'lm-card-item';
+            // Store a stable course id for DOM reads/updates without relying on rendered text.
+            const courseIdentifier = (course.id !== undefined && course.id !== null) ? course.id : course.course_key;
+            card.dataset.courseId = String(courseIdentifier);
+            card.setAttribute('data-course-id', String(courseIdentifier));
             // Store course_key on the DOM node so getAllCoursesFromDOM can recover it later
             if (course.course_key) {
                 card.dataset.courseKey = course.course_key;
@@ -1153,16 +1157,13 @@
                 card.dataset.units = JSON.stringify(course.units);
             }
             
-            // Use course.id when available, otherwise fall back to course_key (OpenEDX identifier)
-            const courseIdentifier = (course.id !== undefined && course.id !== null) ? course.id : course.course_key;
-
             card.innerHTML = `
                 <div class="lm-card-header">
                     <div class="lm-card-icon">📚</div>
                     <h4 class="lm-card-title">${escapeHtml(course.title)}</h4>
                 </div>
                 <div class="lm-card-meta">
-                    ID: ${courseIdentifier} • ${course.course_type || 'Chưa phân loại'} • ${
+                    ${course.course_type || 'Chưa phân loại'} • ${
                         course.course_level === 'basic' ? 'Cơ bản' :
                         course.course_level === 'intermediate' ? 'Trung cấp' :
                         course.course_level === 'advanced' ? 'Nâng cao' :
@@ -1826,14 +1827,7 @@
         courseItems.forEach(item => {
             // Prefer dataset.courseKey when available
             const cardCourseKey = item.dataset.courseKey;
-            const metaEl = item.querySelector && item.querySelector('.lm-card-meta');
-            let metaId = null;
-            if (metaEl) {
-                const m = metaEl.textContent.match(/ID:\s*([^•\n]+)/);
-                metaId = m ? m[1].trim() : null;
-            }
-
-            const itemId = item.getAttribute('data-course-id') || metaId || null;
+            const itemId = item.dataset.courseId || item.getAttribute('data-course-id') || null;
 
             // Match by numeric id or by course_key string
             if ((courseData.id && String(courseData.id) === String(itemId)) ||
@@ -2134,11 +2128,9 @@
                 const title = titleEl.textContent;
                 const meta = metaEl ? metaEl.textContent : '';
                 const desc = descEl ? descEl.textContent : '';
-                
-                // Extract ID from meta text — allow non-numeric course identifiers (course_key strings)
-                // Match ID: <identifier> optionally followed by ' •'
-                const idMatch = meta.match(/ID:\s*([^•\n]+)/);
-                const idValue = idMatch ? idMatch[1].trim() : null;
+
+                // Read id from data attributes; card meta no longer contains a visible ID fragment.
+                const idValue = card.dataset.courseId || card.getAttribute('data-course-id') || card.dataset.courseKey || null;
                 
                 // Read any stored dataset fields (new fields added to cards) - declare these first
                 const onlineLink = card.dataset.onlineCourseLink || '';
@@ -2160,11 +2152,10 @@
                     }
                 }
                 
-                // meta format: "ID: <id> • <course_type> • <course_level>" (course_type/level optional)
+                // meta format: "<course_type> • <course_level>" (course_type/level optional)
                 const metaParts = meta.split('•').map(p => p.trim()).filter(Boolean);
-                // metaParts[0] will usually be like 'ID: <id>' so course_type, course_level are subsequent parts
-                const courseTypeFromMeta = metaParts.length >= 2 ? metaParts[1] : null;
-                const courseLevelFromMeta = metaParts.length >= 3 ? metaParts[2] : null;
+                const courseTypeFromMeta = metaParts.length >= 1 ? metaParts[0] : null;
+                const courseLevelFromMeta = metaParts.length >= 2 ? metaParts[1] : null;
                 
                 // Debug: log meta parsing (commented out for cleaner output)
                 // console.log('getAllCoursesFromDOM meta parsing:', {
