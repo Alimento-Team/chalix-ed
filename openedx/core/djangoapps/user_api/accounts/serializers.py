@@ -296,9 +296,9 @@ class AccountLegacyProfileSerializer(serializers.HyperlinkedModelSerializer, Rea
     class Meta:
         model = UserProfile
         fields = (
-            "name", "gender", "goals", "year_of_birth", "level_of_education", "country", "state", "social_links",
-            "mailing_address", "bio", "profile_image", "requires_parental_consent", "language_proficiencies",
-            "phone_number", "city"
+            "name", "gender", "goals", "year_of_birth", "birth_date", "level_of_education", "country", "state",
+            "social_links", "mailing_address", "bio", "profile_image", "requires_parental_consent",
+            "language_proficiencies", "phone_number", "city", "job_position", "province", "civil_servant_type"
         )
         # Currently no read-only field, but keep this so view code doesn't need to know.
         read_only_fields = ()

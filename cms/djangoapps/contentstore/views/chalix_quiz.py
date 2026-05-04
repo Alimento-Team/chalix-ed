@@ -386,8 +386,6 @@ def delete_quiz_api(request, quiz_id):
     Delete (soft delete) a quiz.
     """
     try:
-        data = json.loads(request.body)
-        
         # Get existing quiz
         quiz = ChalixQuiz.objects.get(id=quiz_id, is_active=True)
         
@@ -407,8 +405,6 @@ def delete_quiz_api(request, quiz_id):
         
     except ChalixQuiz.DoesNotExist:
         return JsonResponse({'error': _('Không tìm thấy bài quiz')}, status=404)
-    except json.JSONDecodeError:
-        return JsonResponse({'error': _('Dữ liệu JSON không hợp lệ')}, status=400)
     except Exception as e:
         logger.error(f'Error deleting quiz {quiz_id}: {str(e)}', exc_info=True)
         return JsonResponse({'error': _('Lỗi hệ thống nội bộ')}, status=500)

@@ -51,7 +51,9 @@
                                 <img src="${overview.course_image_url}" alt="${overview.display_name}" />
                                 % else:
                                 <div class="placeholder-image">
+                                    % if overview.org and overview.org != 'Chalix':
                                     <span class="course-org">${overview.org}</span>
+                                    % endif
                                 </div>
                                 % endif
                             </div>
@@ -62,7 +64,9 @@
                                 </h3>
 
                                 <div class="course-meta">
+                                    % if overview.org and overview.org != 'Chalix':
                                     <span class="course-org">${overview.org}</span>
+                                    % endif
                                     % if overview.number:
                                     <span class="course-number">${overview.number}</span>
                                     % endif

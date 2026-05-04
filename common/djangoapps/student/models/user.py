@@ -558,7 +558,30 @@ class UserProfile(models.Model):
         regex=r'^\+?1?\d*$',
         message="Phone number must start with '+' (optional) followed by digits (0-9) only.",
     )
-    phone_number = models.CharField(validators=[phone_regex], blank=True, null=True, max_length=50)
+    phone_number = models.CharField(validators=[phone_regex], blank=True, null=True, max_length=50, unique=True)
+
+    # Profile enhancement fields for Chalix Vietnamese government e-learning platform
+    birth_date = models.DateField(blank=True, null=True, db_index=True)
+
+    JOB_POSITION_CHOICES = (
+        ('leader', gettext_noop('Lãnh đạo')),
+        ('senior_expert', gettext_noop('Chuyên viên chính')),
+        ('expert', gettext_noop('Chuyên viên')),
+        ('staff', gettext_noop('Nhân viên')),
+    )
+    job_position = models.CharField(
+        blank=True, null=True, max_length=20, choices=JOB_POSITION_CHOICES, db_index=True
+    )
+
+    province = models.CharField(blank=True, null=True, max_length=255, db_index=True)
+
+    CIVIL_SERVANT_TYPE_CHOICES = (
+        ('civil_servant', gettext_noop('Công chức')),
+        ('official', gettext_noop('Viên chức')),
+    )
+    civil_servant_type = models.CharField(
+        blank=True, null=True, max_length=20, choices=CIVIL_SERVANT_TYPE_CHOICES, db_index=True
+    )
 
     @property
     def has_profile_image(self):
