@@ -1459,6 +1459,84 @@ class FinalEvaluation(models.Model):
         return f"{self.course_key} - {self.get_evaluation_type_display()}"
 
 
+class ChalixStudentEmotion(models.Model):
+    """
+    Stores per-student emotion labels for a specific course topic.
+    """
+
+    EMOTION_LIKE = 1
+    EMOTION_NEUTRAL = 0
+    EMOTION_DISLIKE = -1
+
+    EMOTION_CHOICES = [
+        (EMOTION_LIKE, _("Yeu thich")),
+        (EMOTION_NEUTRAL, _("Binh thuong")),
+        (EMOTION_DISLIKE, _("Khong thich")),
+    ]
+
+    student_id = models.CharField(max_length=128, db_index=True)
+    course_id = models.CharField(max_length=255, db_index=True)
+    course_name = models.CharField(max_length=500, blank=True)
+    topic_number = models.CharField(max_length=64, db_index=True)
+    topic_name = models.CharField(max_length=500, blank=True)
+    emotion = models.SmallIntegerField(choices=EMOTION_CHOICES)
+    source_batch = models.CharField(max_length=64, blank=True, default='')
+    imported_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = _("Chalix Student Emotion")
+        verbose_name_plural = _("Chalix Student Emotions")
+        ordering = ['course_id', 'topic_number', 'student_id']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['student_id', 'course_id', 'topic_number'],
+                name='cstore_student_emotion_uniq',
+            )
+        ]
+        indexes = [
+            models.Index(fields=['course_id', 'topic_number']),
+            models.Index(fields=['emotion']),
+        ]
+
+    def __str__(self):
+        return f"{self.student_id} | {self.course_id} | {self.topic_number} | {self.emotion}"
+
+
+class ChalixTopicEmotionAggregate(models.Model):
+    """
+    Stores per-course/per-topic aggregate counts and adjustment decision.
+    """
+
+    course_id = models.CharField(max_length=255, db_index=True)
+    course_name = models.CharField(max_length=500, blank=True)
+    topic_number = models.CharField(max_length=64, db_index=True)
+    topic_name = models.CharField(max_length=500, blank=True)
+    like_count = models.PositiveIntegerField(default=0)
+    neutral_count = models.PositiveIntegerField(default=0)
+    dislike_count = models.PositiveIntegerField(default=0)
+    score_sum = models.IntegerField(default=0)
+    adjust_required = models.BooleanField(default=False, db_index=True)
+    source_batch = models.CharField(max_length=64, blank=True, default='')
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = _("Chalix Topic Emotion Aggregate")
+        verbose_name_plural = _("Chalix Topic Emotion Aggregates")
+        ordering = ['course_id', 'topic_number']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['course_id', 'topic_number'],
+                name='cstore_topic_emotion_uniq',
+            )
+        ]
+        indexes = [
+            models.Index(fields=['course_id', 'adjust_required']),
+        ]
+
+    def __str__(self):
+        return f"{self.course_id} | {self.topic_number} | {self.score_sum}"
+
+
 class LearnerSubmission(models.Model):
     """
     Model to store learner submissions for practical assignments.

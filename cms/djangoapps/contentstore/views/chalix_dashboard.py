@@ -15,7 +15,13 @@ import logging
 logger = logging.getLogger(__name__)
 
 # Local models
-from cms.djangoapps.contentstore.models import LocalCourse, LocalProgram, ProgramTopic, ChalixCourseMetadata
+from cms.djangoapps.contentstore.models import (
+    LocalCourse,
+    LocalProgram,
+    ProgramTopic,
+    ChalixCourseMetadata,
+    ChalixTopicEmotionAggregate,
+)
 from cms.djangoapps.contentstore.chalix_roles import (
     can_access_cms,
     require_cms_access,
@@ -164,7 +170,7 @@ def _create_course_structure_from_program(store, course_key, user_id, template_p
 @ensure_csrf_cookie
 def cms_dashboard(request):
     """
-    Displays the CMS dashboard with Vietnamese interface based on Figma design.
+    Displays the CMS dashboard.
     This is the main landing page after login with role-based tab access:
     - Thống kê (Statistics) - Bộ role only
     - Tạo tài khoản cán bộ (Create Staff Account) - Cơ quan only
@@ -2145,8 +2151,130 @@ def dashboard_api(request):
     
     if tab == 'statistics':
         return _get_statistics_data(request)
-    else:
-        return JsonResponse({'error': 'Invalid tab specified'}, status=400)
+    if tab == 'approve-requests':
+        return _get_approve_requests_statistics_data(request)
+    return JsonResponse({'error': 'Invalid tab specified'}, status=400)
+
+
+def _get_approve_requests_statistics_data(request):
+    """
+    Build table data for the 'Phê duyệt yêu cầu' tab using emotion aggregates.
+
+    Rule:
+    - score_sum >= 0 => no adjustment required
+    - score_sum < 0 => adjustment required
+    """
+    import re
+
+    role = get_user_primary_role(request.user)
+    can_view = bool(is_bo_user(request.user) or (role and role.role == 'co_quan'))
+    if not can_view:
+        return JsonResponse({'error': 'Bạn không có quyền xem dữ liệu phê duyệt yêu cầu.'}, status=403)
+
+    queryset = ChalixTopicEmotionAggregate.objects.all()
+
+    # Agency users only see courses visible to their organization.
+    if role and role.role == 'co_quan':
+        courses, _ = get_courses_accessible_to_user(request)
+        visible_course_ids = {str(course.id) for course in courses}
+        queryset = queryset.filter(course_id__in=visible_course_ids)
+
+    rows = list(
+        queryset.values(
+            'course_id',
+            'course_name',
+            'topic_number',
+            'topic_name',
+            'like_count',
+            'neutral_count',
+            'dislike_count',
+            'score_sum',
+            'adjust_required',
+        )
+    )
+
+    def topic_sort_key(topic_number):
+        match = re.search(r'(\d+)$', (topic_number or '').strip())
+        if match:
+            return int(match.group(1))
+        return 999999
+
+    topic_number_order = sorted({row['topic_number'] for row in rows}, key=topic_sort_key)
+
+    course_map = {}
+    for row in rows:
+        course_id = row['course_id']
+        entry = course_map.setdefault(course_id, {
+            'course_id': course_id,
+            'course_name': row.get('course_name') or course_id,
+            'topics_by_number': {},
+            'needs_adjustment': False,
+            'recommendation': '',
+        })
+        needs_adjustment = bool(row.get('adjust_required')) or int(row.get('score_sum') or 0) < 0
+        entry['topics_by_number'][row['topic_number']] = {
+            'topic_number': row['topic_number'],
+            'topic_name': row.get('topic_name') or row['topic_number'],
+            'like_count': int(row.get('like_count') or 0),
+            'neutral_count': int(row.get('neutral_count') or 0),
+            'dislike_count': int(row.get('dislike_count') or 0),
+            'score_sum': int(row.get('score_sum') or 0),
+            'needs_adjustment': needs_adjustment,
+        }
+        entry['needs_adjustment'] = entry['needs_adjustment'] or needs_adjustment
+
+    courses = []
+    for data in course_map.values():
+        topic_stats = []
+        adjust_topic_labels = []
+
+        for index, topic_number in enumerate(topic_number_order, start=1):
+            topic_data = data['topics_by_number'].get(topic_number)
+            if not topic_data:
+                topic_data = {
+                    'topic_number': topic_number,
+                    'topic_name': f'Chuyên đề {index}',
+                    'like_count': 0,
+                    'neutral_count': 0,
+                    'dislike_count': 0,
+                    'score_sum': 0,
+                    'needs_adjustment': False,
+                }
+
+            topic_stats.append(topic_data)
+            if topic_data['needs_adjustment']:
+                topic_label_match = re.search(r'(\d+)$', topic_number or '')
+                topic_label = topic_label_match.group(1) if topic_label_match else topic_number
+                adjust_topic_labels.append(str(topic_label))
+
+        if adjust_topic_labels:
+            recommendation = f"Cần điều chỉnh chuyên đề {', '.join(adjust_topic_labels)}"
+        else:
+            recommendation = 'Không cần điều chỉnh'
+
+        courses.append({
+            'course_id': data['course_id'],
+            'course_name': data['course_name'],
+            'needs_adjustment': data['needs_adjustment'],
+            'recommendation': recommendation,
+            'topic_stats': topic_stats,
+        })
+
+    courses.sort(key=lambda item: (0 if item['needs_adjustment'] else 1, item['course_name']))
+
+    topic_headers = []
+    for index, topic_number in enumerate(topic_number_order, start=1):
+        topic_headers.append({
+            'topic_number': topic_number,
+            'display_name': f'Chuyên đề {index}',
+        })
+
+    return JsonResponse({
+        'courses': courses,
+        'topic_headers': topic_headers,
+        'total_courses': len(courses),
+        'adjust_courses': sum(1 for course in courses if course['needs_adjustment']),
+    })
 
 
 def _get_statistics_data(request):
