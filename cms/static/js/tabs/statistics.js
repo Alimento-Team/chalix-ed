@@ -1026,7 +1026,7 @@
             this.updateOrganizationCoursesTable(data.organization_courses || []);
 
             // Update the 4th table (original learner statistics)
-            this.updateStatisticsTable(data.learners || []);
+            this.updateStatisticsTable(data.learners || [], data.pagination || {});
 
             // Update pagination for the 4th table
             this.updatePagination(data.pagination || {});
@@ -1103,7 +1103,7 @@
             tableBody.innerHTML = html;
         },
 
-        updateStatisticsTable: function(learners) {
+        updateStatisticsTable: function(learners, pagination = {}) {
             const tableBody = document.querySelector('#statistics-table tbody');
             if (!tableBody) return;
             
@@ -1112,16 +1112,23 @@
                 return;
             }
 
+            const currentPage = Number(pagination.current_page) || 1;
+            const pageSize = Number(
+                pagination.per_page || pagination.page_size || learners.length || 0
+            );
+            const baseIndex = Math.max(0, (currentPage - 1) * pageSize);
+
             let html = '';
             learners.forEach((learner, index) => {
                 const learnerName = this.escapeHtml(learner.name || 'N/A');
                 const totalStudiedTime = learner.total_studied_time ?? learner.total_hours ?? 0;
                 const completedPercentage = learner.completed_percentage ?? learner.completion_percentage ?? 0;
                 const status = this.escapeHtml(learner.status || '');
+                const serialNumber = baseIndex + index + 1;
                 
                 html += `
                     <tr>
-                        <td>${index + 1}</td>
+                        <td>${serialNumber}</td>
                         <td>${learnerName}</td>
                         <td></td>
                         <td>2026</td>

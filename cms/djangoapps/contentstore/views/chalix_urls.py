@@ -3,7 +3,7 @@ URL patterns for Chalix unit types and dashboard.
 """
 
 from django.urls import path, re_path
-from . import chalix_unit_types, chalix_dashboard, chalix_quiz, course_progress
+from . import chalix_unit_types, chalix_dashboard, chalix_quiz, course_progress, chalix_user_management
 
 app_name = 'chalix'
 
@@ -27,6 +27,27 @@ urlpatterns = [
         'dashboard/create-single-account/',
         chalix_dashboard.create_single_account_api,
         name='chalix_create_single_account'
+    ),
+    path(
+        'dashboard/delete-user/',
+        chalix_user_management.delete_user_api,
+        name='chalix_delete_user'
+    ),
+    path(
+        'dashboard/import-users/',
+        chalix_user_management.import_users_api,
+        name='chalix_import_users'
+    ),
+    # Backward-compatible aliases used by some legacy dashboard calls.
+    path(
+        'delete-user/',
+        chalix_user_management.delete_user_api,
+        name='chalix_delete_user_legacy'
+    ),
+    path(
+        'import-users/',
+        chalix_user_management.import_users_api,
+        name='chalix_import_users_legacy'
     ),
 
     # Create a local course via dashboard
