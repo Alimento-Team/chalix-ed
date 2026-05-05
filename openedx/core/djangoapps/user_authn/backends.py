@@ -42,9 +42,8 @@ class EmailOrPhoneBackend(ModelBackend):
         # Try different lookups to find the user
         user = self._lookup_user(username)
         
-        if user is not None and user.is_active:
-            # Use parent class password validation
-            if self.check_password(password, user):
+        if user is not None and self.user_can_authenticate(user):
+            if user.check_password(password):
                 return user
         
         return None

@@ -1474,6 +1474,7 @@ class ChalixStudentEmotion(models.Model):
         (EMOTION_DISLIKE, _("Khong thich")),
     ]
 
+    id = models.BigAutoField(primary_key=True)
     student_id = models.CharField(max_length=128, db_index=True)
     course_id = models.CharField(max_length=255, db_index=True)
     course_name = models.CharField(max_length=500, blank=True)
@@ -1494,8 +1495,8 @@ class ChalixStudentEmotion(models.Model):
             )
         ]
         indexes = [
-            models.Index(fields=['course_id', 'topic_number']),
-            models.Index(fields=['emotion']),
+            models.Index(fields=['course_id', 'topic_number'], name='cstore_course_topic_emo_idx'),
+            models.Index(fields=['emotion'], name='contentstore_emotion_value_idx'),
         ]
 
     def __str__(self):
@@ -1507,6 +1508,7 @@ class ChalixTopicEmotionAggregate(models.Model):
     Stores per-course/per-topic aggregate counts and adjustment decision.
     """
 
+    id = models.BigAutoField(primary_key=True)
     course_id = models.CharField(max_length=255, db_index=True)
     course_name = models.CharField(max_length=500, blank=True)
     topic_number = models.CharField(max_length=64, db_index=True)
@@ -1530,7 +1532,7 @@ class ChalixTopicEmotionAggregate(models.Model):
             )
         ]
         indexes = [
-            models.Index(fields=['course_id', 'adjust_required']),
+            models.Index(fields=['course_id', 'adjust_required'], name='contentstore_course_adjust_idx'),
         ]
 
     def __str__(self):

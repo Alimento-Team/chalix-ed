@@ -63,7 +63,29 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunPython(remove_constraint_if_exists, migrations.RunPython.noop),
+        migrations.SeparateDatabaseAndState(
+            database_operations=[
+                migrations.RunPython(remove_constraint_if_exists, migrations.RunPython.noop),
+            ],
+            state_operations=[
+                migrations.RemoveConstraint(
+                    model_name='finalevaluation',
+                    name='unique_course_evaluation',
+                ),
+                migrations.RemoveConstraint(
+                    model_name='learnersubmission',
+                    name='unique_learner_submission',
+                ),
+                migrations.RemoveConstraint(
+                    model_name='quizanswer',
+                    name='unique_quiz_answer',
+                ),
+                migrations.RemoveConstraint(
+                    model_name='quizattempt',
+                    name='unique_quiz_attempt',
+                ),
+            ],
+        ),
         migrations.AlterField(
             model_name='chalixuserrole',
             name='role',
