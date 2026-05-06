@@ -6,6 +6,9 @@ from django.urls import reverse
 %>
 <%page args="course" expression_filter="h"/>
 <article class="course" id="${course.id}" role="region" aria-label="${course.display_name_with_default}">
+  <%
+    card_org_name = getattr(course, 'chalix_org_display_name', None) or course.display_org_with_default
+  %>
   <a href="${reverse('about_course', args=[str(course.id)])}">
     <header class="course-image">
       <div class="cover-image">
@@ -21,39 +24,34 @@ from django.urls import reverse
     </header>
     <div class="course-info" aria-hidden="true">
       <h2 class="course-name">
-        % if course.display_org_with_default:
-        <span class="course-organization">${course.display_org_with_default}</span>
+        % if card_org_name:
+        <span class="course-organization">${card_org_name}</span>
         % endif
         <span class="course-code">${course.display_number_with_default}</span>
         <span class="course-title">${course.display_name_with_default}</span>
       </h2>
-      <%
-      if course.start is not None:
-          course_date_string = course.start.strftime('%Y-%m-%dT%H:%M:%S%z')
-      else:
-          course_date_string = ''
-      %>
       % if course.advertised_start is not None:
           <div class="course-date" aria-hidden="true">${_("Ngày bắt đầu")}: <span style="font-style: italic;">${course.advertised_start}</span></div>
+      % elif course.start is not None:
+          <div class="course-date" aria-hidden="true">${_("Ngày bắt đầu")}: <span style="font-style: italic;">${course.start.day}/${course.start.month}/${course.start.year}</span></div>
       % else:
-          <div class="course-date localized_datetime" aria-hidden="true" data-format="numericDate" style="font-style: italic;" data-datetime="${course_date_string}" data-language="${LANGUAGE_CODE}" data-string="${_("Ngày bắt đầu: {date}")}"></div>
+          <div class="course-date" aria-hidden="true"><span style="font-style: italic;">${_("Đăng ký ngay")}</span></div>
       % endif
     </div>
     <div class="sr">
       <ul>
-        % if course.display_org_with_default:
-        <li>${course.display_org_with_default}</li>
+        % if card_org_name:
+        <li>${card_org_name}</li>
         % endif
         <li>${course.display_number_with_default}</li>
         % if course.advertised_start is not None:
             <li>${_("Ngày bắt đầu")}: <time itemprop="startDate">${course.advertised_start}</time></li>
+        % elif course.start is not None:
+            <li>${_("Ngày bắt đầu")}: <time itemprop="startDate">${course.start.day}/${course.start.month}/${course.start.year}</time></li>
         % else:
-            <li>${_("Ngày bắt đầu")}: <time class="localized_datetime" itemprop="startDate" data-format="shortDate" data-datetime="${course_date_string}" data-language="${LANGUAGE_CODE}"></time></li>
+            <li>${_("Đăng ký ngay")}</li>
         % endif
       </ul>
     </div>
   </a>
 </article>
-<%static:require_module_async module_name="js/dateutil_factory" class_name="DateUtilFactory">
-    DateUtilFactory.transform(iterationKey=".localized_datetime");
-</%static:require_module_async>

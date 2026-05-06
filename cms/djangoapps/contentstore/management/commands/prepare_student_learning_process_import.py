@@ -483,6 +483,10 @@ class Command(BaseCommand):
         desired_email = email or f'{user.username}@{self.DEFAULT_EMAIL_DOMAIN}'
         update_fields = []
 
+        if not user.is_active:
+            user.is_active = True
+            update_fields.append('is_active')
+
         if desired_email and user.email != desired_email:
             user.email = desired_email
             update_fields.append('email')

@@ -17,11 +17,11 @@ from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from django.utils import timezone
 
 from lms.djangoapps.grades.api import CourseGradeFactory
 from lms.djangoapps.courseware.courses import get_courses, get_course_by_id
 from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
-from common.djangoapps.student.auth import has_course_author_access
 from opaque_keys.edx.keys import CourseKey
 from xmodule.modulestore.django import modulestore
 from openedx.core.djangoapps.models.course_details import CourseDetails
@@ -703,8 +703,8 @@ def course_detail_api(request, course_key_string):
     except Exception:
         return JsonResponse({'error': 'Invalid course key'}, status=400)
     
-    # Check if user has access to view this course
-    # For LMS, we'll allow users to view course details if they're enrolled or have instructor access
+    # Learners should be able to view course metadata before registration.
+    # Enrollment checks should gate content access, not metadata display.
     user = request.user
     if not user.is_authenticated:
         return JsonResponse({'error': 'Authentication required'}, status=401)
@@ -715,14 +715,6 @@ def course_detail_api(request, course_key_string):
         
         if not course:
             return JsonResponse({'error': 'Course not found'}, status=404)
-        
-        # Check if user is enrolled in the course or has instructor access
-        from common.djangoapps.student.models import CourseEnrollment
-        is_enrolled = CourseEnrollment.is_enrolled(user, course_key)
-        has_instructor_access = has_course_author_access(user, course_key)
-        
-        if not (is_enrolled or has_instructor_access):
-            return JsonResponse({'error': 'Access denied'}, status=403)
         
         # Get course overview for additional data
         try:
@@ -775,7 +767,7 @@ def course_detail_api(request, course_key_string):
         return JsonResponse({'error': 'Course not found or inaccessible'}, status=404)
 
 
-@api_view(['GET'])
+@api_view(['GET', 'POST'])
 @permission_classes([IsAuthenticated])
 def professional_fields_proxy(request):
     """
@@ -784,7 +776,97 @@ def professional_fields_proxy(request):
     """
     try:
         from django.db import connection
-        
+
+        def _has_professional_field_permission(user):
+            if user.is_superuser or user.is_staff:
+                return True
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT 1
+                    FROM contentstore_chalixuserrole
+                    WHERE user_id = %s
+                      AND is_active = 1
+                      AND role IN ('bo', 'co_quan')
+                    LIMIT 1
+                    """,
+                    [user.id],
+                )
+                return cursor.fetchone() is not None
+
+        can_manage = _has_professional_field_permission(request.user)
+
+        if request.method == 'POST':
+            if not can_manage:
+                return Response(
+                    {'error': _('Bạn không có quyền thêm lĩnh vực chuyên môn')},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+            name = (request.data.get('name') or '').strip()
+            description = (request.data.get('description') or '').strip()
+
+            if not name:
+                return Response(
+                    {'error': _('Tên lĩnh vực chuyên môn không được để trống')},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            if len(name) > 200:
+                return Response(
+                    {'error': _('Tên lĩnh vực chuyên môn không được vượt quá 200 ký tự')},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT id
+                    FROM contentstore_professionalfield
+                    WHERE LOWER(name) = LOWER(%s)
+                    LIMIT 1
+                    """,
+                    [name],
+                )
+                if cursor.fetchone() is not None:
+                    return Response(
+                        {'error': _('Lĩnh vực chuyên môn này đã tồn tại')},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                cursor.execute(
+                    """
+                    SELECT COALESCE(MAX(sort_order), 0) + 1
+                    FROM contentstore_professionalfield
+                    """
+                )
+                next_sort_order = cursor.fetchone()[0]
+
+                now = timezone.now()
+                cursor.execute(
+                    """
+                    INSERT INTO contentstore_professionalfield
+                    (name, description, is_active, sort_order, created_by, created_at, updated_at)
+                    VALUES (%s, %s, 1, %s, %s, %s, %s)
+                    """,
+                    [name, description, next_sort_order, request.user.username, now, now],
+                )
+                new_id = cursor.lastrowid
+
+            return Response(
+                {
+                    'id': new_id,
+                    'name': name,
+                    'description': description,
+                    'is_active': True,
+                    'sort_order': next_sort_order,
+                    'created_by': request.user.username,
+                    'created_at': now.isoformat(),
+                    'updated_at': now.isoformat(),
+                },
+                status=status.HTTP_201_CREATED,
+            )
+
         # Query the contentstore_professionalfield table directly
         with connection.cursor() as cursor:
             cursor.execute("""
@@ -793,10 +875,10 @@ def professional_fields_proxy(request):
                 WHERE is_active = 1
                 ORDER BY sort_order, name
             """)
-            
+
             columns = [col[0] for col in cursor.description]
             fields = []
-            
+
             for row in cursor.fetchall():
                 field_dict = dict(zip(columns, row))
                 # Convert datetime objects to ISO format strings
@@ -805,20 +887,20 @@ def professional_fields_proxy(request):
                 if field_dict.get('updated_at'):
                     field_dict['updated_at'] = field_dict['updated_at'].isoformat()
                 fields.append(field_dict)
-        
+
         logger.info(f"[Professional Fields] Retrieved {len(fields)} fields from database")
-        
+
         return Response({
             'professional_fields': fields,
-            'can_manage': request.user.is_superuser or request.user.is_staff,
-            'is_bo': request.user.is_superuser or request.user.is_staff
+            'can_manage': can_manage,
+            'is_bo': can_manage,
         })
-            
+
     except Exception as e:
         logger.error(f"[Professional Fields] Error fetching professional fields: {e}", exc_info=True)
         # Return empty list on error to not break the frontend
         return Response({
             'professional_fields': [],
             'can_manage': False,
-            'is_bo': False
+            'is_bo': False,
         })

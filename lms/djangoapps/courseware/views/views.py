@@ -16,7 +16,7 @@ from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import AnonymousUser, User  # lint-amnesty, pylint: disable=imported-auth-user
 from django.core.exceptions import PermissionDenied
-from django.db import transaction
+from django.db import connection, transaction
 from django.db.models import Q, prefetch_related_objects
 from django.shortcuts import redirect
 from django.http import JsonResponse, Http404, HttpResponse, HttpResponseBadRequest, HttpResponseForbidden
@@ -299,6 +299,47 @@ def user_groups(user):
     return group_names
 
 
+def _attach_chalix_card_metadata(courses_list):
+    """Attach organization display names for LMS landing-page course cards."""
+    if not courses_list:
+        return
+
+    try:
+        from lms.djangoapps.course_home_api.models import ChalixCourseMetadataLMS
+
+        course_ids = [str(course.id) for course in courses_list if getattr(course, 'id', None)]
+        if not course_ids:
+            return
+
+        metadata_rows = ChalixCourseMetadataLMS.objects.filter(
+            course_id__in=course_ids
+        ).values_list('course_id', 'creator_organization_id')
+        metadata_by_course_id = {course_id: org_id for course_id, org_id in metadata_rows if org_id}
+        if not metadata_by_course_id:
+            return
+
+        org_ids = sorted(set(metadata_by_course_id.values()))
+        placeholders = ', '.join(['%s'] * len(org_ids))
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"""
+                SELECT id, display_name
+                FROM contentstore_chalixorganization
+                WHERE id IN ({placeholders})
+                """,
+                org_ids,
+            )
+            organization_name_by_id = {row[0]: row[1] for row in cursor.fetchall() if row[1]}
+
+        for course in courses_list:
+            course_id = str(course.id)
+            org_id = metadata_by_course_id.get(course_id)
+            if org_id and organization_name_by_id.get(org_id):
+                setattr(course, 'chalix_org_display_name', organization_name_by_id[org_id])
+    except Exception as exc:  # pragma: no cover - defensive, non-critical for page render
+        log.warning("Failed to enrich course cards with Chalix organization names: %s", exc)
+
+
 @ensure_csrf_cookie
 @cache_if_anonymous()
 def courses(request):
@@ -319,6 +360,8 @@ def courses(request):
             courses_list = sort_by_start_date(courses_list)
         else:
             courses_list = sort_by_announcement(courses_list)
+
+        _attach_chalix_card_metadata(courses_list)
 
     # Add marketable programs to the context.
     programs_list = get_programs_with_type(request.site, include_hidden=False)
