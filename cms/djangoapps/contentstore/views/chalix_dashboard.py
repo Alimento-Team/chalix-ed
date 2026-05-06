@@ -47,6 +47,35 @@ from rest_framework.exceptions import ValidationError
 from openedx.core.djangoapps.models.course_details import CourseDetails
 
 
+def _normalize_correct_answer_token(raw_value):
+    """Normalize Excel correct-answer token to one of A/B/C/D."""
+    raw = str(raw_value).strip().upper()
+    if not raw:
+        return None
+
+    numeric_map = {
+        '1': 'A',
+        '2': 'B',
+        '3': 'C',
+        '4': 'D',
+    }
+    if raw in numeric_map:
+        return numeric_map[raw]
+
+    if raw in ('A', 'B', 'C', 'D'):
+        return raw
+
+    compact = ''.join(ch for ch in raw if ch.isalnum())
+    if compact in numeric_map:
+        return numeric_map[compact]
+    if compact in ('A', 'B', 'C', 'D'):
+        return compact
+    if compact and compact[-1] in ('A', 'B', 'C', 'D'):
+        return compact[-1]
+
+    return None
+
+
 def _create_course_structure_from_program(store, course_key, user_id, template_program, program_topics):
     """
     Create OpenEdX course structure from program topics.
@@ -3088,7 +3117,12 @@ def upload_evaluation_quiz_api(request, course_key_string):
                         ('D', row['Choice_D'])
                     ]
                     
-                    correct_answer = str(row['Correct_Answer']).strip().upper()
+                    correct_answer = _normalize_correct_answer_token(row['Correct_Answer'])
+                    if correct_answer is None:
+                        return JsonResponse({
+                            'success': False,
+                            'error': f'Giá trị Correct_Answer không hợp lệ tại dòng {index + 2}: "{row["Correct_Answer"]}". Hãy dùng A/B/C/D hoặc 1/2/3/4.'
+                        })
                     
                     for choice_key, choice_text in choices:
                         if pd.isna(choice_text) or not str(choice_text).strip():
@@ -3228,7 +3262,12 @@ def upload_topic_quiz_api(request, unit_locator_string):
                         ('D', row['Choice_D'])
                     ]
                     
-                    correct_answer = str(row['Correct_Answer']).strip().upper()
+                    correct_answer = _normalize_correct_answer_token(row['Correct_Answer'])
+                    if correct_answer is None:
+                        return JsonResponse({
+                            'success': False,
+                            'error': f'Giá trị Correct_Answer không hợp lệ tại dòng {index + 2}: "{row["Correct_Answer"]}". Hãy dùng A/B/C/D hoặc 1/2/3/4.'
+                        })
                     
                     for choice_key, choice_text in choices:
                         if pd.isna(choice_text) or not str(choice_text).strip():

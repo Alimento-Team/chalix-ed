@@ -292,26 +292,36 @@ class FinalEvaluationQuizSubmitView(APIView):
             # Process submitted answers
             correct_count = 0
             total_questions = 0
+            misconfigured_question_ids = []
             
             for question_id_str, choice_ids in answers.items():
                 try:
                     question_id = int(question_id_str)
                     question = ChalixQuizQuestion.objects.get(id=question_id)
+
+                    all_choices = list(ChalixQuizChoice.objects.filter(
+                        question_id=question.id,
+                        is_active=True
+                    ).order_by('order_index'))
+                    correct_choice_ids = [choice.id for choice in all_choices if choice.is_correct]
+
+                    if not correct_choice_ids:
+                        misconfigured_question_ids.append(question.id)
+                        continue
+
                     total_questions += 1
+
+                    if not isinstance(choice_ids, (list, tuple)):
+                        choice_ids = [choice_ids]
+                    selected_choice_ids = [int(cid) for cid in choice_ids if cid]
                     
                     # Handle multiple choice questions
                     if question.question_type == 'multiple_choice_multiple_answer':
                         # For multiple choice, all selected answers must be correct
-                        # Query choices manually since these are unmanaged models
-                        correct_choices = set(ChalixQuizChoice.objects.filter(
-                            question_id=question.id,
-                            is_correct=True
-                        ).values_list('id', flat=True))
-                        selected_choices = set(int(cid) for cid in choice_ids if cid)
-                        is_correct = correct_choices == selected_choices
+                        is_correct = set(correct_choice_ids) == set(selected_choice_ids)
                         
                         # Save all selected choices
-                        for choice_id in choice_ids:
+                        for choice_id in selected_choice_ids:
                             if choice_id:
                                 choice = ChalixQuizChoice.objects.get(id=int(choice_id))
                                 QuizAnswer.objects.create(
@@ -326,9 +336,9 @@ class FinalEvaluationQuizSubmitView(APIView):
                             
                     else:
                         # Single choice question
-                        if choice_ids and choice_ids[0]:
-                            choice = ChalixQuizChoice.objects.get(id=int(choice_ids[0]))
-                            is_correct = choice.is_correct
+                        if selected_choice_ids:
+                            choice = ChalixQuizChoice.objects.get(id=int(selected_choice_ids[0]))
+                            is_correct = selected_choice_ids[0] in correct_choice_ids
                             
                             QuizAnswer.objects.create(
                                 attempt_id=attempt.id,
@@ -342,6 +352,13 @@ class FinalEvaluationQuizSubmitView(APIView):
                                 
                 except (ValueError, ChalixQuizQuestion.DoesNotExist, ChalixQuizChoice.DoesNotExist):
                     continue
+
+            if misconfigured_question_ids:
+                attempt.delete()
+                return Response({
+                    'error': 'Một số câu hỏi chưa được cấu hình đáp án đúng. Vui lòng liên hệ quản trị viên để cập nhật bộ câu hỏi.',
+                    'misconfigured_question_ids': misconfigured_question_ids,
+                }, status=status.HTTP_400_BAD_REQUEST)
             
             # Calculate score
             from decimal import Decimal
@@ -841,24 +858,32 @@ class TopicQuizSubmitView(APIView):
             correct_count = 0
             total_questions = 0
             answer_details = []
+            misconfigured_question_ids = []
             
             for question_id_str, choice_ids in answers.items():
                 try:
                     question_id = int(question_id_str)
                     question = ChalixQuizQuestion.objects.get(id=question_id)
-                    total_questions += 1
                     
                     # Get all choices for this question
-                    all_choices = ChalixQuizChoice.objects.filter(
+                    all_choices = list(ChalixQuizChoice.objects.filter(
                         question_id=question.id,
                         is_active=True
-                    ).order_by('order_index')
+                    ).order_by('order_index'))
                     
                     # Find correct choices
                     correct_choices = [c for c in all_choices if c.is_correct]
                     correct_choice_ids = [c.id for c in correct_choices]
+
+                    if not correct_choice_ids:
+                        misconfigured_question_ids.append(question.id)
+                        continue
+
+                    total_questions += 1
                     
                     # Get selected choice(s)
+                    if not isinstance(choice_ids, (list, tuple)):
+                        choice_ids = [choice_ids]
                     selected_choice_ids = [int(cid) for cid in choice_ids if cid]
                     
                     # Determine if answer is correct
@@ -901,6 +926,13 @@ class TopicQuizSubmitView(APIView):
                 except (ValueError, ChalixQuizQuestion.DoesNotExist, ChalixQuizChoice.DoesNotExist) as e:
                     logger.warning(f"Error processing question {question_id_str}: {e}")
                     continue
+
+            if misconfigured_question_ids:
+                attempt.delete()
+                return Response({
+                    'error': 'Một số câu hỏi chưa được cấu hình đáp án đúng. Vui lòng liên hệ quản trị viên để cập nhật bộ câu hỏi.',
+                    'misconfigured_question_ids': misconfigured_question_ids,
+                }, status=status.HTTP_400_BAD_REQUEST)
             
             # Calculate score
             from decimal import Decimal
