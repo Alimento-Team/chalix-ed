@@ -566,6 +566,7 @@ class LearningAnalyticsDashboardAPIView(APIView):
     def get(self, request):
         user = request.user
         year = int(request.query_params.get('year', timezone.now().year))
+        course_id = (request.query_params.get('course_id') or '').strip()
 
         # Get learning hours summary
         hours_summary = LearningHoursService.get_user_learning_hours_summary(user, year)
@@ -593,18 +594,31 @@ class LearningAnalyticsDashboardAPIView(APIView):
                 'completion_date': progress.completion_date
             })
 
-        snapshot = StudentLearningProcessSnapshot.objects.filter(user=user).first()
-        total_vle = 0
-        if snapshot:
-            total_vle = (snapshot.vle_1 or 0) + (snapshot.vle_2 or 0) + (snapshot.vle_3 or 0)
+        snapshot_queryset = StudentLearningProcessSnapshot.objects.filter(user=user)
+        behavior_queryset = LearnerBehavior.objects.filter(user=user)
 
-        behavior_totals = LearnerBehavior.objects.filter(user=user).aggregate(
+        if course_id:
+            snapshot_queryset = snapshot_queryset.filter(course_id=course_id)
+            behavior_queryset = behavior_queryset.filter(course_id=course_id)
+
+        snapshot_totals = snapshot_queryset.aggregate(
+            total_vle_1=Sum('vle_1'),
+            total_vle_2=Sum('vle_2'),
+            total_vle_3=Sum('vle_3'),
+        )
+        total_vle = int(
+            (snapshot_totals.get('total_vle_1') or 0)
+            + (snapshot_totals.get('total_vle_2') or 0)
+            + (snapshot_totals.get('total_vle_3') or 0)
+        )
+
+        behavior_totals = behavior_queryset.aggregate(
             videos_opened=Sum('videos_watched'),
             quizzes_opened=Sum('problems_attempted'),
         )
         videos_opened = int(behavior_totals.get('videos_opened') or 0)
         quizzes_opened = int(behavior_totals.get('quizzes_opened') or 0)
-        materials_opened = max(0, int(total_vle) - videos_opened - quizzes_opened)
+        materials_opened = max(0, total_vle - videos_opened - quizzes_opened)
 
         dashboard_data = {
             'learning_hours': hours_summary,
@@ -616,7 +630,7 @@ class LearningAnalyticsDashboardAPIView(APIView):
             },
             'credit_hours_breakdown': credit_hours_breakdown,
             'vle_breakdown': {
-                'total_vle': int(total_vle),
+                'total_vle': total_vle,
                 'materials_opened': materials_opened,
                 'videos_opened': videos_opened,
                 'quizzes_opened': quizzes_opened,

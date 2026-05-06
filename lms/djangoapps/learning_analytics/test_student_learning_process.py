@@ -164,6 +164,13 @@ class StudentLearningProcessImportCommandTests(TestCase):
         self.assertEqual(snapshot.completed_percentage, 100)
         self.assertEqual(snapshot.status, 'Hoàn thành')
 
+        behavior = LearnerBehavior.objects.get(
+            user__username='20260001',
+            course_id='course-v1:chalix+course_6f694e29+2024',
+        )
+        self.assertEqual(behavior.videos_watched, 37)
+        self.assertEqual(behavior.problems_attempted, 22)
+
         imported_user = User.objects.get(username='20260001')
         self.assertEqual(imported_user.email, '20260001@itg-acst.edu.vn')
 
@@ -285,6 +292,13 @@ class StudentLearningProcessImportCommandTests(TestCase):
         self.assertEqual(snapshot.vle_1, 53)
         self.assertEqual(snapshot.vle_2, 17)
         self.assertEqual(snapshot.vle_3, 102)
+
+        behavior = LearnerBehavior.objects.get(
+            user__username='student_900',
+            course_id='course-v1:chalix+course_6f694e29+2024',
+        )
+        self.assertEqual(behavior.videos_watched, 37)
+        self.assertEqual(behavior.problems_attempted, 22)
 
         imported_user = User.objects.get(username='student_900')
         profile = UserProfile.objects.get(user=imported_user)
@@ -712,6 +726,62 @@ class LearningAnalyticsDashboardBreakdownTests(TestCase):
         self.assertEqual(payload['vle_breakdown']['videos_opened'], 7)
         self.assertEqual(payload['vle_breakdown']['quizzes_opened'], 5)
         self.assertEqual(payload['vle_breakdown']['materials_opened'], 18)
+
+    def test_dashboard_filters_vle_breakdown_by_course(self):
+        target_course_id = 'chalix+course_6f694e29+2024'
+        other_course_id = 'course-v1:test+other+2026'
+
+        StudentLearningProcessSnapshot.objects.create(
+            user=self.user,
+            student_id='student_004',
+            course_id=other_course_id,
+            position_code=0,
+            position_text='Chuyen vien',
+            gender_code=1,
+            gender_text='Nu',
+            location_code=9,
+            location_text='Thai Binh',
+            age_code=2,
+            age_text='Tren 25 tuoi',
+            job_title_code=1,
+            job_title_text='Vien chuc',
+            experience_code=1,
+            experience_text='Tu 5 den 10 nam',
+            week_1='2.00',
+            week_2='2.00',
+            week_3='2.00',
+            vle_1=99,
+            vle_2=0,
+            vle_3=0,
+            final_score='4.00',
+            source_file='dataset/log.csv',
+            source_row_number=3,
+        )
+
+        LearnerBehavior.objects.create(
+            user=self.user,
+            course_id=target_course_id,
+            videos_watched=4,
+            problems_attempted=3,
+        )
+        LearnerBehavior.objects.create(
+            user=self.user,
+            course_id=other_course_id,
+            videos_watched=20,
+            problems_attempted=10,
+        )
+
+        response = self.client.get(
+            '/api/learning_analytics/dashboard/',
+            {'course_id': target_course_id},
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+
+        self.assertEqual(payload['vle_breakdown']['total_vle'], 30)
+        self.assertEqual(payload['vle_breakdown']['videos_opened'], 4)
+        self.assertEqual(payload['vle_breakdown']['quizzes_opened'], 3)
+        self.assertEqual(payload['vle_breakdown']['materials_opened'], 23)
 
 
 class StudentLearningProcessPredictionTests(TestCase):

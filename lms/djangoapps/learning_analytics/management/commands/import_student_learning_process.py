@@ -15,7 +15,7 @@ from opaque_keys.edx.keys import CourseKey
 
 from common.djangoapps.student.models import UserProfile
 from common.djangoapps.student.models.course_enrollment import AlreadyEnrolledError, CourseEnrollment
-from lms.djangoapps.learning_analytics.models import StudentLearningProcessSnapshot
+from lms.djangoapps.learning_analytics.models import LearnerBehavior, StudentLearningProcessSnapshot
 
 
 class Command(BaseCommand):
@@ -236,6 +236,15 @@ class Command(BaseCommand):
                             course_id=payload['course_id'],
                             defaults=payload,
                         )
+
+                        behavior_payload = parsed_row.get('behavior')
+                        if behavior_payload:
+                            LearnerBehavior.objects.update_or_create(
+                                user=behavior_payload['user'],
+                                course_id=behavior_payload['course_id'],
+                                defaults=behavior_payload['defaults'],
+                            )
+
                         if created:
                             created_count += 1
                         else:
@@ -355,6 +364,19 @@ class Command(BaseCommand):
         )
         completed_percentage = self._parse_optional_percentage(row.get('completed_percentage'))
         source_row_number = self._parse_optional_int(row.get('source_row_number'), 'source_row_number') or row_number
+        activity_totals = self._resolve_activity_totals(row)
+
+        behavior_payload = None
+        if activity_totals:
+            behavior_payload = {
+                'user': user,
+                'course_id': course_id,
+                'defaults': {
+                    'videos_watched': activity_totals['videos_watched'],
+                    'problems_attempted': activity_totals['problems_attempted'],
+                    'completion_percentage': float(completed_percentage or 0),
+                },
+            }
 
         return {
             'user': user,
@@ -397,6 +419,7 @@ class Command(BaseCommand):
                 'source_file': source_file or 'dataset/log.csv',
                 'source_row_number': source_row_number,
             },
+            'behavior': behavior_payload,
         }
 
     def _resolve_vle_values(self, row):
@@ -426,6 +449,24 @@ class Command(BaseCommand):
             )
         except KeyError as exc:
             raise ValueError(f'missing VLE column: {exc}')
+
+    def _resolve_activity_totals(self, row):
+        has_activity_columns = all(str(row.get(name, '')).strip() != '' for name in self.ACTIVITY_COLUMNS)
+        if not has_activity_columns:
+            return None
+
+        return {
+            'videos_watched': (
+                self._parse_int(row['video_1'], 'video_1', minimum=0)
+                + self._parse_int(row['video_2'], 'video_2', minimum=0)
+                + self._parse_int(row['video_3'], 'video_3', minimum=0)
+            ),
+            'problems_attempted': (
+                self._parse_int(row['quiz_1'], 'quiz_1', minimum=0)
+                + self._parse_int(row['quiz_2'], 'quiz_2', minimum=0)
+                + self._parse_int(row['quiz_3'], 'quiz_3', minimum=0)
+            ),
+        }
 
     def _map_category(self, field_name, value, codebooks):
         text_value = value.strip()
