@@ -39,6 +39,34 @@ from .serializers import (
 )
 
 
+def _infer_course_status(course_grade, certificate, snapshot):
+    """Infer learner course status using grade/certificate and imported snapshot data."""
+    progress_percentage = round(course_grade.percent * 100, 1) if course_grade else 0
+    has_final_score = bool(snapshot and snapshot.final_score is not None)
+
+    if certificate or has_final_score:
+        course_status = 'completed'
+        if progress_percentage <= 0:
+            progress_percentage = 100
+    else:
+        has_snapshot_activity = bool(
+            snapshot
+            and (
+                (snapshot.completed_percentage or 0) > 0
+                or (snapshot.total_studied_time or 0) > 0
+                or (snapshot.vle_1 or 0) > 0
+                or (snapshot.vle_2 or 0) > 0
+                or (snapshot.vle_3 or 0) > 0
+            )
+        )
+        if progress_percentage > 0 or has_snapshot_activity:
+            course_status = 'in_progress'
+        else:
+            course_status = 'not_started'
+
+    return course_status, progress_percentage
+
+
 class LearnerStatsAPIView(APIView):
     """
     API view to get comprehensive learner statistics for the personalized dashboard.
@@ -134,6 +162,14 @@ class CourseProgressAPIView(APIView):
         status_filter = request.query_params.get('status')  # 'completed', 'in_progress', 'not_started'
 
         enrollments = CourseEnrollment.objects.filter(user=user, is_active=True)
+        enrolled_course_ids = [str(enrollment.course_id) for enrollment in enrollments]
+        snapshot_map = {
+            snapshot.course_id: snapshot
+            for snapshot in StudentLearningProcessSnapshot.objects.filter(
+                user=user,
+                course_id__in=enrolled_course_ids,
+            )
+        }
 
         # Apply year filter
         if year_filter:
@@ -155,7 +191,6 @@ class CourseProgressAPIView(APIView):
 
             # Get course grade
             course_grade = CourseGradeFactory().read(user, course_key=course_key)
-            progress_percentage = round(course_grade.percent * 100, 1) if course_grade else 0
 
             # Get certificate status
             certificate = GeneratedCertificate.objects.filter(
@@ -164,13 +199,12 @@ class CourseProgressAPIView(APIView):
                 status='downloadable'
             ).first()
 
-            # Determine status
-            if certificate:
-                course_status = 'completed'
-            elif progress_percentage > 0:
-                course_status = 'in_progress'
-            else:
-                course_status = 'not_started'
+            snapshot = snapshot_map.get(str(course_key))
+            course_status, progress_percentage = _infer_course_status(
+                course_grade=course_grade,
+                certificate=certificate,
+                snapshot=snapshot,
+            )
 
             # Apply status filter
             if status_filter and course_status != status_filter:
@@ -600,6 +634,15 @@ class LearningHoursCoursesAPIView(APIView):
             enrollments = enrollments.filter(
                 created__year=year
             )
+
+        enrolled_course_ids = [str(enrollment.course_id) for enrollment in enrollments]
+        snapshot_map = {
+            snapshot.course_id: snapshot
+            for snapshot in StudentLearningProcessSnapshot.objects.filter(
+                user=user,
+                course_id__in=enrolled_course_ids,
+            )
+        }
         
         courses_data = []
         for enrollment in enrollments:
@@ -608,7 +651,6 @@ class LearningHoursCoursesAPIView(APIView):
                 
                 # Get course grade for progress percentage
                 course_grade = CourseGradeFactory().read(user, course_key=enrollment.course_id)
-                progress_percentage = round(course_grade.percent * 100, 1) if course_grade else 0
                 
                 # Check certificate status
                 certificate = GeneratedCertificate.objects.filter(
@@ -616,6 +658,13 @@ class LearningHoursCoursesAPIView(APIView):
                     course_id=enrollment.course_id,
                     status='downloadable'
                 ).first()
+
+                snapshot = snapshot_map.get(str(enrollment.course_id))
+                inferred_status, inferred_progress_percentage = _infer_course_status(
+                    course_grade=course_grade,
+                    certificate=certificate,
+                    snapshot=snapshot,
+                )
                 
                 # Get course progress
                 try:
@@ -624,16 +673,12 @@ class LearningHoursCoursesAPIView(APIView):
                         course_id=str(enrollment.course_id)
                     )
                     hours_completed = progress.credit_hours_earned
-                    course_status = progress.status
+                    course_status = progress.status if progress.status != 'not_started' else inferred_status
                 except StudentCourseProgress.DoesNotExist:
                     hours_completed = 0
-                    # Determine status based on certificate and progress
-                    if certificate:
-                        course_status = 'completed'
-                    elif progress_percentage > 0:
-                        course_status = 'in_progress'
-                    else:
-                        course_status = 'not_started'
+                    course_status = inferred_status
+
+                progress_percentage = inferred_progress_percentage
                 
                 # Get course credit hours
                 try:
