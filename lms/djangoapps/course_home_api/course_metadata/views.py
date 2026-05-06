@@ -2,6 +2,8 @@
 General view for the Course Home that contains metadata every page needs.
 """
 
+import logging
+
 from django.db import transaction
 from django.utils.decorators import method_decorator
 from opaque_keys.edx.keys import CourseKey
@@ -26,6 +28,64 @@ from lms.djangoapps.courseware.context_processor import user_timezone_locale_pre
 from lms.djangoapps.courseware.courses import check_course_access
 from lms.djangoapps.courseware.masquerade import setup_masquerade
 from lms.djangoapps.courseware.tabs import get_course_tab_list
+
+
+LOGGER = logging.getLogger(__name__)
+
+
+def _has_learning_snapshot_evidence(user, course_key_string):
+    """Return True when imported learning-process data indicates learner participation."""
+    try:
+        # Optional dependency guard: keep course metadata endpoint resilient.
+        from lms.djangoapps.learning_analytics.models import StudentLearningProcessSnapshot
+
+        snapshot = StudentLearningProcessSnapshot.objects.filter(
+            user=user,
+            course_id=str(course_key_string),
+        ).first()
+        if not snapshot:
+            return False
+
+        return any([
+            snapshot.final_score is not None,
+            snapshot.week_1 is not None,
+            snapshot.week_2 is not None,
+            snapshot.week_3 is not None,
+            (snapshot.completed_percentage or 0) > 0,
+            (snapshot.total_studied_time or 0) > 0,
+            (snapshot.vle_1 or 0) > 0,
+            (snapshot.vle_2 or 0) > 0,
+            (snapshot.vle_3 or 0) > 0,
+        ])
+    except Exception:  # pylint: disable=broad-except
+        LOGGER.exception(
+            "Failed to evaluate learning snapshot evidence for user=%s course=%s",
+            getattr(user, 'id', None),
+            course_key_string,
+        )
+        return False
+
+
+def _auto_enroll_from_learning_evidence(user, course_key, course_key_string):
+    """Auto-enroll learners with imported learning evidence so they bypass enroll wall."""
+    if not user or not getattr(user, 'is_authenticated', False):
+        return
+
+    existing_enrollment = CourseEnrollment.get_enrollment(user, course_key_string)
+    if existing_enrollment and existing_enrollment.is_active:
+        return
+
+    if not _has_learning_snapshot_evidence(user, course_key_string):
+        return
+
+    try:
+        CourseEnrollment.enroll(user=user, course_key=course_key)
+    except Exception:  # pylint: disable=broad-except
+        LOGGER.exception(
+            "Auto-enroll failed for user=%s course=%s",
+            getattr(user, 'id', None),
+            course_key_string,
+        )
 
 
 @method_decorator(transaction.non_atomic_requests, name='dispatch')
@@ -82,6 +142,8 @@ class CourseHomeMetadataView(RetrieveAPIView):
         course_key = CourseKey.from_string(course_key_string)
         original_user_is_global_staff = self.request.user.is_staff
         original_user_is_staff = has_access(request.user, 'staff', course_key).has_access
+
+        _auto_enroll_from_learning_evidence(request.user, course_key, course_key_string)
 
         course = course_detail(request, request.user.username, course_key)
 

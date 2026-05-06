@@ -41,7 +41,21 @@ from .serializers import (
 
 def _infer_course_status(course_grade, certificate, snapshot):
     """Infer learner course status using grade/certificate and imported snapshot data."""
-    progress_percentage = round(course_grade.percent * 100, 1) if course_grade else 0
+    progress_percentage = 0
+    if course_grade and getattr(course_grade, 'percent', None) is not None:
+        progress_percentage = round(course_grade.percent * 100, 1)
+    elif snapshot:
+        # Prefer explicit completion percentage from imported snapshot data.
+        if snapshot.completed_percentage is not None:
+            progress_percentage = round(float(snapshot.completed_percentage), 1)
+        else:
+            # Fallback: infer completion from available weekly component scores (0..10 each).
+            component_scores = [snapshot.week_1, snapshot.week_2, snapshot.week_3]
+            valid_scores = [float(score) for score in component_scores if score is not None]
+            if valid_scores:
+                progress_percentage = round((sum(valid_scores) / (len(valid_scores) * 10.0)) * 100.0, 1)
+
+    progress_percentage = max(0, min(100, progress_percentage))
     has_final_score = bool(snapshot and snapshot.final_score is not None)
 
     if certificate or has_final_score:
@@ -672,13 +686,22 @@ class LearningHoursCoursesAPIView(APIView):
                         user=user,
                         course_id=str(enrollment.course_id)
                     )
-                    hours_completed = progress.credit_hours_earned
+                    hours_completed = float(progress.credit_hours_earned or 0)
                     course_status = progress.status if progress.status != 'not_started' else inferred_status
                 except StudentCourseProgress.DoesNotExist:
-                    hours_completed = 0
+                    hours_completed = 0.0
                     course_status = inferred_status
 
                 progress_percentage = inferred_progress_percentage
+
+                # Recalculate completed hours from inferred progress so UI stats table is meaningful
+                # even when StudentCourseProgress has not been synchronized from imported snapshots.
+                if total_hours is not None:
+                    total_hours_value = float(total_hours)
+                    if course_status == 'completed':
+                        hours_completed = total_hours_value
+                    elif course_status == 'in_progress' and progress_percentage > 0:
+                        hours_completed = round(total_hours_value * (float(progress_percentage) / 100.0), 1)
                 
                 # Get course credit hours
                 try:
