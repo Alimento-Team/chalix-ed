@@ -242,6 +242,9 @@ class LearningHoursService:
         elif activity_type in ('discussion_participated',):
             behavior.discussions_participated += 1
             update_fields.append('discussions_participated')
+        elif activity_type in ('material_opened',):
+            behavior.materials_opened += 1
+            update_fields.append('materials_opened')
 
         behavior.last_activity = timezone.now()
         behavior.save(update_fields=update_fields)
@@ -805,6 +808,65 @@ class StudentLearningProcessService:
                 course_id=normalized_course_id,
                 week_number=resolved_week,
             )
+        return snapshot
+
+    @staticmethod
+    def get_or_create_live_snapshot(user, course_id):
+        """Return existing snapshot for user/course, or create a minimal live one.
+
+        For learners who enrolled directly (not imported from CSV), no snapshot
+        row exists. This method creates a stub record with neutral defaults so
+        that live predictions (emotion-score API) can still be run.
+        """
+        normalized_course_id = str(course_id or '').strip()
+        if not user or not normalized_course_id:
+            return None
+
+        snapshot = StudentLearningProcessSnapshot.objects.filter(
+            user=user,
+            course_id=normalized_course_id,
+        ).first()
+        if snapshot:
+            return snapshot
+
+        # Try to derive gender from user profile
+        gender_code = 0
+        gender_text = 'Unknown'
+        try:
+            profile = user.profile
+            if profile.gender == 'm':
+                gender_code, gender_text = 1, 'Male'
+            elif profile.gender == 'f':
+                gender_code, gender_text = 2, 'Female'
+            elif profile.gender == 'o':
+                gender_code, gender_text = 3, 'Other'
+        except Exception:  # pylint: disable=broad-except
+            pass
+
+        snapshot = StudentLearningProcessSnapshot.objects.create(
+            user=user,
+            student_id=str(user.id),
+            course_id=normalized_course_id,
+            position_code=0,
+            position_text='Unknown',
+            gender_code=gender_code,
+            gender_text=gender_text,
+            location_code=0,
+            location_text='Unknown',
+            age_code=0,
+            age_text='Unknown',
+            job_title_code=0,
+            job_title_text='Unknown',
+            experience_code=0,
+            experience_text='Unknown',
+            week_1=Decimal('0'),
+            week_2=Decimal('0'),
+            week_3=Decimal('0'),
+            vle_1=0,
+            vle_2=0,
+            vle_3=0,
+            prediction_source='live',
+        )
         return snapshot
 
     @staticmethod

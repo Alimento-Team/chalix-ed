@@ -126,9 +126,14 @@ def upload_facial_expression_video(request):
         
         log_serializer = FacialExpressionLogSerializer(facial_log)
 
+        # For new accounts without an imported snapshot, auto-create a live stub
+        # so that the emotion-score API can still be called on final upload.
+        if is_final:
+            StudentLearningProcessService.get_or_create_live_snapshot(user, course_id)
+
         refreshed_snapshot = StudentLearningProcessService.get_for_user(
             user,
-            refresh_prediction=True,
+            refresh_prediction=is_final,
             course_id=course_id,
             week_number=week_number,
         )

@@ -615,10 +615,23 @@ class LearningAnalyticsDashboardAPIView(APIView):
         behavior_totals = behavior_queryset.aggregate(
             videos_opened=Sum('videos_watched'),
             quizzes_opened=Sum('problems_attempted'),
+            discussions_opened=Sum('discussions_participated'),
+            materials_opened_sum=Sum('materials_opened'),
         )
         videos_opened = int(behavior_totals.get('videos_opened') or 0)
         quizzes_opened = int(behavior_totals.get('quizzes_opened') or 0)
-        materials_opened = max(0, total_vle - videos_opened - quizzes_opened)
+        discussions_opened = int(behavior_totals.get('discussions_opened') or 0)
+        materials_opened_behavior = int(behavior_totals.get('materials_opened_sum') or 0)
+
+        # For new accounts without imported snapshot data, derive total_vle from
+        # live-tracked LearnerBehavior counters (videos + quizzes + materials + discussions).
+        if total_vle == 0:
+            behavior_vle = videos_opened + quizzes_opened + materials_opened_behavior + discussions_opened
+            if behavior_vle > 0:
+                total_vle = behavior_vle
+
+        # materials_opened = residual interactions not counted as video/quiz
+        materials_opened = max(0, materials_opened_behavior + max(0, total_vle - videos_opened - quizzes_opened - materials_opened_behavior - discussions_opened))
 
         dashboard_data = {
             'learning_hours': hours_summary,
@@ -708,18 +721,9 @@ class LearningHoursCoursesAPIView(APIView):
 
                 progress_percentage = inferred_progress_percentage
 
-                # Recalculate completed hours from inferred progress so UI stats table is meaningful
-                # even when StudentCourseProgress has not been synchronized from imported snapshots.
-                if total_hours is not None:
-                    total_hours_value = float(total_hours)
-                    if course_status == 'completed':
-                        hours_completed = total_hours_value
-                    elif course_status == 'in_progress' and progress_percentage > 0:
-                        hours_completed = round(total_hours_value * (float(progress_percentage) / 100.0), 1)
-                
                 # Get course credit hours
+                course_id_str = str(enrollment.course_id)
                 try:
-                    course_id_str = str(enrollment.course_id)
                     credit_hours = CourseCreditHours.objects.get(course_id=course_id_str)
                     total_hours = credit_hours.credit_hours
                     print(f"DEBUG: Found credit hours for {course_id_str}: {total_hours}")
@@ -750,6 +754,15 @@ class LearningHoursCoursesAPIView(APIView):
                     except Exception as e:
                         print(f"DEBUG: Error fetching course block for {course_id_str}: {e}")
                         total_hours = None
+
+                # Recalculate completed hours from inferred progress so UI stats table is meaningful
+                # even when StudentCourseProgress has not been synchronized from imported snapshots.
+                if total_hours is not None:
+                    total_hours_value = float(total_hours)
+                    if course_status == 'completed':
+                        hours_completed = total_hours_value
+                    elif course_status == 'in_progress' and progress_percentage > 0:
+                        hours_completed = round(total_hours_value * (float(progress_percentage) / 100.0), 1)
                 
                 # Status text for display
                 status_text = 'Hoàn thành' if course_status == 'completed' else 'Đang học'

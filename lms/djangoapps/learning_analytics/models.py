@@ -20,6 +20,7 @@ class LearnerBehavior(models.Model):
     videos_watched = models.IntegerField(default=0)
     problems_attempted = models.IntegerField(default=0)
     discussions_participated = models.IntegerField(default=0)
+    materials_opened = models.IntegerField(default=0, help_text="Slides/HTML material opens")
 
     # Learning patterns
     preferred_learning_time = models.CharField(
