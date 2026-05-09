@@ -792,22 +792,30 @@ class StudentLearningProcessService:
     @staticmethod
     def get_for_user(user, refresh_prediction=False, course_id=None, week_number=None):
         normalized_course_id = str(course_id or '').strip()
-        if not normalized_course_id:
-            return None
-
-        snapshot = StudentLearningProcessSnapshot.objects.filter(
-            user=user,
-            course_id=normalized_course_id,
-        ).first()
-        if refresh_prediction and snapshot:
-            resolved_week = week_number
-            if resolved_week is None:
-                resolved_week = LearningHoursService.resolve_learning_week(user, normalized_course_id)
-            return StudentLearningProcessService.refresh_prediction(
-                snapshot,
+        
+        # If course_id is provided, get snapshot for that specific course
+        if normalized_course_id:
+            snapshot = StudentLearningProcessSnapshot.objects.filter(
+                user=user,
                 course_id=normalized_course_id,
-                week_number=resolved_week,
-            )
+            ).first()
+            if refresh_prediction and snapshot:
+                resolved_week = week_number
+                if resolved_week is None:
+                    resolved_week = LearningHoursService.resolve_learning_week(user, normalized_course_id)
+                return StudentLearningProcessService.refresh_prediction(
+                    snapshot,
+                    course_id=normalized_course_id,
+                    week_number=resolved_week,
+                )
+            return snapshot
+        
+        # If no course_id provided, return any snapshot for the user (for demographic data)
+        # Prefer most recent or from first enrolled course
+        snapshot = StudentLearningProcessSnapshot.objects.filter(
+            user=user
+        ).order_by('-imported_at').first()
+        
         return snapshot
 
     @staticmethod

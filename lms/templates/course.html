@@ -6,9 +6,6 @@ from django.urls import reverse
 %>
 <%page args="course" expression_filter="h"/>
 <article class="course" id="${course.id}" role="region" aria-label="${course.display_name_with_default}">
-  <%
-    card_org_name = getattr(course, 'chalix_org_display_name', None) or course.display_org_with_default
-  %>
   <a href="${reverse('about_course', args=[str(course.id)])}">
     <header class="course-image">
       <div class="cover-image">
@@ -24,9 +21,6 @@ from django.urls import reverse
     </header>
     <div class="course-info" aria-hidden="true">
       <h2 class="course-name">
-        % if card_org_name:
-        <span class="course-organization">${card_org_name}</span>
-        % endif
         <span class="course-code">${course.display_number_with_default}</span>
         <span class="course-title">${course.display_name_with_default}</span>
       </h2>
@@ -40,9 +34,6 @@ from django.urls import reverse
     </div>
     <div class="sr">
       <ul>
-        % if card_org_name:
-        <li>${card_org_name}</li>
-        % endif
         <li>${course.display_number_with_default}</li>
         % if course.advertised_start is not None:
             <li>${_("Ngày bắt đầu")}: <time itemprop="startDate">${course.advertised_start}</time></li>

@@ -293,6 +293,7 @@ class FinalEvaluationQuizSubmitView(APIView):
             correct_count = 0
             total_questions = 0
             misconfigured_question_ids = []
+            answer_details = []
             
             for question_id_str, choice_ids in answers.items():
                 try:
@@ -349,6 +350,20 @@ class FinalEvaluationQuizSubmitView(APIView):
                             
                             if is_correct:
                                 correct_count += 1
+
+                    selected_choices_text = [
+                        choice.choice_text for choice in all_choices if choice.id in selected_choice_ids
+                    ]
+                    correct_choices_text = [choice.choice_text for choice in all_choices if choice.id in correct_choice_ids]
+                    answer_details.append({
+                        'question_id': question.id,
+                        'question_text': question.question_text,
+                        'selected_choice_ids': selected_choice_ids,
+                        'correct_choice_ids': correct_choice_ids,
+                        'selected_choices': selected_choices_text,
+                        'correct_choices': correct_choices_text,
+                        'is_correct': is_correct,
+                    })
                                 
                 except (ValueError, ChalixQuizQuestion.DoesNotExist, ChalixQuizChoice.DoesNotExist):
                     continue
@@ -387,6 +402,8 @@ class FinalEvaluationQuizSubmitView(APIView):
                 'passed': passed,
                 'attempt_number': attempt.attempt_number,
                 'attempts_used': attempts_count + 1,
+                'answer_details': answer_details,
+                'show_correct_answers': True,
             }
             
             # Include passing score info if configured

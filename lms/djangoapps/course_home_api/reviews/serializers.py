@@ -8,11 +8,10 @@ class CourseEmojiReviewSerializer(serializers.Serializer):
 
 
 class CourseEmojiReviewSummarySerializer(serializers.Serializer):
-    like = serializers.IntegerField()
-    neutral = serializers.IntegerField()
-    dislike = serializers.IntegerField()
-    my_rating = serializers.ChoiceField(
-        choices=['like', 'neutral', 'dislike'],
-        required=False,
+    like = serializers.IntegerField(default=0)
+    neutral = serializers.IntegerField(default=0)
+    dislike = serializers.IntegerField(default=0)
+    my_rating = serializers.CharField(
         allow_null=True,
+        required=False,
     )
