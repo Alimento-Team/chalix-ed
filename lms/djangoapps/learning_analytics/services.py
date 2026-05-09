@@ -799,6 +799,12 @@ class StudentLearningProcessService:
                 user=user,
                 course_id=normalized_course_id,
             ).first()
+            if refresh_prediction and not snapshot:
+                snapshot = StudentLearningProcessService.get_or_create_live_snapshot(
+                    user=user,
+                    course_id=normalized_course_id,
+                )
+
             if refresh_prediction and snapshot:
                 resolved_week = week_number
                 if resolved_week is None:

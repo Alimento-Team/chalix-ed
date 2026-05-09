@@ -402,6 +402,7 @@ class FinalEvaluationQuizSubmitView(APIView):
                 'passed': passed,
                 'attempt_number': attempt.attempt_number,
                 'attempts_used': attempts_count + 1,
+                'attempts_left': max(0, max_attempts - (attempts_count + 1)) if max_attempts > 0 else None,
                 'answer_details': answer_details,
                 'show_correct_answers': True,
             }
@@ -409,6 +410,7 @@ class FinalEvaluationQuizSubmitView(APIView):
             # Include passing score info if configured
             if passing_score is not None:
                 response_data['passing_score'] = float(passing_score)
+                response_data['min_passing_score'] = float(passing_score)
                 response_data['message'] = f'{"Chúc mừng! Bạn đã đạt" if passed else "Bạn chưa đạt"} điểm tối thiểu ({float(passing_score)}%)'
             
             # Include attempts remaining if limited
@@ -591,23 +593,39 @@ class FinalEvaluationResultView(APIView):
                     'completed': False
                 }, status=status.HTTP_404_NOT_FOUND)
             
-            try:
-                attempt = QuizAttempt.objects.get(
-                    evaluation_id=evaluation.id,
-                    learner_id=request.user.id,
-                    is_completed=True
-                )
-            except QuizAttempt.DoesNotExist:
+            attempt = QuizAttempt.objects.filter(
+                evaluation_id=evaluation.id,
+                learner_id=request.user.id,
+                is_completed=True,
+            ).order_by('-attempt_number', '-completed_at', '-id').first()
+
+            if not attempt:
                 return Response({
                     'completed': False
                 }, status=status.HTTP_404_NOT_FOUND)
+
+            completed_attempts = QuizAttempt.objects.filter(
+                evaluation_id=evaluation.id,
+                learner_id=request.user.id,
+                is_completed=True,
+            ).count()
+            max_attempts = evaluation.quiz_max_attempts or 0
+            attempts_remaining = (max_attempts - completed_attempts) if max_attempts > 0 else None
             
             return Response({
                 'completed': True,
                 'score': float(attempt.score) if attempt.score else 0,
                 'correct_answers': attempt.correct_answers,
                 'total_questions': attempt.total_questions,
-                'completed_at': attempt.completed_at.isoformat() if attempt.completed_at else None
+                'completed_at': attempt.completed_at.isoformat() if attempt.completed_at else None,
+                'attempt_number': attempt.attempt_number,
+                'attempts_used': completed_attempts,
+                'max_attempts': max_attempts,
+                'attempts_remaining': attempts_remaining,
+                'attempts_left': attempts_remaining,
+                'passing_score': float(evaluation.quiz_passing_score) if evaluation.quiz_passing_score is not None else None,
+                'min_passing_score': float(evaluation.quiz_passing_score) if evaluation.quiz_passing_score is not None else None,
+                'passed': bool(attempt.passed),
             })
             
         except Exception as e:

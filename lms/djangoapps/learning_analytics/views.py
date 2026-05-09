@@ -815,10 +815,18 @@ class StudentLearningProcessSelfAPIView(APIView):
 
     def get(self, request):
         course_id = (request.query_params.get('course_id') or '').strip()
+        week_number_raw = request.query_params.get('week_number')
+        week_number = None
+        if week_number_raw not in (None, ''):
+            try:
+                week_number = int(week_number_raw)
+            except (TypeError, ValueError):
+                week_number = None
         snapshot = StudentLearningProcessService.get_for_user(
             request.user,
             refresh_prediction=True,
             course_id=course_id,
+            week_number=week_number,
         )
         if not snapshot:
             return Response(None, status=status.HTTP_200_OK)
