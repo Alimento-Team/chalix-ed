@@ -778,11 +778,37 @@ def parse_users_file(uploaded_file) -> List[Dict[str, Any]]:
 
 
 @view_auth_classes(is_authenticated=True)
-@api_view(['GET'])
+@api_view(['GET', 'DELETE'])
 def get_user_detail(request, user_id):
     """
-    Get details of a specific user.
+    Get details of a specific user (GET) or soft-delete a user (DELETE).
     """
+    if request.method == 'DELETE':
+        try:
+            user_to_delete = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response({'error': 'Không tìm thấy người dùng'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Check requester's role and permissions
+        from cms.djangoapps.contentstore.models import ChalixUserRole
+        requester_roles = ChalixUserRole.objects.filter(user=request.user, is_active=True)
+        is_ministry_admin = requester_roles.filter(role='bo').exists()
+
+        if not is_ministry_admin:
+            requester_org_ids = list(requester_roles.filter(role='co_quan').values_list('organization_id', flat=True))
+            if not requester_org_ids:
+                return Response({'error': 'Không có quyền xóa người dùng'}, status=status.HTTP_403_FORBIDDEN)
+            target_org_ids = list(ChalixUserRole.objects.filter(
+                user=user_to_delete, is_active=True
+            ).values_list('organization_id', flat=True))
+            if not any(org_id in requester_org_ids for org_id in target_org_ids):
+                return Response({'error': 'Không có quyền xóa người dùng này'}, status=status.HTTP_403_FORBIDDEN)
+
+        user_to_delete.is_active = False
+        user_to_delete.save(update_fields=['is_active'])
+        ChalixUserRole.objects.filter(user=user_to_delete).update(is_active=False)
+        log.info(f'User {user_to_delete.username} soft-deleted by {request.user.username}')
+        return Response({'success': True, 'message': 'Xóa người dùng thành công'})
     try:
         user = User.objects.get(id=user_id)
         

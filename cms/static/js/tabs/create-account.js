@@ -130,10 +130,11 @@
                                         <th>Email</th>
                                         <th>Đơn vị công tác</th>
                                         <th>Vai trò người dùng hệ thống</th>
+                                        <th>Hành động</th>
                                     </tr>
                                 </thead>
                                 <tbody id="users-table-body">
-                                    <tr><td colspan="7" style="padding:18px; color:#667085; text-align:center;">Đang tải...</td></tr>
+                                    <tr><td colspan="8" style="padding:18px; color:#667085; text-align:center;">Đang tải...</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -476,7 +477,23 @@
         if (downloadTemplateBtn) {
             downloadTemplateBtn.addEventListener('click', handleTemplateDownload);
         }
-        
+
+        // Delegate edit/delete button clicks in user table
+        const usersTableBody = document.getElementById('users-table-body');
+        if (usersTableBody) {
+            usersTableBody.addEventListener('click', (e) => {
+                const editBtn = e.target.closest('.action-edit-btn');
+                const deleteBtn = e.target.closest('.action-delete-btn');
+                if (editBtn) {
+                    const userId = editBtn.getAttribute('data-user-id');
+                    if (userId) editUser(parseInt(userId, 10));
+                } else if (deleteBtn) {
+                    const userId = deleteBtn.getAttribute('data-user-id');
+                    if (userId) deleteUser(parseInt(userId, 10));
+                }
+            });
+        }
+
         // Load initial data (roles)
         loadInitialData();
 
@@ -785,7 +802,7 @@
         async function loadUsers(page = 1, per_page = 50, q = '') {
             const tbody = document.getElementById('users-table-body');
             if (!tbody) return;
-            tbody.innerHTML = '<tr><td colspan="7" style="padding:12px; color:#667085;">Đang tải...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="8" style="padding:12px; color:#667085;">Đang tải...</td></tr>';
 
             try {
                 const params = new URLSearchParams();
@@ -801,12 +818,12 @@
                 });
 
                 if (resp.status === 403) {
-                    tbody.innerHTML = '<tr><td colspan="7" style="padding:12px; color:#c53030;">Bạn không có quyền xem danh sách tài khoản.</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="8" style="padding:12px; color:#c53030;">Bạn không có quyền xem danh sách tài khoản.</td></tr>';
                     return;
                 }
 
                 if (!resp.ok) {
-                    tbody.innerHTML = `<tr><td colspan="7" style="padding:12px; color:#667085;">Lỗi khi tải danh sách (status ${resp.status})</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="8" style="padding:12px; color:#667085;">Lỗi khi tải danh sách (status ${resp.status})</td></tr>`;
                     return;
                 }
 
@@ -816,7 +833,7 @@
                 usersState = { page: page, per_page: per_page, total: total, q: q };
 
                 if (!users || users.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="7" style="padding:12px; color:#667085;">Không tìm thấy tài khoản nào.</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="8" style="padding:12px; color:#667085;">Không tìm thấy tài khoản nào.</td></tr>';
                     return;
                 }
 
@@ -831,6 +848,10 @@
                         <td style="padding:8px 12px; border-bottom:1px solid #f1f7fb; vertical-align:top;">${escapeHtml(u.email || '')}</td>
                         <td style="padding:8px 12px; border-bottom:1px solid #f1f7fb; vertical-align:top;">${escapeHtml(u.department || u.organization || '')}</td>
                         <td style="padding:8px 12px; border-bottom:1px solid #f1f7fb; vertical-align:top;">${escapeHtml(u.system_user_role || u.user_role || 'Tài khoản Công chức/Viên chức')}</td>
+                        <td style="padding:8px 12px; border-bottom:1px solid #f1f7fb; vertical-align:top; white-space:nowrap;">
+                            <button type="button" data-user-id="${u.id}" class="action-edit-btn" style="background:#3494c8; color:white; border:none; padding:5px 10px; border-radius:5px; cursor:pointer; font-size:12px; margin-right:4px;"><i class="fa fa-pencil"></i> Sửa</button>
+                            <button type="button" data-user-id="${u.id}" class="action-delete-btn" style="background:#e53e3e; color:white; border:none; padding:5px 10px; border-radius:5px; cursor:pointer; font-size:12px;"><i class="fa fa-trash"></i> Xóa</button>
+                        </td>
                     `;
                     tbody.appendChild(tr);
                 });
@@ -841,7 +862,7 @@
             } catch (e) {
                 console.error('Error loading users:', e);
                 const tbodyEl = document.getElementById('users-table-body');
-                if (tbodyEl) tbodyEl.innerHTML = '<tr><td colspan="7" style="padding:12px; color:#667085;">Lỗi kết nối. Vui lòng thử lại.</td></tr>';
+                if (tbodyEl) tbodyEl.innerHTML = '<tr><td colspan="8" style="padding:12px; color:#667085;">Lỗi kết nối. Vui lòng thử lại.</td></tr>';
             }
         }
 
