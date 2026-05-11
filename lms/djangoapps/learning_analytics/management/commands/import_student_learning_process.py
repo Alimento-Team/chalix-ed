@@ -15,7 +15,8 @@ from opaque_keys.edx.keys import CourseKey
 
 from common.djangoapps.student.models import UserProfile
 from common.djangoapps.student.models.course_enrollment import AlreadyEnrolledError, CourseEnrollment
-from lms.djangoapps.learning_analytics.models import LearnerBehavior, StudentLearningProcessSnapshot
+from lms.djangoapps.learning_analytics.models import LearnerBehavior, StudentLearningProcessSnapshot, StudentCourseProgress, CourseCreditHours
+from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
 
 
 class Command(BaseCommand):
@@ -244,6 +245,58 @@ class Command(BaseCommand):
                                 course_id=behavior_payload['course_id'],
                                 defaults=behavior_payload['defaults'],
                             )
+
+                        # Create/update StudentCourseProgress records for learning hours calculation
+                        course_id = payload['course_id']
+                        user = parsed_row['user']
+                        total_studied_time = payload.get('total_studied_time') or 0
+                        completed_percentage = payload.get('completed_percentage') or 0
+                        raw_status = payload.get('status', '').strip().lower()
+                        
+                        # Map status from CSV to StudentCourseProgress status
+                        if 'hoan thanh' in raw_status.replace('á', 'a').replace('à', 'a'):
+                            course_status = 'completed'
+                        elif 'khong hoan thanh' in raw_status.replace('á', 'a').replace('à', 'a'):
+                            course_status = 'failed'
+                        elif completed_percentage > 0:
+                            course_status = 'in_progress'
+                        else:
+                            course_status = 'not_started'
+                        
+                        # Get or create CourseCreditHours with total_studied_time as credit hours
+                        try:
+                            course_overview = CourseOverview.objects.get(id=course_id)
+                            course_name = course_overview.display_name
+                        except CourseOverview.DoesNotExist:
+                            course_name = f"Course {course_id}"
+                        
+                        credit_hours = float(total_studied_time) if total_studied_time else 0
+                        if credit_hours == 0:
+                            # Default to 8 if not specified
+                            credit_hours = 8
+                        
+                        CourseCreditHours.objects.update_or_create(
+                            course_id=course_id,
+                            defaults={
+                                'credit_hours': credit_hours,
+                                'course_name': course_name,
+                            }
+                        )
+                        
+                        # Create or update StudentCourseProgress
+                        progress, _ = StudentCourseProgress.objects.update_or_create(
+                            user=user,
+                            course_id=course_id,
+                            defaults={
+                                'status': course_status,
+                                'progress_percentage': float(completed_percentage) if completed_percentage else 0,
+                            }
+                        )
+                        
+                        # If completed, ensure completion_date is set
+                        if course_status == 'completed' and not progress.completion_date:
+                            progress.completion_date = timezone.now()
+                            progress.save()
 
                         if created:
                             created_count += 1

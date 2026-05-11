@@ -633,6 +633,18 @@ class LearningAnalyticsDashboardAPIView(APIView):
         # materials_opened = residual interactions not counted as video/quiz
         materials_opened = max(0, materials_opened_behavior + max(0, total_vle - videos_opened - quizzes_opened - materials_opened_behavior - discussions_opened))
 
+        # Debug logging for debugging VLE 0 issue
+        if course_id:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f'[Dashboard VLE Debug] course_id={course_id}, behavior_queryset.count={behavior_queryset.count()}, '
+                       f'videos_opened={videos_opened}, quizzes_opened={quizzes_opened}, '
+                       f'materials_opened={materials_opened}, total_vle={total_vle}')
+            if behavior_queryset.exists():
+                for b in behavior_queryset[:3]:
+                    logger.info(f'[Dashboard VLE Debug] Behavior sample: user={b.user_id}, videos_watched={b.videos_watched}, '
+                               f'problems_attempted={b.problems_attempted}')
+
         dashboard_data = {
             'learning_hours': hours_summary,
             'course_summary': {
