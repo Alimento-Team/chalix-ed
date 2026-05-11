@@ -66,8 +66,8 @@
         const userRoleCode = roleData.user_role_code || '';
         // [Create Account] User role code (log removed)
         
-        // Show buttons if API says enabled OR if user has 'bo' role
-        const forceShowButtons = excelImportEnabled || userRoleCode === 'bo';
+        // Show buttons if API says enabled OR if user has 'bo' or 'co_quan' role
+        const forceShowButtons = excelImportEnabled || userRoleCode === 'bo' || userRoleCode === 'co_quan';
         // [Create Account] Force show buttons (log removed)
 
         container.innerHTML = `
