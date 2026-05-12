@@ -456,6 +456,9 @@ class StudentLearningProcessSnapshot(models.Model):
     completed_percentage = models.PositiveSmallIntegerField(null=True, blank=True)
     status = models.CharField(max_length=32, blank=True)
     final_score = models.DecimalField(max_digits=4, decimal_places=2, null=True, blank=True)
+    estimated_week_1 = models.DecimalField(max_digits=4, decimal_places=2, null=True, blank=True)
+    estimated_week_2 = models.DecimalField(max_digits=4, decimal_places=2, null=True, blank=True)
+    estimated_week_3 = models.DecimalField(max_digits=4, decimal_places=2, null=True, blank=True)
     predicted_final_score = models.DecimalField(max_digits=4, decimal_places=2, null=True, blank=True)
     prediction_source = models.CharField(max_length=32, blank=True)
     prediction_week = models.PositiveSmallIntegerField(null=True, blank=True)
@@ -505,6 +508,27 @@ class StudentLearningProcessSnapshot(models.Model):
                     (models.Q(final_score__gte=0) & models.Q(final_score__lte=10))
                 ),
                 name='la_snapshot_final_0_10',
+            ),
+            models.CheckConstraint(
+                check=(
+                    models.Q(estimated_week_1__isnull=True) |
+                    (models.Q(estimated_week_1__gte=0) & models.Q(estimated_week_1__lte=10))
+                ),
+                name='la_snapshot_estimated_week_1_0_10',
+            ),
+            models.CheckConstraint(
+                check=(
+                    models.Q(estimated_week_2__isnull=True) |
+                    (models.Q(estimated_week_2__gte=0) & models.Q(estimated_week_2__lte=10))
+                ),
+                name='la_snapshot_estimated_week_2_0_10',
+            ),
+            models.CheckConstraint(
+                check=(
+                    models.Q(estimated_week_3__isnull=True) |
+                    (models.Q(estimated_week_3__gte=0) & models.Q(estimated_week_3__lte=10))
+                ),
+                name='la_snapshot_estimated_week_3_0_10',
             ),
             models.CheckConstraint(
                 check=(

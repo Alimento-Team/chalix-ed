@@ -104,6 +104,46 @@ class StudentLearningProcessImportCommandTests(TestCase):
         self.assertEqual(snapshot.location_code, 9)
         self.assertEqual(float(snapshot.final_score), 4.0)
 
+    def test_import_seeds_estimated_week_scores_from_prediction_columns(self):
+        csv_content = (
+            'course_id,student_id,position,gender,location,age,job_title,experience,week_1,week_2,week_3,vle_1,vle_2,vle_3,final_score,predicted_result_1,predicted_result_2,predicted_result_3\n'
+            'chalix+course_6f694e29+2024,student_001,Chuyên viên,Nữ,Thái Bình,Trên 25 tuổi,Viên chức,Từ 5 đến 10 năm,2.5,2.25,1.0,53,17,102,4.0,5.25,6.00,6.75\n'
+        )
+        schema = {
+            'fields': [
+                {'name': 'position', 'values': {'0': 'Chuyên viên'}},
+                {'name': 'gender', 'values': {'1': 'Nữ'}},
+                {'name': 'location', 'all_possible_values': {'9': 'Thái Bình'}},
+                {'name': 'age', 'values': {'2': 'Trên 25 tuổi'}},
+                {'name': 'job_title', 'values': {'1': 'Viên chức'}},
+                {'name': 'experience', 'values': {'1': 'Từ 5 đến 10 năm'}},
+            ]
+        }
+
+        with tempfile.NamedTemporaryFile('w', encoding='utf-8', delete=False) as csv_file:
+            csv_file.write(csv_content)
+            csv_path = csv_file.name
+
+        with tempfile.NamedTemporaryFile('w', encoding='utf-8', delete=False) as schema_file:
+            schema_file.write(json.dumps(schema, ensure_ascii=False))
+            schema_path = schema_file.name
+
+        call_command(
+            'import_student_learning_process',
+            '--csv-path',
+            csv_path,
+            '--schema-path',
+            schema_path,
+        )
+
+        snapshot = StudentLearningProcessSnapshot.objects.get(student_id='student_001')
+        self.assertEqual(float(snapshot.estimated_week_1), 5.25)
+        self.assertEqual(float(snapshot.estimated_week_2), 6.0)
+        self.assertEqual(float(snapshot.estimated_week_3), 6.75)
+        self.assertEqual(float(snapshot.predicted_final_score), 6.75)
+        self.assertEqual(snapshot.prediction_source, 'imported')
+        self.assertEqual(snapshot.prediction_week, 3)
+
     def test_import_real_header_syncs_account_org_and_progress_fields(self):
         with connection.cursor() as cursor:
             cursor.execute(
@@ -525,6 +565,24 @@ class StudentLearningProcessAPIServiceSmokeTests(TestCase):
         self.assertEqual(response.json()['student_id'], 'student_001')
         self.assertEqual(response.json()['course_id'], self.course_id)
         self.assertEqual(response.json()['score_type'], 'actual')
+
+    def test_self_endpoint_returns_estimated_week_fields(self):
+        snapshot = StudentLearningProcessSnapshot.objects.get(student_id='student_001')
+        snapshot.estimated_week_1 = '5.50'
+        snapshot.estimated_week_2 = '6.00'
+        snapshot.estimated_week_3 = '6.50'
+        snapshot.save(update_fields=['estimated_week_1', 'estimated_week_2', 'estimated_week_3', 'updated_at'])
+
+        self.client.force_login(self.user)
+        response = self.client.get(
+            '/api/learning_analytics/student-learning-process/me/',
+            {'course_id': self.course_id},
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(float(payload['estimated_week_1']), 5.5)
+        self.assertEqual(float(payload['estimated_week_2']), 6.0)
+        self.assertEqual(float(payload['estimated_week_3']), 6.5)
 
     def test_self_endpoint_without_course_id_returns_empty_payload(self):
         self.client.force_login(self.user)

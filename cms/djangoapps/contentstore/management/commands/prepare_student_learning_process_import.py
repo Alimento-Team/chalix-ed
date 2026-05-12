@@ -75,6 +75,9 @@ class Command(BaseCommand):
         'completed_percentage',
         'status',
         'final_score',
+        'predicted_result_1',
+        'predicted_result_2',
+        'predicted_result_3',
         'source_row_number',
     ]
     DEFAULT_DOB = '01/01/1870'
@@ -279,6 +282,9 @@ class Command(BaseCommand):
                     'completed_percentage': self._format_optional_percentage(row.get('completed_percentage')),
                     'status': (row.get('status') or '').strip(),
                     'final_score': (row.get('final_score') or '').strip(),
+                    'predicted_result_1': (row.get('predicted_result_1') or '').strip(),
+                    'predicted_result_2': (row.get('predicted_result_2') or '').strip(),
+                    'predicted_result_3': (row.get('predicted_result_3') or '').strip(),
                     'source_row_number': row_number,
                 }
             )

@@ -139,6 +139,7 @@ class Command(BaseCommand):
         'quiz_3',
         'resource_3',
     ]
+    PREDICTION_COLUMNS = ['predicted_result_1', 'predicted_result_2', 'predicted_result_3']
     DEFAULT_DOB = '01/01/1870'
 
     def add_arguments(self, parser):
@@ -232,10 +233,20 @@ class Command(BaseCommand):
                         self._ensure_enrollment(parsed_row['user'], parsed_row['course_key'], parsed_row['normalized_course_id'])
 
                         payload = parsed_row['snapshot']
+                        defaults = payload.copy()
+                        if not parsed_row.get('prediction_columns_present'):
+                            defaults.pop('estimated_week_1', None)
+                            defaults.pop('estimated_week_2', None)
+                            defaults.pop('estimated_week_3', None)
+                            defaults.pop('predicted_final_score', None)
+                            defaults.pop('prediction_source', None)
+                            defaults.pop('prediction_week', None)
+                            defaults.pop('prediction_error', None)
+
                         _, created = StudentLearningProcessSnapshot.objects.update_or_create(
                             student_id=payload['student_id'],
                             course_id=payload['course_id'],
-                            defaults=payload,
+                            defaults=defaults,
                         )
 
                         behavior_payload = parsed_row.get('behavior')
@@ -415,6 +426,33 @@ class Command(BaseCommand):
             'total_studied_time',
             minimum=Decimal('0.0'),
         )
+        prediction_columns_present = any(column in row for column in self.PREDICTION_COLUMNS)
+        predicted_result_1 = self._parse_optional_decimal(
+            row.get('predicted_result_1'),
+            'predicted_result_1',
+            minimum=Decimal('0.0'),
+            maximum=Decimal('10.0'),
+        )
+        predicted_result_2 = self._parse_optional_decimal(
+            row.get('predicted_result_2'),
+            'predicted_result_2',
+            minimum=Decimal('0.0'),
+            maximum=Decimal('10.0'),
+        )
+        predicted_result_3 = self._parse_optional_decimal(
+            row.get('predicted_result_3'),
+            'predicted_result_3',
+            minimum=Decimal('0.0'),
+            maximum=Decimal('10.0'),
+        )
+        prediction_week = None
+        if predicted_result_3 is not None:
+            prediction_week = 3
+        elif predicted_result_2 is not None:
+            prediction_week = 2
+        elif predicted_result_1 is not None:
+            prediction_week = 1
+
         completed_percentage = self._parse_optional_percentage(row.get('completed_percentage'))
         source_row_number = self._parse_optional_int(row.get('source_row_number'), 'source_row_number') or row_number
         activity_totals = self._resolve_activity_totals(row)
@@ -469,10 +507,18 @@ class Command(BaseCommand):
                 'completed_percentage': completed_percentage,
                 'status': raw_status,
                 'final_score': final_score,
+                'estimated_week_1': predicted_result_1,
+                'estimated_week_2': predicted_result_2,
+                'estimated_week_3': predicted_result_3,
+                'predicted_final_score': predicted_result_3,
+                'prediction_source': 'imported' if prediction_week else '',
+                'prediction_week': prediction_week,
+                'prediction_error': '',
                 'source_file': source_file or 'dataset/log.csv',
                 'source_row_number': source_row_number,
             },
             'behavior': behavior_payload,
+            'prediction_columns_present': prediction_columns_present,
         }
 
     def _resolve_vle_values(self, row):
