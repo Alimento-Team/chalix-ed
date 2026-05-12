@@ -80,7 +80,7 @@
             profile: escapeHtml(profileUrl),
             teaching: '#', // TODO: Add teaching registration URL
             help: '#', // TODO: Add help URL
-            logout: escapeHtml(lmsBaseUrl + '/logout')
+            logout: '/logout?redirect_url=' + encodeURIComponent((lmsBaseUrl || '') + '/logout')
         };
     }
 
