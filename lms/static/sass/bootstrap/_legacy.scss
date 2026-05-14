@@ -33,6 +33,21 @@
 // #GRID
 // ----------------------------
 
+// =============================================================================
+// PROJECT BREAKPOINT STANDARD (Responsive Web UI)
+// =============================================================================
+// This project uses Bootstrap 4 SASS mixins for all responsive rules.
+// Three-tier model — ALL new breakpoint rules must use these mixins only.
+// Never add raw @media (max-width: Npx) rules; use the mixins below.
+//
+//   MOBILE  : @include media-breakpoint-down(sm)   → max-width: 767.98px
+//   TABLET  : @include media-breakpoint-between(sm, lg) → 576px – 991.98px
+//   DESKTOP : @include media-breakpoint-up(lg)     → min-width: 992px  (default)
+//
+// Additive-only constraint: new rules go INSIDE breakpoint blocks.
+// Never modify existing default (no media query) declarations.
+// =============================================================================
+
 $grid-breakpoints-sm: 576px !default;
 $grid-breakpoints-md: 768px !default;
 $grid-breakpoints-lg: 992px !default;
