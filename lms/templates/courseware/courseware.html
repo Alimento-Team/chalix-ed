@@ -168,9 +168,10 @@ ${HTML(fragment.foot_html())}
   % endif
   >
   <div class="course-wrapper" role="presentation">
+    <div id="courseware-sidebar-overlay" class="courseware-sidebar-overlay" aria-hidden="true"></div>
 
 % if disable_accordion is UNDEFINED or not disable_accordion:
-    <div class="course-index">
+    <div class="course-index" id="course-index">
 
       <div class="wrapper-course-modes">
 
@@ -208,6 +209,16 @@ ${HTML(fragment.foot_html())}
       </div>
 
     </div>
+% endif
+% if disable_accordion is UNDEFINED or not disable_accordion:
+    <button id="courseware-sidebar-toggle"
+            class="btn btn-outline-secondary courseware-sidebar-btn d-md-none"
+            aria-expanded="false"
+            aria-controls="course-index"
+            aria-label="${_('Toggle course navigation')}">
+      <span class="icon fa fa-bars" aria-hidden="true"></span>
+      <span class="courseware-sidebar-btn-label">&nbsp;${_('Course Navigation')}</span>
+    </button>
 % endif
     <section class="course-content" id="course-content">
         <header class="page-header has-secondary">
@@ -291,6 +302,56 @@ ${HTML(fragment.foot_html())}
 
   </div>
 </div>
+<script type="text/javascript">
+  (function () {
+    var STORAGE_KEY = 'courseware_sidebar_open';
+    var sidebar = document.getElementById('course-index');
+    var toggleBtn = document.getElementById('courseware-sidebar-toggle');
+    var overlay = document.getElementById('courseware-sidebar-overlay');
+
+    if (!sidebar || !toggleBtn) { return; }
+
+    function setSidebarState(open) {
+      if (open) {
+        sidebar.classList.add('is-open');
+        if (overlay) { overlay.classList.add('is-visible'); }
+        toggleBtn.setAttribute('aria-expanded', 'true');
+        try { sessionStorage.setItem(STORAGE_KEY, '1'); } catch (e) {}
+      } else {
+        sidebar.classList.remove('is-open');
+        if (overlay) { overlay.classList.remove('is-visible'); }
+        toggleBtn.setAttribute('aria-expanded', 'false');
+        try { sessionStorage.removeItem(STORAGE_KEY); } catch (e) {}
+      }
+    }
+
+    // Auto-close if viewport grows past the mobile breakpoint
+    function handleResize() {
+      if (window.innerWidth >= 768) {
+        sidebar.classList.remove('is-open');
+        if (overlay) { overlay.classList.remove('is-visible'); }
+        toggleBtn.setAttribute('aria-expanded', 'false');
+      }
+    }
+
+    // Restore persisted state only on mobile
+    if (window.innerWidth < 768) {
+      try {
+        if (sessionStorage.getItem(STORAGE_KEY) === '1') { setSidebarState(true); }
+      } catch (e) {}
+    }
+
+    toggleBtn.addEventListener('click', function () {
+      setSidebarState(!sidebar.classList.contains('is-open'));
+    });
+
+    if (overlay) {
+      overlay.addEventListener('click', function () { setSidebarState(false); });
+    }
+
+    window.addEventListener('resize', handleResize);
+  }());
+</script>
 <div class="container-footer">
   % if settings.FEATURES.get("LICENSING", False):
     <div class="course-license">

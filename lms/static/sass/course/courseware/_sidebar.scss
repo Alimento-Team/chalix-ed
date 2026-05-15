@@ -47,145 +47,170 @@
 
           position: relative;
           display: block;
-          padding: ($baseline*0.75) $baseline ($baseline*0.75) ($baseline*2);
+          padding: ($baseline*0.75) $baseline (
+            $baseline*0.75) ($baseline*2
+          );
 
-          @include text-align(left);
+        @include text-align(left);
 
-          .icon {
-            position: absolute;
+        .icon {
+          position: absolute;
 
-            @include left($baseline);
+          @include left($baseline);
 
-            top: $baseline;
-            font-size: $body-font-size;
-            color: $gray-l3;
-          }
-        }
-
-        &.is-open {
-          background: $white;
-          box-shadow: none;
-        }
-
-        &.active {
-          .group-heading {
-            @extend %t-strong;
-
-            color: $body-color;
-          }
-        }
-
-        &:hover,
-        &:focus {
-          background: $white;
-        }
-
-        &:active {
-          outline: none;
+          top: $baseline;
+          font-size: $body-font-size;
+          color: $gray-l3;
         }
       }
 
-      .chapter-content-container {
+      &.is-open {
         background: $white;
+        box-shadow: none;
+      }
 
-        &.is-open {
-          border-bottom: 1px solid $shadow-l1;
+      &.active {
+        .group-heading {
+          @extend %t-strong;
+
+          color: $body-color;
         }
+      }
 
-        .chapter-menu {
-          display: none;
-          padding: 0 14px;
-          overflow: hidden;
+      &:hover,
+      &:focus {
+        background: $white;
+      }
 
-          .menu-item {
+      &:active {
+        outline: none;
+      }
+    }
+
+    .chapter-content-container {
+      background: $white;
+
+      &.is-open {
+        border-bottom: 1px solid $shadow-l1;
+      }
+
+      .chapter-menu {
+        display: none;
+        padding: 0 14px;
+        overflow: hidden;
+
+        .menu-item {
+          @extend %t-strong;
+
+          margin: ($baseline/5) 0;
+          background: inherit;
+
+          a {
+            @extend %t-action3;
             @extend %t-strong;
 
-            margin: ($baseline/5) 0;
-            background: inherit;
+            position: relative;
+            display: block;
 
-            a {
-              @extend %t-action3;
-              @extend %t-strong;
+            @include padding(($baseline/4) ($baseline/2));
 
-              position: relative;
-              display: block;
+            border-radius: ($baseline/4);
+            font-family: $font-family-sans-serif;
+            color: $body-color;
 
-              @include padding(($baseline/4) ($baseline/2));
+            p {
+              &.subtitle {
+                @extend %t-action4;
+                @extend %t-regular;
 
-              border-radius: ($baseline/4);
-              font-family: $font-family-sans-serif;
+                display: block;
+                margin: 0;
+                color: $gray-d1;
+
+                &:empty {
+                  // hide empty subtitles
+                  display: none;
+                }
+
+                // definitions for proctored exam attempt status indicators
+                .verified {
+                  color: theme-color("success");
+                }
+
+                .rejected {
+                  color: $alert-color;
+                }
+
+                .error {
+                  color: $alert-color;
+                }
+              }
+
+              .subtitle-name {
+                margin-right: 5px;
+              }
+            }
+
+            &:hover,
+            &:focus {
               color: $body-color;
+              background: $gray-l5;
 
-              p {
-                &.subtitle {
-                  @extend %t-action4;
-                  @extend %t-regular;
-
-                  display: block;
-                  margin: 0;
-                  color: $gray-d1;
-
-                  &:empty {
-                    // hide empty subtitles
-                    display: none;
-                  }
-
-                  // definitions for proctored exam attempt status indicators
-                  .verified {
-                    color: theme-color("success");
-                  }
-
-                  .rejected {
-                    color: $alert-color;
-                  }
-
-                  .error {
-                    color: $alert-color;
-                  }
-                }
-
-                .subtitle-name {
-                  margin-right: 5px;
-                }
-              }
-
-              &:hover,
-              &:focus {
-                color: $body-color;
-                background: $gray-l5;
-
-                .subtitle {
-                  color: $gray-d1;
-                }
+              .subtitle {
+                color: $gray-d1;
               }
             }
+          }
 
-            &.graded {
-              .menu-icon {
-                @include right($baseline/2.5);
+          &.graded {
+            .menu-icon {
+              @include right($baseline/2.5);
 
-                position: absolute;
-                bottom: ($baseline/2);
-                color: $link-color;
-              }
+              position: absolute;
+              bottom: ($baseline/2);
+              color: $link-color;
             }
+          }
 
-            &.active {
-              a {
-                @extend %t-ultrastrong;
+          &.active {
+            a {
+              @extend %t-ultrastrong;
 
-                background: $gray-l4;
-              }
+              background: $gray-l4;
             }
+          }
 
-            &:last-of-type {
-              padding-bottom: ($baseline/2);
-            }
+          &:last-of-type {
+            padding-bottom: ($baseline/2);
           }
         }
       }
     }
   }
+}
 
-  @extend %ui-print-excluded;
+// ======================================================
+// RESPONSIVE: Mobile off-canvas sidebar (Phase 1)
+// Additive-only — display: table-cell on desktop is unchanged.
+// ======================================================
+@include media-breakpoint-down(md) {
+  display: block;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 280px;
+  height: 100%;
+  z-index: 1050;
+  overflow-y: auto;
+  background: $white;
+  transform: translateX(-100%);
+  transition: transform 0.3s ease;
+
+  &.is-open {
+    transform: translateX(0);
+    box-shadow: 4px 0 12px rgba(0, 0, 0, 0.2);
+  }
+}
+
+@extend %ui-print-excluded;
 }
