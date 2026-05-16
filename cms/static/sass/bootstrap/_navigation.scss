@@ -49,6 +49,7 @@
       }
 
       @include media-breakpoint-down(md) {
+
         &.nav-item-open-collapsed,
         &.nav-item-open-collapsed-only {
           display: initial;
@@ -73,6 +74,20 @@
 
     .btn-shopping-cart {
       padding-top: 0.7rem; // $btn-padding-y-lg once themed
+    }
+
+    @include media-breakpoint-between(md, lg) {
+      .course-header {
+        font-size: $font-size-base;
+      }
+
+      .nav-item {
+        margin-right: $baseline/2;
+
+        .nav-link {
+          font-size: $font-size-sm;
+        }
+      }
     }
 
     .navbar-right .nav-item {

@@ -37,6 +37,7 @@
     // CASE: notice has actions {
     &.has-actions,
     &.list-notices .notice-item.has-actions {
+
       .msg,
       .list-actions {
         display: inline-block;
@@ -374,6 +375,7 @@
         text-align: right;
 
         .value {
+
           .copy,
           .icon {
             display: inline-block;
@@ -400,6 +402,7 @@
         padding: ($baseline*0.75) $baseline;
 
         &.has-actions {
+
           .copy,
           .status-actions {
             display: inline-block;
@@ -491,7 +494,7 @@
       .metadata-item {
         display: inline-block;
 
-        & + .metadata-item::before {
+        &+.metadata-item::before {
           content: "/";
           margin-left: ($baseline/4);
           margin-right: ($baseline/4);
@@ -556,7 +559,7 @@
         color: $red; // TODO: abstract this out to an error-based color variable
       }
 
-      ~ .status-message {
+      ~.status-message {
         background: $red-l1; // TODO: abstract this out to an error-based color variable
         color: $white;
       }
@@ -731,6 +734,34 @@
       display: block;
       margin-bottom: 0;
       padding: ($baseline*0.5) ($baseline*1.5) 8px ($baseline*1.5);
+    }
+  }
+
+  @include media-breakpoint-down(md) {
+    .course-item {
+      width: 100%;
+
+      .course-link,
+      .course-details,
+      .course-actions {
+        display: block;
+        width: 100%;
+        margin-right: 0;
+      }
+
+      .course-actions {
+        margin-top: ($baseline/2);
+        text-align: left;
+      }
+    }
+
+    .wrapper-course.has-status {
+      .course-status {
+        width: 100%;
+        text-align: left;
+        padding-right: 0;
+        margin-top: ($baseline/2);
+      }
     }
   }
 }

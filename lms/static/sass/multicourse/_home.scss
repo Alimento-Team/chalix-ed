@@ -497,7 +497,7 @@ $course-search-input-height: (
     }
 
     // Responsive Design for Landing Page
-    @media (max-width: 1200px) {
+    @include media-breakpoint-down(xl) {
       .features-container {
         grid-template-columns: repeat(2, 1fr) !important;
         gap: 30px 20px !important;
@@ -543,7 +543,7 @@ $course-search-input-height: (
       }
     }
 
-    @media (max-width: 768px) {
+    @include media-breakpoint-down(md) {
       .features-container {
         grid-template-columns: 1fr !important;
         gap: 30px !important;

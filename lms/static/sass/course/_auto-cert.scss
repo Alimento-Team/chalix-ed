@@ -37,3 +37,39 @@
     }
   }
 }
+
+@media screen and (max-width: 767px) {
+  .wrapper-msg.wrapper-auto-cert {
+    .auto-cert-message {
+      .has-actions {
+
+        .msg-content,
+        .msg-actions {
+          display: block;
+          width: 100%;
+        }
+
+        .msg-actions {
+          margin-top: ($baseline/2);
+          text-align: left;
+        }
+      }
+    }
+  }
+}
+
+@media print {
+  .wrapper-msg.wrapper-auto-cert {
+    .auto-cert-message {
+      border-left-width: 1px;
+      box-shadow: none;
+      page-break-inside: avoid;
+
+      .has-actions {
+        .msg-actions {
+          display: none;
+        }
+      }
+    }
+  }
+}

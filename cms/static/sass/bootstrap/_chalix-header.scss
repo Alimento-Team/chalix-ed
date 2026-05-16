@@ -377,7 +377,7 @@
 }
 
 // Responsive adjustments
-@media (max-width: 480px) {
+@include media-breakpoint-down(xs) {
     .chalix-user-menu {
         width: calc(100vw - 32px);
         max-width: 280px;
@@ -385,7 +385,7 @@
 }
 
 // Mobile Responsive
-@media (max-width: 768px) {
+@include media-breakpoint-down(md) {
 
     .header-top-content,
     .header-bottom-content {

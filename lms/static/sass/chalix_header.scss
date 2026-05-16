@@ -576,7 +576,7 @@ $z-dropdown: 1010;
 }
 
 // Responsive Design
-@media (max-width: 1200px) {
+@include media-breakpoint-down(xl) {
     .chalix-header-container {
         padding: 0 1.5rem;
     }
@@ -586,7 +586,7 @@ $z-dropdown: 1010;
     }
 }
 
-@media (max-width: 992px) {
+@include media-breakpoint-down(lg) {
     .chalix-header-top {
         min-height: auto;
 
@@ -633,7 +633,7 @@ $z-dropdown: 1010;
     }
 }
 
-@media (max-width: 768px) {
+@include media-breakpoint-down(md) {
     .chalix-header-container {
         padding: 0 1rem;
     }
@@ -679,7 +679,7 @@ $z-dropdown: 1010;
     }
 }
 
-@media (max-width: 576px) {
+@include media-breakpoint-down(sm) {
     .chalix-header-top {
         .chalix-header-title {
             .application-title {
