@@ -1,0 +1,79 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Đã đăng xuất</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: "Open Sans", Arial, sans-serif;
+        background: #f8f8f8;
+        color: #222;
+      }
+      .logout-page {
+        max-width: 760px;
+        margin: 48px auto;
+        padding: 24px;
+        background: #fff;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+      }
+      h1 {
+        margin-top: 0;
+        font-size: 30px;
+        line-height: 1.2;
+      }
+      p {
+        font-size: 16px;
+        line-height: 1.5;
+      }
+      a {
+        color: #065683;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="logout-page">
+      {% if show_tpa_logout_link %}
+        <h1>Bạn đã đăng xuất.</h1>
+        <p>
+          <a href="{{ tpa_logout_url }}">Nhấn vào đây</a> để xóa phiên đăng nhập một lần (SSO).
+        </p>
+      {% else %}
+        {% if enterprise_target %}
+          <h1>Hệ thống đang đăng nhập lại cho bạn.</h1>
+          <p>
+            Quá trình này có thể mất một chút thời gian. Nếu không được chuyển hướng, vui lòng quay về trang chủ.
+          </p>
+        {% else %}
+          <h1>Bạn đã đăng xuất.</h1>
+          <p>
+            Nếu bạn không được chuyển hướng trong 5 giây,
+            <a href="{{ lms_home_url }}">nhấn vào đây để về trang chủ</a>.
+          </p>
+        {% endif %}
+        <script type="text/javascript" src="{% static 'js/jquery.allLoaded.js' %}"></script>
+        <script type="text/javascript" src="{% static 'js/logout.js' %}"></script>
+        <script type="text/javascript">
+          // Keep one visible logout page: let hidden iframes clear sessions, then go home.
+          window.setTimeout(function () {
+            window.location.href = "{{ lms_home_url }}";
+          }, 1800);
+        </script>
+      {% endif %}
+
+      <!-- Trigger auth_backends logout flow to fully clear Studio OAuth session. -->
+      <iframe src="/logout/?no_redirect=1" style="display:none;" title="studio-oauth-logout"></iframe>
+      <!-- Trigger LMS logout flow to clear learner session before navigating home. -->
+      <iframe src="{{ lms_logout_no_redirect_url }}" style="display:none;" title="lms-oauth-logout"></iframe>
+
+      <div id="iframeContainer" style="visibility: hidden" data-redirect-url="{{ target }}">
+        {% for uri in logout_uris %}
+          <iframe src="{{ uri }}" title="logout-uri-{{ forloop.counter }}"></iframe>
+        {% endfor %}
+      </div>
+    </main>
+  </body>
+</html>

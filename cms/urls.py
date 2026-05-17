@@ -28,6 +28,29 @@ from openedx.core.apidocs import api_info
 from openedx.core.djangoapps.password_policy import compliance as password_policy_compliance
 from openedx.core.djangoapps.password_policy.forms import PasswordPolicyAwareAdminAuthForm
 from openedx.core import toggles as core_toggles
+from openedx.core.djangoapps.user_authn.views.logout import LogoutView
+from django.utils.http import urlencode
+
+
+class CMSLogoutView(LogoutView):
+        """Render logout page with Django template engine in Studio."""
+
+        template_engine = 'django'
+        template_name = 'cms_logout.html'
+
+        def get_context_data(self, **kwargs):
+                """Add LMS URLs so Studio logout page can fully clear cross-service sessions."""
+                context = super().get_context_data(**kwargs)
+                lms_root = settings.LMS_ROOT_URL.rstrip('/')
+                lms_home_url = f'{lms_root}/'
+                lms_logout_no_redirect_url = f'{lms_root}/logout?no_redirect=1'
+                lms_logout_to_home_url = f"{lms_root}/logout?{urlencode({'next': lms_home_url})}"
+                context.update({
+                        'lms_home_url': lms_home_url,
+                        'lms_logout_no_redirect_url': lms_logout_no_redirect_url,
+                        'lms_logout_to_home_url': lms_logout_to_home_url,
+                })
+                return context
 
 
 django_autodiscover()
@@ -53,7 +76,11 @@ LIBRARY_KEY_PATTERN = r'(?P<library_key_string>library-v1:[^/+]+\+[^/+]+)'
 
 # oauth2_urlpatterns needs to be first to override any other login and
 # logout related views.
-urlpatterns = oauth2_urlpatterns + [
+# Ensure Studio /logout uses the Django template-based LogoutView.
+# This must precede oauth2/auth_backends patterns to avoid rendering mismatch.
+urlpatterns = [
+        path('logout', CMSLogoutView.as_view(), name='logout'),
+] + oauth2_urlpatterns + [
     path('', include('openedx.core.djangoapps.user_authn.urls_common')),
     path('', include('common.djangoapps.student.urls')),
     path('transcripts/upload', contentstore_views.upload_transcripts, name='upload_transcripts'),
