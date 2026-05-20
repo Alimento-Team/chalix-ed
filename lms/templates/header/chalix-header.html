@@ -570,6 +570,42 @@ except:
 
                 /* Responsive adjustments */
                 @media (max-width: 768px) {
+                    .chalix-top-header {
+                        height: auto;
+                        min-height: 56px;
+                    }
+
+                    .chalix-top-header .header-container {
+                        padding: 8px 12px;
+                        gap: 8px;
+                        align-items: center;
+                    }
+
+                    .chalix-top-header .platform-title {
+                        flex: 1 1 auto;
+                        min-width: 0;
+                    }
+
+                    .chalix-top-header .platform-title span {
+                        display: block;
+                        font-size: 14px !important;
+                        line-height: 1.25 !important;
+                        letter-spacing: 0.01em !important;
+                        white-space: normal;
+                        overflow-wrap: anywhere;
+                    }
+
+                    .chalix-top-header .chalix-auth-buttons {
+                        flex: 0 0 auto;
+                    }
+
+                    .chalix-top-header .btn-signin,
+                    .chalix-top-header .btn-signup {
+                        padding: 8px 12px;
+                        font-size: 13px;
+                        line-height: 1.2;
+                    }
+
                     .chalix-header-content {
                         padding: 0 16px;
                     }
@@ -593,6 +629,14 @@ except:
                 }
 
                 @media (max-width: 640px) {
+                    .chalix-top-header .header-container {
+                        padding: 8px;
+                    }
+
+                    .chalix-top-header .platform-title span {
+                        font-size: 12px !important;
+                    }
+
                     .chalix-search-container {
                         margin: 0 16px;
                         max-width: 300px;
