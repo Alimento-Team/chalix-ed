@@ -196,10 +196,14 @@ except:
             </header>
 
             <style>
+                /* Push page content below the fixed header (60px top-bar + 58px nav-bar = 118px) */
+                body {
+                    padding-top: 118px !important;
+                }
+
                 .chalix-header {
                     background: #ffffff;
                     border-bottom: 1px solid rgba(155, 149, 149, 0.8);
-                    height: 80px;
                     position: fixed;
                     top: 0;
                     left: 0;
@@ -570,6 +574,11 @@ except:
 
                 /* Responsive adjustments */
                 @media (max-width: 768px) {
+                    /* Body padding: top-bar auto (~56px) + nav-bar (44px) + small buffer */
+                    body {
+                        padding-top: 104px !important;
+                    }
+
                     .chalix-top-header {
                         height: auto;
                         min-height: 56px;
@@ -604,6 +613,54 @@ except:
                         padding: 8px 12px;
                         font-size: 13px;
                         line-height: 1.2;
+                    }
+
+                    /* Nav bar: compress tabs, hide search on narrow screens */
+                    .chalix-nav-header {
+                        height: auto;
+                        min-height: 44px;
+                    }
+
+                    .chalix-nav-header .header-container {
+                        padding: 0;
+                        gap: 0;
+                    }
+
+                    .chalix-nav-header .main-navigation {
+                        flex: 1;
+                        min-width: 0;
+                        overflow: hidden;
+                    }
+
+                    .chalix-nav-header .nav-tabs {
+                        display: flex;
+                        overflow-x: auto;
+                        -webkit-overflow-scrolling: touch;
+                        scrollbar-width: none;
+                    }
+
+                    .chalix-nav-header .nav-tabs::-webkit-scrollbar {
+                        display: none;
+                    }
+
+                    .chalix-nav-header .nav-tab {
+                        flex: 1 0 auto;
+                        padding: 0 10px !important;
+                        height: 44px !important;
+                        font-size: 13px !important;
+                        line-height: 1.2 !important;
+                        white-space: nowrap;
+                        border-right: 1px solid #E0E0E0;
+                    }
+
+                    .chalix-nav-header .nav-tab img {
+                        width: 18px;
+                        height: 18px;
+                    }
+
+                    /* Hide desktop search on mobile — there is a search input in the top bar */
+                    .search-section {
+                        display: none !important;
                     }
 
                     .chalix-header-content {
