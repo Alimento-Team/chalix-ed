@@ -18,6 +18,7 @@ import os
 from typing import Optional
 import boto3  # type: ignore
 
+from django.utils import timezone
 from openedx.core.lib.api.view_utils import DeveloperErrorViewMixin, view_auth_classes
 from lms.djangoapps.courseware.access import has_access
 from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
@@ -26,6 +27,7 @@ from xmodule.modulestore.django import modulestore
 from xmodule.modulestore import ModuleStoreEnum  # for branch selection
 from xmodule.modulestore.exceptions import ItemNotFoundError
 from django.apps import apps as django_apps
+from lms.djangoapps.course_home_api.models import TopicQuizAttempt
 
 # Re-use CMS models for unit media files and Chalix quizzes; DB is shared across LMS/CMS
 # But avoid importing CMS models into the LMS process unless the CMS app is installed
@@ -1555,10 +1557,36 @@ class QuizDetailView(DeveloperErrorViewMixin, APIView):
 @view_auth_classes(is_authenticated=True)
 class QuizSubmitView(DeveloperErrorViewMixin, APIView):
     """
-    Endpoint to submit quiz answers and grade them simply by comparing to correct choices.
+    Endpoint to submit quiz answers, grade them, and persist the result.
+    GET  /units/{unit_id}/quizzes/{quiz_id}/submit/ → latest attempt for the current user
+    POST /units/{unit_id}/quizzes/{quiz_id}/submit/ → grade answers and save attempt
     """
 
-    def post(self, request: Request, quiz_id: str):
+    def get(self, request: Request, quiz_id: str, **kwargs):
+        """Return the latest completed attempt for this quiz + user."""
+        unit_id = kwargs.get('unit_id', '')
+        decoded_unit_id = urllib.parse.unquote(unit_id) if unit_id else ''
+        attempt = (
+            TopicQuizAttempt.objects
+            .filter(quiz_id=quiz_id, learner=request.user, is_completed=True)
+            .order_by('-completed_at')
+            .first()
+        )
+        if not attempt:
+            return Response({'has_result': False}, status=status.HTTP_200_OK)
+        return Response({
+            'has_result': True,
+            'score': [attempt.correct_answers, attempt.total_questions],
+            'points_earned': attempt.correct_answers,
+            'points_possible': attempt.total_questions,
+            'percentage': float(attempt.score) if attempt.score is not None else 0.0,
+            'passed': attempt.passed,
+            'completed_at': attempt.completed_at.isoformat() if attempt.completed_at else None,
+        }, status=status.HTTP_200_OK)
+
+    def post(self, request: Request, quiz_id: str, **kwargs):
+        unit_id = kwargs.get('unit_id', '')
+        decoded_unit_id = urllib.parse.unquote(unit_id) if unit_id else ''
         self.request = request
         payload = request.data or {}
         answers = payload.get('answers', {})  # { question_id: [choice_id, ...], ... }
@@ -1627,4 +1655,82 @@ class QuizSubmitView(DeveloperErrorViewMixin, APIView):
             return Response({'error': 'Failed to grade answers'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         score = (correct, total)
+        percentage = (correct / total * 100) if total > 0 else 0.0
+
+        # Persist the result in TopicQuizAttempt so it survives navigation
+        try:
+            TopicQuizAttempt.objects.update_or_create(
+                quiz_id=quiz_id,
+                unit_id=decoded_unit_id,
+                learner=request.user,
+                defaults={
+                    'correct_answers': correct,
+                    'total_questions': total,
+                    'score': round(percentage, 2),
+                    'passed': percentage >= 70,
+                    'is_completed': True,
+                    'completed_at': timezone.now(),
+                },
+            )
+        except Exception as save_err:
+            LOGGER.warning(f"Failed to persist quiz attempt for quiz {quiz_id}: {save_err}")
+
         return Response({'status': 'success', 'score': score, 'results': results}, status=status.HTTP_200_OK)
+
+
+@view_auth_classes(is_authenticated=True)
+class UnitQuizResultView(DeveloperErrorViewMixin, APIView):
+    """
+    GET /content/units/{unit_id}/quizzes/result/
+    Returns the aggregated latest quiz result for the current user and unit.
+    Looks up all ChalixQuiz records for the unit, then finds the most recent
+    TopicQuizAttempt across those quizzes for the requesting user.
+    """
+
+    def get(self, request: Request, unit_id: str):
+        decoded_unit_id = urllib.parse.unquote(unit_id)
+
+        # Collect quiz IDs for this unit by matching parent_locator
+        quiz_ids = []
+        if CMSChalixQuiz:
+            try:
+                candidate_locators = {decoded_unit_id, unit_id}
+                qs = CMSChalixQuiz.objects.filter(
+                    is_active=True,
+                    parent_locator__in=list(candidate_locators),
+                ).values_list('id', flat=True)
+                quiz_ids = list(qs)
+            except Exception as e:
+                LOGGER.warning(f"UnitQuizResultView: quiz lookup failed for unit {decoded_unit_id}: {e}")
+
+        if not quiz_ids:
+            return Response({'has_result': False}, status=status.HTTP_200_OK)
+
+        # Find the most recently completed attempt across all quizzes for this unit + user
+        attempt = (
+            TopicQuizAttempt.objects
+            .filter(quiz_id__in=quiz_ids, learner=request.user, is_completed=True)
+            .order_by('-completed_at')
+            .first()
+        )
+
+        # Also try matching by unit_id directly (set when submitted via units/{unit_id}/quizzes/{quiz_id}/submit/)
+        if not attempt:
+            attempt = (
+                TopicQuizAttempt.objects
+                .filter(unit_id__in=[decoded_unit_id, unit_id], learner=request.user, is_completed=True)
+                .order_by('-completed_at')
+                .first()
+            )
+
+        if not attempt:
+            return Response({'has_result': False}, status=status.HTTP_200_OK)
+
+        return Response({
+            'has_result': True,
+            'points_earned': attempt.correct_answers,
+            'points_possible': attempt.total_questions,
+            'percentage': float(attempt.score) if attempt.score is not None else 0.0,
+            'passed': attempt.passed,
+            'completed_at': attempt.completed_at.isoformat() if attempt.completed_at else None,
+        }, status=status.HTTP_200_OK)

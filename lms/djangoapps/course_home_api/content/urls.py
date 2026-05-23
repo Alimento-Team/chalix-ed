@@ -14,6 +14,7 @@ from .views import (
     CourseAggregateView,
     QuizDetailView,
     QuizSubmitView,
+    UnitQuizResultView,
 )
 
 app_name = 'content'
@@ -41,6 +42,18 @@ urlpatterns = [
         r'^units/(?P<unit_id>[^/]+)/quizzes/(?P<quiz_id>\d+)/$',
         QuizDetailView.as_view(),
         name='unit_quiz_detail'
+    ),
+    # Quiz submit with unit context: GET returns last result, POST grades and persists
+    re_path(
+        r'^units/(?P<unit_id>[^/]+)/quizzes/(?P<quiz_id>\d+)/submit/$',
+        QuizSubmitView.as_view(),
+        name='unit_quiz_submit'
+    ),
+    # Aggregated quiz result for a unit (no quiz_id needed)
+    re_path(
+        r'^units/(?P<unit_id>[^/]+)/quizzes/result/$',
+        UnitQuizResultView.as_view(),
+        name='unit_quiz_result'
     ),
     re_path(
         r'^units/(?P<unit_id>[^/]+)/media/stats/$',

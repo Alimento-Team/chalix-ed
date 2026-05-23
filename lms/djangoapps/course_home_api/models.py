@@ -217,6 +217,7 @@ class TopicQuizAttempt(models.Model):
     Topic quizzes are unit-level quizzes with 1 attempt limit and immediate correct answer feedback.
     """
     quiz_id = models.BigIntegerField(db_index=True, help_text="Reference to ChalixQuiz id")
+    unit_id = models.CharField(max_length=512, blank=True, default='', db_index=True, help_text="Unit usage key this attempt belongs to")
     learner = models.ForeignKey('auth.User', on_delete=models.CASCADE, db_index=True, help_text="The learner taking the quiz")
     attempt_number = models.PositiveIntegerField(default=1, help_text="Attempt number (always 1 for topic quizzes)")
     started_at = models.DateTimeField(auto_now_add=True, help_text="When attempt started")
@@ -232,6 +233,7 @@ class TopicQuizAttempt(models.Model):
         db_table = 'course_home_api_topic_quiz_attempt'
         indexes = [
             models.Index(fields=['quiz_id', 'learner']),
+            models.Index(fields=['unit_id', 'learner']),
             models.Index(fields=['is_completed']),
         ]
     
