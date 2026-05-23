@@ -191,6 +191,16 @@ ie11_fix_path="js/ie11_find_array.js" %>
 
                       <!-- Chalix Header and Layout Adjustments -->
                       <style>
+                        /* Ensure chalix-header is fixed before first paint to prevent white space flash */
+                        .chalix-header {
+                          position: fixed !important;
+                          top: 0 !important;
+                          left: 0 !important;
+                          right: 0 !important;
+                          z-index: 1000;
+                          background: #ffffff;
+                        }
+
                         /* Push content below fixed chalix-header (60px top-bar + 58px nav-bar = 118px) */
                         body {
                           padding-top: 118px !important;
@@ -219,6 +229,19 @@ ie11_fix_path="js/ie11_find_array.js" %>
                           margin-top: 0;
                         }
                       </style>
+                      <script>
+                        /* Adjust body padding-top to match actual chalix-header height after render */
+                        (function () {
+                          function adjustBodyPadding() {
+                            var h = document.querySelector('.chalix-header');
+                            if (h) {
+                              document.body.style.paddingTop = h.offsetHeight + 'px';
+                            }
+                          }
+                          document.addEventListener('DOMContentLoaded', adjustBodyPadding);
+                          window.addEventListener('resize', adjustBodyPadding);
+                        })();
+                      </script>
       </head>
 
       <body class="${static.dir_rtl()} <%block name='bodyclass'/> lang_${LANGUAGE_CODE}">
