@@ -191,10 +191,16 @@ ie11_fix_path="js/ie11_find_array.js" %>
 
                       <!-- Chalix Header and Layout Adjustments -->
                       <style>
-                        /* Chalix header is not fixed — no body padding needed */
+                        /* Push content below fixed chalix-header (60px top-bar + 58px nav-bar = 118px) */
                         body {
-                          padding-top: 0 !important;
+                          padding-top: 118px !important;
                           margin: 0 !important;
+                        }
+                        @media (max-width: 768px) {
+                          /* Mobile: top-bar (~56px) + nav-bar (44px) = 100px */
+                          body {
+                            padding-top: 100px !important;
+                          }
                         }
 
                         /* Hide original header when Chalix header is active */
