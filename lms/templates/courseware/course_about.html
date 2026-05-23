@@ -179,6 +179,7 @@ from openedx.core.lib.courses import course_image_url
               <%
                   course_start_date = course.advertised_start or course.start
               %>
+          % if course_start_date:
             <li class="important-dates-item">
               <span class="icon fa fa-calendar" aria-hidden="true"></span>
               <p class="important-dates-item-title">${_("Classes Start")}</p>
@@ -191,6 +192,7 @@ from openedx.core.lib.courses import course_image_url
                   <span class="important-dates-item-text start-date localized_datetime" data-format="shortDate" data-datetime="${course_date_string}" data-language="${LANGUAGE_CODE}"></span>
               % endif
             </li>
+          % endif
           % endif
             ## We plan to ditch end_date (which is not stored in course metadata),
             ## but for backwards compatibility, show about/end_date blob if it exists.
