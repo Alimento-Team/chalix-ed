@@ -4326,6 +4326,7 @@ ACCOUNT_VISIBILITY_CONFIGURATION["admin_fields"] = (
         "is_active",
         "last_login",
         "mailing_address",
+        "cccd",
         "requires_parental_consent",
         "secondary_email",
         "secondary_email_enabled",

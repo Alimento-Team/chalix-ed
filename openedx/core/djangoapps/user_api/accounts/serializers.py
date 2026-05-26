@@ -173,6 +173,7 @@ class UserReadOnlySerializer(serializers.Serializer):  # lint-amnesty, pylint: d
             "year_of_birth": None,
             "level_of_education": None,
             "mailing_address": None,
+            "cccd": None,
             "requires_parental_consent": None,
             "account_privacy": self.configuration.get('default_visibility'),
             "social_links": None,
@@ -202,6 +203,7 @@ class UserReadOnlySerializer(serializers.Serializer):  # lint-amnesty, pylint: d
                         user_profile.level_of_education
                     ),
                     "mailing_address": user_profile.mailing_address,
+                    "cccd": user_profile.get_meta().get('cccd', ''),
                     "requires_parental_consent": user_profile.requires_parental_consent(),
                     "account_privacy": get_profile_visibility(user_profile, user, self.configuration),
                     "social_links": SocialLinkSerializer(
@@ -292,13 +294,15 @@ class AccountLegacyProfileSerializer(serializers.HyperlinkedModelSerializer, Rea
     language_proficiencies = LanguageProficiencySerializer(many=True, required=False)
     social_links = SocialLinkSerializer(many=True, required=False)
     phone_number = PhoneNumberSerializer(required=False)
+    cccd = serializers.CharField(required=False, allow_blank=True, allow_null=True)
 
     class Meta:
         model = UserProfile
         fields = (
             "name", "gender", "goals", "year_of_birth", "birth_date", "level_of_education", "country", "state",
             "social_links", "mailing_address", "bio", "profile_image", "requires_parental_consent",
-            "language_proficiencies", "phone_number", "city", "job_position", "province", "civil_servant_type"
+            "language_proficiencies", "phone_number", "city", "job_position", "province", "civil_servant_type",
+            "cccd"
         )
         # Currently no read-only field, but keep this so view code doesn't need to know.
         read_only_fields = ()
@@ -458,6 +462,7 @@ class AccountLegacyProfileSerializer(serializers.HyperlinkedModelSerializer, Rea
             the supplied update
         """
         language_proficiencies = validated_data.pop("language_proficiencies", None)
+        cccd = validated_data.pop("cccd", None)
 
         # Update all fields on the user profile that are writeable,
         # except for "language_proficiencies" and "social_links", which we'll update separately
@@ -474,6 +479,11 @@ class AccountLegacyProfileSerializer(serializers.HyperlinkedModelSerializer, Rea
                 LanguageProficiency(user_profile=instance, code=language["code"])
                 for language in language_proficiencies
             ])
+
+        if cccd is not None:
+            meta = instance.get_meta()
+            meta['cccd'] = cccd
+            instance.set_meta(meta)
 
         # Update the user's social links
         requested_social_links = self._kwargs['data'].get('social_links')  # lint-amnesty, pylint: disable=no-member
