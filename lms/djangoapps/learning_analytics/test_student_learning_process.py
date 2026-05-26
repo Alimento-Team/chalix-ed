@@ -785,6 +785,26 @@ class LearningAnalyticsDashboardBreakdownTests(TestCase):
         self.assertEqual(payload['vle_breakdown']['quizzes_opened'], 5)
         self.assertEqual(payload['vle_breakdown']['materials_opened'], 18)
 
+    def test_dashboard_uses_live_behavior_vle_when_higher_than_snapshot(self):
+        StudentLearningProcessSnapshot.objects.filter(
+            user=self.user,
+            course_id='chalix+course_6f694e29+2024',
+        ).update(vle_1=1, vle_2=1, vle_3=1)
+
+        LearnerBehavior.objects.filter(
+            user=self.user,
+            course_id='chalix+course_6f694e29+2024',
+        ).update(videos_watched=7, problems_attempted=5, materials_opened=4)
+
+        response = self.client.get('/api/learning_analytics/dashboard/')
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+
+        self.assertEqual(payload['vle_breakdown']['total_vle'], 16)
+        self.assertEqual(payload['vle_breakdown']['videos_opened'], 7)
+        self.assertEqual(payload['vle_breakdown']['quizzes_opened'], 5)
+        self.assertEqual(payload['vle_breakdown']['materials_opened'], 4)
+
     def test_dashboard_filters_vle_breakdown_by_course(self):
         target_course_id = 'chalix+course_6f694e29+2024'
         other_course_id = 'course-v1:test+other+2026'
