@@ -62,6 +62,47 @@ except Exception:
 LOGGER = logging.getLogger(__name__)
 
 
+def _update_weekly_snapshot_score(user, course_id, raw_percent_score):
+    """Persist latest quiz score into the learner weekly snapshot (0..10 scale)."""
+    if not user or raw_percent_score is None:
+        return
+
+    try:
+        from decimal import Decimal
+        from lms.djangoapps.learning_analytics.services import (
+            LearningHoursService,
+            StudentLearningProcessService,
+        )
+
+        normalized_course_id = str(course_id or '').strip()
+        if not normalized_course_id:
+            return
+
+        snapshot = StudentLearningProcessService.get_or_create_live_snapshot(
+            user=user,
+            course_id=normalized_course_id,
+        )
+        if not snapshot:
+            return
+
+        week_number = LearningHoursService.resolve_learning_week(user, normalized_course_id)
+        week_field = f'week_{week_number}'
+        if week_field not in ('week_1', 'week_2', 'week_3'):
+            return
+
+        score_percentage = Decimal(str(raw_percent_score))
+        week_score = (score_percentage / Decimal('10')).quantize(Decimal('0.01'))
+        if week_score < Decimal('0'):
+            week_score = Decimal('0')
+        if week_score > Decimal('10'):
+            week_score = Decimal('10')
+
+        setattr(snapshot, week_field, week_score)
+        snapshot.save(update_fields=[week_field, 'updated_at'])
+    except Exception as exc:  # pylint: disable=broad-except
+        LOGGER.warning('Failed to persist weekly snapshot score: %s', exc)
+
+
 def extract_youtube_id(url):
     """
     Extract YouTube video ID from various YouTube URL formats.
@@ -1631,24 +1672,44 @@ class QuizSubmitView(DeveloperErrorViewMixin, APIView):
 
                 c_rel = getattr(q, 'choices', None)
                 if c_rel is None:
-                    # Fallback: query unmanaged choices table for correct choices
+                    # Fallback: query unmanaged choices table for all active choices
                     if CMSChalixQuizChoice is not None:
                         try:
-                            c_iter = CMSChalixQuizChoice.objects.filter(question_id=getattr(q, 'pk', getattr(q, 'id', None)), is_active=True, is_correct=True).order_by('order_index')
+                            c_iter = CMSChalixQuizChoice.objects.filter(
+                                question_id=getattr(q, 'pk', getattr(q, 'id', None)),
+                                is_active=True,
+                            ).order_by('order_index')
                         except Exception:
                             c_iter = []
                     else:
                         c_iter = []
                 elif hasattr(c_rel, 'filter'):
-                    c_iter = c_rel.filter(is_active=True, is_correct=True)
+                    c_iter = c_rel.filter(is_active=True).order_by('order_index')
                 else:
-                    c_iter = [c for c in c_rel if getattr(c, 'is_active', True) and getattr(c, 'is_correct', False)]
+                    c_iter = [c for c in c_rel if getattr(c, 'is_active', True)]
 
-                correct_ids = [str(getattr(c, 'pk', getattr(c, 'id', None))) for c in c_iter]
+                choice_text_map = {
+                    str(getattr(c, 'pk', getattr(c, 'id', None))): getattr(c, 'choice_text', '')
+                    for c in c_iter
+                }
+                correct_ids = [
+                    str(getattr(c, 'pk', getattr(c, 'id', None)))
+                    for c in c_iter
+                    if getattr(c, 'is_correct', False)
+                ]
                 is_correct = set([str(s) for s in selected]) == set(correct_ids)
                 if is_correct:
                     correct += 1
-                results.append({'question_id': qid, 'correct': is_correct, 'selected': selected, 'correct_choices': correct_ids})
+                results.append(
+                    {
+                        'question_id': qid,
+                        'correct': is_correct,
+                        'selected': [str(s) for s in selected],
+                        'correct_choices': correct_ids,
+                        'selected_choices': [choice_text_map.get(str(s), '') for s in selected],
+                        'correct_choices_text': [choice_text_map.get(cid, '') for cid in correct_ids],
+                    }
+                )
 
         except Exception as e:
             LOGGER.exception(f"Error evaluating quiz answers: {str(e)}")
@@ -1656,6 +1717,13 @@ class QuizSubmitView(DeveloperErrorViewMixin, APIView):
 
         score = (correct, total)
         percentage = (correct / total * 100) if total > 0 else 0.0
+
+        course_id_for_snapshot = None
+        if decoded_unit_id:
+            try:
+                course_id_for_snapshot = str(UsageKey.from_string(decoded_unit_id).course_key)
+            except Exception:  # pylint: disable=broad-except
+                course_id_for_snapshot = None
 
         # Persist the result in TopicQuizAttempt so it survives navigation
         try:
@@ -1675,7 +1743,36 @@ class QuizSubmitView(DeveloperErrorViewMixin, APIView):
         except Exception as save_err:
             LOGGER.warning(f"Failed to persist quiz attempt for quiz {quiz_id}: {save_err}")
 
-        return Response({'status': 'success', 'score': score, 'results': results}, status=status.HTTP_200_OK)
+        if course_id_for_snapshot:
+            _update_weekly_snapshot_score(
+                user=request.user,
+                course_id=course_id_for_snapshot,
+                raw_percent_score=round(percentage, 2),
+            )
+
+        return Response(
+            {
+                'status': 'success',
+                'score': score,
+                'results': results,
+                'answer_details': [
+                    {
+                        'question_id': row.get('question_id'),
+                        'selected_choice_ids': row.get('selected', []),
+                        'correct_choice_ids': row.get('correct_choices', []),
+                        'selected_choices': row.get('selected_choices', []),
+                        'correct_choices': row.get('correct_choices_text', []),
+                        'is_correct': row.get('correct', False),
+                    }
+                    for row in results
+                ],
+                'points_earned': correct,
+                'points_possible': total,
+                'percentage': round(percentage, 2),
+                'passed': percentage >= 70,
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 @view_auth_classes(is_authenticated=True)

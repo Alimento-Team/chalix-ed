@@ -32,6 +32,51 @@ from lms.djangoapps.course_home_api.models import (
 logger = logging.getLogger(__name__)
 
 
+def _update_weekly_snapshot_score(user, course_id, raw_percent_score):
+    """Persist the latest quiz score to the resolved learning week (0..10 scale)."""
+    if not user or raw_percent_score is None:
+        return
+
+    try:
+        from lms.djangoapps.learning_analytics.services import (
+            LearningHoursService,
+            StudentLearningProcessService,
+        )
+
+        normalized_course_id = str(course_id or '').strip()
+        if not normalized_course_id:
+            return
+
+        snapshot = StudentLearningProcessService.get_or_create_live_snapshot(
+            user=user,
+            course_id=normalized_course_id,
+        )
+        if not snapshot:
+            return
+
+        try:
+            score_percentage = Decimal(str(raw_percent_score))
+        except Exception:  # pylint: disable=broad-except
+            return
+
+        # Quiz APIs return percentage 0..100; dashboard week cards expect 0..10.
+        week_score = (score_percentage / Decimal('10')).quantize(Decimal('0.01'))
+        if week_score < Decimal('0'):
+            week_score = Decimal('0')
+        if week_score > Decimal('10'):
+            week_score = Decimal('10')
+
+        week_number = LearningHoursService.resolve_learning_week(user, normalized_course_id)
+        week_field = f'week_{week_number}'
+        if week_field not in ('week_1', 'week_2', 'week_3'):
+            return
+
+        setattr(snapshot, week_field, week_score)
+        snapshot.save(update_fields=[week_field, 'updated_at'])
+    except Exception as exc:  # pylint: disable=broad-except
+        logger.warning('Failed to update weekly snapshot score: %s', exc)
+
+
 class FinalEvaluationConfigView(APIView):
     """
     API view to get final evaluation configuration for a course.
@@ -393,6 +438,12 @@ class FinalEvaluationQuizSubmitView(APIView):
             attempt.is_completed = True
             attempt.completed_at = datetime.now()
             attempt.save()
+
+            _update_weekly_snapshot_score(
+                user=request.user,
+                course_id=str(course_key),
+                raw_percent_score=score,
+            )
             
             response_data = {
                 'score': float(score),
@@ -981,6 +1032,12 @@ class TopicQuizSubmitView(APIView):
             attempt.is_completed = True
             attempt.completed_at = datetime.now()
             attempt.save()
+
+            _update_weekly_snapshot_score(
+                user=request.user,
+                course_id=str(course_key),
+                raw_percent_score=score,
+            )
             
             response_data = {
                 'success': True,
