@@ -861,6 +861,37 @@ class LearningAnalyticsDashboardBreakdownTests(TestCase):
         self.assertEqual(payload['vle_breakdown']['quizzes_opened'], 3)
         self.assertEqual(payload['vle_breakdown']['materials_opened'], 23)
 
+    def test_dashboard_total_vle_never_lower_than_visible_breakdown(self):
+        target_course_id = 'chalix+course_6f694e29+2024'
+
+        StudentLearningProcessSnapshot.objects.filter(
+            user=self.user,
+            course_id=target_course_id,
+        ).update(vle_1=1, vle_2=1, vle_3=2)
+
+        LearnerBehavior.objects.update_or_create(
+            user=self.user,
+            course_id=target_course_id,
+            defaults={
+                'videos_watched': 3,
+                'problems_attempted': 0,
+                'materials_opened': 3,
+                'discussions_participated': 0,
+            },
+        )
+
+        response = self.client.get(
+            '/api/learning_analytics/dashboard/',
+            {'course_id': target_course_id},
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()['vle_breakdown']
+
+        self.assertEqual(payload['videos_opened'], 3)
+        self.assertEqual(payload['quizzes_opened'], 0)
+        self.assertEqual(payload['materials_opened'], 3)
+        self.assertEqual(payload['total_vle'], 6)
+
 
 class StudentLearningProcessPredictionTests(TestCase):
     def setUp(self):

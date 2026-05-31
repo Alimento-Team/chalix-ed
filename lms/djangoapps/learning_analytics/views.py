@@ -606,7 +606,7 @@ class LearningAnalyticsDashboardAPIView(APIView):
             total_vle_2=Sum('vle_2'),
             total_vle_3=Sum('vle_3'),
         )
-        total_vle = int(
+        snapshot_total_vle = int(
             (snapshot_totals.get('total_vle_1') or 0)
             + (snapshot_totals.get('total_vle_2') or 0)
             + (snapshot_totals.get('total_vle_3') or 0)
@@ -623,13 +623,19 @@ class LearningAnalyticsDashboardAPIView(APIView):
         discussions_opened = int(behavior_totals.get('discussions_opened') or 0)
         materials_opened_behavior = int(behavior_totals.get('materials_opened_sum') or 0)
         behavior_vle = videos_opened + quizzes_opened + materials_opened_behavior + discussions_opened
+        total_vle = max(snapshot_total_vle, behavior_vle)
 
         # Prefer live-tracked behavior when it has caught up to or exceeded the imported snapshot.
-        if behavior_vle > total_vle:
-            total_vle = behavior_vle
+        # materials_opened = residual interactions not counted as video/quiz/discussion.
+        materials_opened = max(
+            materials_opened_behavior,
+            max(0, total_vle - videos_opened - quizzes_opened - discussions_opened),
+        )
 
-        # materials_opened = residual interactions not counted as video/quiz
-        materials_opened = max(0, materials_opened_behavior + max(0, total_vle - videos_opened - quizzes_opened - materials_opened_behavior - discussions_opened))
+        # Guard against inconsistent payloads where total_vle is lower than visible counters.
+        minimum_visible_total = videos_opened + quizzes_opened + materials_opened
+        if total_vle < minimum_visible_total:
+            total_vle = minimum_visible_total
 
         # Debug logging for debugging VLE 0 issue
         if course_id:
