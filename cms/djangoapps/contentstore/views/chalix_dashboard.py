@@ -29,7 +29,8 @@ from cms.djangoapps.contentstore.chalix_roles import (
     get_user_organization_display_name,
     get_user_primary_role,
     require_role,
-    is_bo_user
+    is_bo_user,
+    can_author_survey,
 )
 
 from common.djangoapps.edxmako.shortcuts import render_to_response
@@ -3741,3 +3742,195 @@ def update_course_metadata_api(request):
         'created': created,
         'updated_fields': updated_fields
     })
+
+
+# ─── Survey Authoring API ─────────────────────────────────────────────────────────────────────
+
+@login_required
+@require_http_methods(["GET"])
+def get_survey_api(request, course_key_string):
+    """
+    Return the current active survey form and its choices for a given course.
+    Restricted to bo/co_quan/GlobalStaff.
+    """
+    if not can_author_survey(request.user):
+        return JsonResponse({'success': False, 'error': _('Không có quyền truy cập')}, status=403)
+
+    try:
+        course_key = CourseKey.from_string(course_key_string)
+    except Exception:
+        return JsonResponse({'success': False, 'error': _('course_key không hợp lệ')}, status=400)
+
+    try:
+        from cms.djangoapps.contentstore.models import ChalixSurveyForm
+        survey = ChalixSurveyForm.objects.get(course_key=course_key, is_active=True)
+        choices = list(
+            survey.choices.filter(is_active=True).order_by('order_index').values(
+                'id', 'name', 'detail_html', 'order_index'
+            )
+        )
+        return JsonResponse({
+            'success': True,
+            'survey': {
+                'id': survey.id,
+                'title': survey.title,
+                'public_token': survey.public_token,
+                'choices': choices,
+            }
+        })
+    except ChalixSurveyForm.DoesNotExist:
+        return JsonResponse({'success': True, 'survey': None})
+    except Exception as e:
+        logger.error(f"get_survey_api error for {course_key_string}: {e}", exc_info=True)
+        return JsonResponse({'success': False, 'error': _('Lỗi hệ thống')}, status=500)
+
+
+@csrf_exempt
+@login_required
+@require_http_methods(["POST"])
+def save_survey_api(request, course_key_string):
+    """
+    Create or update the survey and its choices for a course.
+
+    Expected JSON body::
+
+        {
+            "title": "Optional title",
+            "choices": [
+                {"id": 5, "name": "Tên CT 1", "detail_html": "<p>...</p>"},
+                {"name": "Tên CT 2", "detail_html": "<p>...</p>"}
+            ]
+        }
+
+    Choices without ``id`` are inserted; those with ``id`` are updated.
+    Choice ids absent from the payload are soft-deleted (is_active=False).
+    """
+    import bleach
+
+    if not can_author_survey(request.user):
+        return JsonResponse({'success': False, 'error': _('Không có quyền truy cập')}, status=403)
+
+    try:
+        course_key = CourseKey.from_string(course_key_string)
+    except Exception:
+        return JsonResponse({'success': False, 'error': _('course_key không hợp lệ')}, status=400)
+
+    try:
+        data = json.loads(request.body.decode('utf-8'))
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': _('JSON không hợp lệ')}, status=400)
+
+    choices_data = data.get('choices', [])
+    title = data.get('title', '').strip()[:500]
+
+    if not choices_data:
+        return JsonResponse(
+            {'success': False, 'error': _('Cần có ít nhất một chương trình')}, status=400
+        )
+
+    ALLOWED_TAGS = [
+        'a', 'abbr', 'acronym', 'b', 'blockquote', 'br', 'code', 'em',
+        'i', 'li', 'ol', 'p', 'strong', 'u', 'ul',
+        'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+        'table', 'thead', 'tbody', 'tr', 'td', 'th', 'span',
+    ]
+    ALLOWED_ATTRS = {'a': ['href', 'title', 'target'], '*': ['style', 'class']}
+
+    try:
+        from cms.djangoapps.contentstore.models import ChalixSurveyForm, ChalixSurveyChoice
+        with transaction.atomic():
+            survey, created_now = ChalixSurveyForm.objects.get_or_create(
+                course_key=course_key,
+                is_active=True,
+                defaults={'created_by': request.user, 'title': title},
+            )
+            if title:
+                survey.title = title
+                survey.save(update_fields=['title', 'updated_at'])
+
+            incoming_ids = set()
+            for idx, c in enumerate(choices_data):
+                choice_name = (c.get('name') or '').strip()
+                choice_html = bleach.clean(
+                    (c.get('detail_html') or ''),
+                    tags=ALLOWED_TAGS,
+                    attributes=ALLOWED_ATTRS,
+                )
+                if not choice_name:
+                    raise ValueError(
+                        _(f'Tên chương trình ở hàng {idx + 1} không được để trống')
+                    )
+                if not choice_html.strip():
+                    raise ValueError(
+                        _(f'Chi tiết mô tả ở hàng {idx + 1} không được để trống')
+                    )
+
+                choice_id = c.get('id')
+                if choice_id:
+                    obj = ChalixSurveyChoice.objects.get(id=int(choice_id), survey=survey)
+                    obj.name = choice_name
+                    obj.detail_html = choice_html
+                    obj.order_index = idx
+                    obj.is_active = True
+                    obj.save()
+                    incoming_ids.add(obj.id)
+                else:
+                    obj = ChalixSurveyChoice.objects.create(
+                        survey=survey,
+                        name=choice_name,
+                        detail_html=choice_html,
+                        order_index=idx,
+                    )
+                    incoming_ids.add(obj.id)
+
+            # Soft-delete rows not present in the payload
+            survey.choices.exclude(id__in=incoming_ids).update(is_active=False)
+
+        return JsonResponse({'success': True, 'survey_id': survey.id})
+
+    except ValueError as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=400)
+    except ChalixSurveyChoice.DoesNotExist:
+        return JsonResponse(
+            {'success': False, 'error': _('Không tìm thấy lựa chọn')}, status=404
+        )
+    except Exception as e:
+        logger.error(f"save_survey_api error for {course_key_string}: {e}", exc_info=True)
+        return JsonResponse({'success': False, 'error': _('Lỗi hệ thống')}, status=500)
+
+
+@csrf_exempt
+@login_required
+@require_http_methods(["POST"])
+def generate_survey_link_api(request, course_key_string):
+    """
+    Regenerate the public token for the course survey.
+    Creates the survey record if none exists.
+    Returns the new absolute survey URL and token.
+    """
+    import secrets as _sec
+
+    if not can_author_survey(request.user):
+        return JsonResponse({'success': False, 'error': _('Không có quyền truy cập')}, status=403)
+
+    try:
+        course_key = CourseKey.from_string(course_key_string)
+    except Exception:
+        return JsonResponse({'success': False, 'error': _('course_key không hợp lệ')}, status=400)
+
+    try:
+        from cms.djangoapps.contentstore.models import ChalixSurveyForm
+        survey, _ = ChalixSurveyForm.objects.get_or_create(
+            course_key=course_key,
+            is_active=True,
+            defaults={'created_by': request.user},
+        )
+        survey.public_token = _sec.token_urlsafe(32)
+        survey.save(update_fields=['public_token', 'updated_at'])
+
+        link = request.build_absolute_uri(f'/survey/{survey.public_token}/')
+        return JsonResponse({'success': True, 'link': link, 'token': survey.public_token})
+
+    except Exception as e:
+        logger.error(f"generate_survey_link_api error for {course_key_string}: {e}", exc_info=True)
+        return JsonResponse({'success': False, 'error': _('Lỗi hệ thống')}, status=500)

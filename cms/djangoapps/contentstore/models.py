@@ -1681,3 +1681,127 @@ class QuizAnswer(models.Model):
 
     def __str__(self):
         return f"{self.attempt.learner.username} - Q{self.question.id} - {'✓' if self.is_correct else '✗'}"
+
+
+# ─── Survey Authoring Models ─────────────────────────────────────────────────
+
+import secrets as _secrets
+
+
+class ChalixSurveyForm(models.Model):
+    """
+    Course-level survey form for collecting learner training-need preferences.
+    One active form per course. Authored by bo/co_quan accounts only.
+    """
+
+    course_key = CourseKeyField(
+        max_length=255,
+        db_index=True,
+        verbose_name=_("Course Key"),
+    )
+
+    title = models.CharField(
+        max_length=500,
+        blank=True,
+        verbose_name=_("Survey Title"),
+        help_text=_("Optional title shown to respondents"),
+    )
+
+    public_token = models.CharField(
+        max_length=64,
+        unique=True,
+        db_index=True,
+        blank=True,
+        verbose_name=_("Public Token"),
+        help_text=_("URL-safe token used for the shareable survey link"),
+    )
+
+    is_active = models.BooleanField(
+        default=True,
+        verbose_name=_("Is Active"),
+    )
+
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_surveys",
+        verbose_name=_("Created By"),
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name=_("Created At"))
+    updated_at = models.DateTimeField(auto_now=True, verbose_name=_("Updated At"))
+
+    class Meta:
+        verbose_name = _("Chalix Survey Form")
+        verbose_name_plural = _("Chalix Survey Forms")
+        indexes = [
+            models.Index(fields=["course_key", "is_active"]),
+        ]
+
+    def save(self, *args, **kwargs):
+        if not self.public_token:
+            self.public_token = _secrets.token_urlsafe(32)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"Survey {self.course_key} ({'active' if self.is_active else 'inactive'})"
+
+
+class ChalixSurveyChoice(models.Model):
+    """
+    Individual training-program choice within a ChalixSurveyForm.
+    Displayed as rows in the survey editor table and as selectable options for respondents.
+    """
+
+    survey = models.ForeignKey(
+        ChalixSurveyForm,
+        on_delete=models.CASCADE,
+        related_name="choices",
+        verbose_name=_("Survey"),
+    )
+
+    name = models.CharField(
+        max_length=500,
+        verbose_name=_("Tên chương trình"),
+        help_text=_("Training program name shown in the survey"),
+    )
+
+    detail_html = models.TextField(
+        blank=True,
+        verbose_name=_("Chi tiết mô tả chương trình"),
+        help_text=_("HTML content from the WYSIWYG editor; sanitised via bleach before storage"),
+    )
+
+    order_index = models.PositiveIntegerField(
+        default=0,
+        verbose_name=_("Order Index"),
+    )
+
+    is_active = models.BooleanField(
+        default=True,
+        verbose_name=_("Is Active"),
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = _("Survey Choice")
+        verbose_name_plural = _("Survey Choices")
+        ordering = ["survey", "order_index"]
+        indexes = [
+            models.Index(fields=["survey", "order_index"], name="cstore_survey_choice_order_idx"),
+            models.Index(fields=["survey", "is_active"], name="cstore_survey_choice_active_idx"),
+        ]
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if not self.name or not self.name.strip():
+            raise ValidationError({"name": _("Tên chương trình không được để trống")})
+        if not self.detail_html or not self.detail_html.strip():
+            raise ValidationError({"detail_html": _("Chi tiết mô tả không được để trống")})
+
+    def __str__(self):
+        return f"{self.name[:60]} (survey {self.survey_id})"

@@ -2518,6 +2518,19 @@
             .catch(err => {
                 console.error('Failed to load final evaluation:', err);
                 finalArea.innerHTML = '<div class="lm-no-topics">Không thể tải thông tin kiểm tra cuối khoá</div>';
+            })
+            .finally(() => {
+                // Survey authoring panel — shown only to bo/co_quan/GlobalStaff
+                const roleCode = (window.CMS_ROLE_DATA && window.CMS_ROLE_DATA.user_role_code) || '';
+                const isGlobalStaff = (window.CMS_ROLE_DATA && window.CMS_ROLE_DATA.is_global_staff) || false;
+                const canAuthorSurvey = isGlobalStaff || roleCode === 'bo' || roleCode === 'co_quan';
+                if (canAuthorSurvey && window.ChalixSurvey) {
+                    window.ChalixSurvey.loadSurveyEditor(
+                        finalArea,
+                        course.id || course.course_key,
+                        true
+                    );
+                }
             });
         })();
     }

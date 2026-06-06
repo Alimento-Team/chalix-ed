@@ -317,6 +317,18 @@ def require_course_edit_permission(view_func: Callable[..., Any]) -> Callable[..
     return _wrapped_view
 
 
+def can_author_survey(user: User) -> bool:
+    """
+    Check if user can create or edit course-level survey forms.
+    Allowed for bo, co_quan, and GlobalStaff.
+    """
+    if not user or not user.is_authenticated:
+        return False
+    if GlobalStaff().has_user(user):
+        return True
+    return is_bo_user(user) or is_co_quan_user(user)
+
+
 def enforce_single_bo_account(user: User, role: str, organization: ChalixOrganization = None, exclude_instance=None):
     """Enforce that only one 'bo' (department) account can exist
     

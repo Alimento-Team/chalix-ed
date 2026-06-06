@@ -1058,6 +1058,19 @@
         
         // Add event listeners
         setupFinalEvaluationModalEvents(evaluationData, courseKey);
+
+            // Survey authoring panel (bo/co_quan only)
+            const _roleCode = (window.CMS_ROLE_DATA && window.CMS_ROLE_DATA.user_role_code) || '';
+            const _isGS = (window.CMS_ROLE_DATA && window.CMS_ROLE_DATA.is_global_staff) || false;
+            if ((_isGS || _roleCode === 'bo' || _roleCode === 'co_quan') && window.ChalixSurvey) {
+                const _surveyArea = document.createElement('div');
+                _surveyArea.id = 'chalix-survey-area-legacy';
+                const _modalBody = document.querySelector('#finalEvaluationModal .final-evaluation-modal-body');
+                if (_modalBody) {
+                    _modalBody.appendChild(_surveyArea);
+                    window.ChalixSurvey.loadSurveyEditor(_surveyArea, courseKey, true);
+                }
+            }
     }
 
     function setupFinalEvaluationModalEvents(evaluationData, courseKey) {

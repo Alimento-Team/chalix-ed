@@ -839,6 +839,9 @@ user_org_name = get_user_organization_display_name(user) or ''
         }) | n};
     </script>
 
+    <!-- Chalix Survey Editor shared module (must load before tab scripts) -->
+    <script type="text/javascript" src="${static.url('js/chalix-survey-editor.js')}"></script>
+
     <!-- Chalix CMS Dashboard JavaScript -->
     <script type="text/javascript" src="${static.url('js/tabs/learning-management.js')}"></script>
     <script type="text/javascript" src="${static.url('js/tabs/management.js')}"></script>

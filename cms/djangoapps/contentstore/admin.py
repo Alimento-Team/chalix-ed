@@ -413,5 +413,27 @@ admin.site.register(User, ChalixUserAdmin)
 admin.site.register(BackfillCourseTabsConfig, ConfigurationModelAdmin)
 # Organization is now an alias to ChalixOrganization, which is already registered above
 admin.site.register(VideoUploadConfig, ConfigurationModelAdmin)
+
+
+# ─── Survey authoring admin ───────────────────────────────────────────────────
+from .models import ChalixSurveyForm, ChalixSurveyChoice  # noqa: E402
+
+
+class SurveyChoiceInline(admin.TabularInline):
+    model = ChalixSurveyChoice
+    extra = 0
+    fields = ('name', 'order_index', 'is_active')
+    ordering = ('order_index',)
+
+
+@admin.register(ChalixSurveyForm)
+class ChalixSurveyFormAdmin(admin.ModelAdmin):
+    list_display = ['course_key', 'title', 'is_active', 'created_by', 'created_at', 'public_token']
+    list_filter = ['is_active']
+    search_fields = ['course_key', 'title', 'public_token']
+    readonly_fields = ['public_token', 'created_at', 'updated_at']
+    inlines = [SurveyChoiceInline]
+
+
 admin.site.register(CourseOutlineRegenerate, CourseOutlineRegenerateAdmin)
 admin.site.register(CleanStaleCertificateAvailabilityDatesConfig, ConfigurationModelAdmin)

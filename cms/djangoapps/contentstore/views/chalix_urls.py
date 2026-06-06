@@ -206,6 +206,23 @@ urlpatterns = [
         name='chalix_get_topic_quiz'
     ),
     
+    # Survey authoring endpoints
+    re_path(
+        r'^dashboard/survey/get/(?P<course_key_string>.+)/$',
+        chalix_dashboard.get_survey_api,
+        name='chalix_get_survey',
+    ),
+    re_path(
+        r'^dashboard/survey/save/(?P<course_key_string>.+)/$',
+        chalix_dashboard.save_survey_api,
+        name='chalix_save_survey',
+    ),
+    re_path(
+        r'^dashboard/survey/generate-link/(?P<course_key_string>.+)/$',
+        chalix_dashboard.generate_survey_link_api,
+        name='chalix_generate_survey_link',
+    ),
+
     # Course metadata management
     path(
         'dashboard/update-course-metadata/',
