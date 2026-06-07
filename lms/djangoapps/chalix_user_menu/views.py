@@ -1021,6 +1021,8 @@ def survey_detail(request, public_token):
             'title': survey.title,
             'starts_at': survey.starts_at.isoformat() if survey.starts_at else None,
             'ends_at': survey.ends_at.isoformat() if survey.ends_at else None,
+            'allow_multiple_votes': bool(survey.allow_multiple_votes),
+            'allow_add_choice': bool(survey.allow_add_choice),
             'groups': groups,
             'user_prefill': {
                 'full_name': profile_name,
@@ -1079,17 +1081,21 @@ def survey_submit(request, public_token):
         
         choice_ids = request.data.get('selected_choice_ids', [])
 
-        # Disallow repeat submissions only when survey is configured as single-vote.
-        if not survey.allow_multiple_votes:
-            existing_response = ChalixDemandSurveyResponse.objects.filter(
-                survey_id=survey.id,
-                respondent_user=request.user
-            ).exists()
-            if existing_response:
-                return Response({
-                    'success': False,
-                    'error': 'Bạn đã nộp khảo sát này rồi'
-                }, status=409)
+        existing_response = ChalixDemandSurveyResponse.objects.filter(
+            survey_id=survey.id,
+            respondent_user=request.user
+        ).exists()
+        if existing_response:
+            return Response({
+                'success': False,
+                'error': 'Bạn đã nộp khảo sát này rồi'
+            }, status=409)
+
+        if not survey.allow_multiple_votes and len(choice_ids) > 1:
+            return Response({
+                'success': False,
+                'error': 'Khảo sát này chỉ cho phép chọn một phương án'
+            }, status=400)
 
         # Get and validate form data
         full_name = str(request.data.get('full_name', '')).strip()[:500]
@@ -1123,8 +1129,7 @@ def survey_submit(request, public_token):
             # Create response with correct field names
             response_obj = ChalixDemandSurveyResponse.objects.create(
                 survey_id=survey.id,
-                # For multi-vote surveys, do not bind user FK to avoid unique_together collisions.
-                respondent_user=None if survey.allow_multiple_votes else request.user,
+                respondent_user=request.user,
                 full_name=full_name,
                 email=email,
                 phone_number=phone_number,

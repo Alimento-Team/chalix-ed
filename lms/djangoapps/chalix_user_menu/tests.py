@@ -718,7 +718,7 @@ class SurveyMultipleVotesTestCase(DemandSurveyTestCase):
         self.assertIn('đã nộp', data['error'])
 
     def test_survey_allow_multiple_votes(self):
-        """Test that multiple votes are allowed when setting is enabled"""
+        """Test that selecting multiple choices is allowed when setting is enabled"""
         from cms.djangoapps.contentstore.models import ChalixSurveyForm, ChalixSurveyChoice
         
         survey = ChalixSurveyForm.objects.create(
@@ -727,37 +727,62 @@ class SurveyMultipleVotesTestCase(DemandSurveyTestCase):
             allow_multiple_votes=True,
             allow_add_choice=False
         )
-        choice = ChalixSurveyChoice.objects.create(
+        choice1 = ChalixSurveyChoice.objects.create(
             survey=survey,
             name='Option 1',
             detail_html='<p>Details</p>'
         )
+        choice2 = ChalixSurveyChoice.objects.create(
+            survey=survey,
+            name='Option 2',
+            detail_html='<p>Details</p>'
+        )
         
-        # First submission
-        response1 = self.client.post(
+        response = self.client.post(
             reverse('chalix_user_menu:survey_submit', kwargs={'public_token': 'multi-vote-token'}),
             data={
                 'full_name': 'Test User',
                 'email': 'test@example.com',
-                'selected_choice_ids': [choice.id]
+                'selected_choice_ids': [choice1.id, choice2.id]
             },
             content_type='application/json'
         )
-        self.assertEqual(response1.status_code, status.HTTP_200_OK)
-        
-        # Second submission should also succeed
-        response2 = self.client.post(
-            reverse('chalix_user_menu:survey_submit', kwargs={'public_token': 'multi-vote-token'}),
-            data={
-                'full_name': 'Test User',
-                'email': 'test@example.com',
-                'selected_choice_ids': [choice.id]
-            },
-            content_type='application/json'
-        )
-        self.assertEqual(response2.status_code, status.HTTP_200_OK)
-        data = response2.json()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
         self.assertTrue(data['success'])
+
+    def test_survey_disallow_multiple_choice_selection(self):
+        """Test that selecting more than one choice is rejected when disabled."""
+        from cms.djangoapps.contentstore.models import ChalixSurveyForm, ChalixSurveyChoice
+
+        survey = ChalixSurveyForm.objects.create(
+            title='Single Choice Survey',
+            public_token='single-choice-token',
+            allow_multiple_votes=False,
+            allow_add_choice=False
+        )
+        choice1 = ChalixSurveyChoice.objects.create(
+            survey=survey,
+            name='Option 1',
+            detail_html='<p>Details</p>'
+        )
+        choice2 = ChalixSurveyChoice.objects.create(
+            survey=survey,
+            name='Option 2',
+            detail_html='<p>Details</p>'
+        )
+
+        response = self.client.post(
+            reverse('chalix_user_menu:survey_submit', kwargs={'public_token': 'single-choice-token'}),
+            data={
+                'full_name': 'Test User',
+                'email': 'test@example.com',
+                'selected_choice_ids': [choice1.id, choice2.id]
+            },
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('chỉ cho phép chọn một phương án', response.json().get('error', ''))
 
 
 class SurveyAutoPublishTestCase(DemandSurveyTestCase):

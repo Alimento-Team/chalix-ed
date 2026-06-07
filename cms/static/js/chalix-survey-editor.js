@@ -41,6 +41,57 @@
         return map[status] || status || 'Bản nháp';
     }
 
+    function _monthFromIso(isoString) {
+        if (!isoString) return '';
+        const date = new Date(isoString);
+        if (Number.isNaN(date.getTime())) return '';
+        return String(date.getMonth() + 1);
+    }
+
+    function _yearFromIso(isoString) {
+        if (!isoString) return '';
+        const date = new Date(isoString);
+        if (Number.isNaN(date.getTime())) return '';
+        return String(date.getFullYear());
+    }
+
+    function _renderMonthOptions(selectedMonth) {
+        const selected = selectedMonth ? String(selectedMonth) : '';
+        const options = ['<option value="">-- Tháng --</option>'];
+        for (let month = 1; month <= 12; month += 1) {
+            const value = String(month);
+            options.push(`<option value="${value}" ${selected === value ? 'selected' : ''}>Tháng ${value}</option>`);
+        }
+        return options.join('');
+    }
+
+    function _renderYearOptions(selectedYear) {
+        const currentYear = new Date().getFullYear();
+        const selected = selectedYear ? String(selectedYear) : '';
+        const options = ['<option value="">-- Năm --</option>'];
+        for (let year = currentYear - 5; year <= currentYear + 10; year += 1) {
+            const value = String(year);
+            options.push(`<option value="${value}" ${selected === value ? 'selected' : ''}>${value}</option>`);
+        }
+        return options.join('');
+    }
+
+    function _buildMonthBoundaryIso(yearValue, monthValue, isEndBoundary) {
+        if (!yearValue || !monthValue) return null;
+        const year = parseInt(yearValue, 10);
+        const month = parseInt(monthValue, 10);
+        if (Number.isNaN(year) || Number.isNaN(month) || month < 1 || month > 12) return null;
+
+        const mm = String(month).padStart(2, '0');
+        if (!isEndBoundary) {
+            return `${year}-${mm}-01T00:00:00`;
+        }
+
+        const lastDay = new Date(year, month, 0).getDate();
+        const dd = String(lastDay).padStart(2, '0');
+        return `${year}-${mm}-${dd}T23:59:59`;
+    }
+
     function _getCsrf() {
         const name = 'csrftoken';
         const cookie = document.cookie.split(';').find(c => c.trim().startsWith(name + '='));
@@ -605,6 +656,8 @@
         const stale = document.getElementById('chalix-detail-modal');
         if (stale) stale.remove();
 
+        const detailHtml = _decodeHtmlEntities(choice && choice.detail_html ? choice.detail_html : '');
+
         const modal = document.createElement('div');
         modal.id = 'chalix-detail-modal';
         modal.className = 'chalix-choice-popup-overlay';
@@ -617,7 +670,7 @@
                     <h4>${_escapeHtml(choice.name)}</h4>
                 </div>
                 <div class="chalix-choice-popup-body chalix-detail-body">
-                    ${choice.detail_html || '<p>Chưa có mô tả chi tiết.</p>'}
+                    ${detailHtml || '<p>Chưa có mô tả chi tiết.</p>'}
                 </div>
                 <div class="chalix-choice-popup-actions">
                     <button class="lm-btn secondary chalix-detail-close"
@@ -630,6 +683,13 @@
         modal.addEventListener('click', function (e) { if (e.target === modal) modal.remove(); });
         modal.addEventListener('keydown', function (e) { if (e.key === 'Escape') modal.remove(); });
         modal.querySelector('.chalix-detail-close').focus();
+    }
+
+    function _decodeHtmlEntities(html) {
+        if (!html) return '';
+        const textarea = document.createElement('textarea');
+        textarea.innerHTML = html;
+        return textarea.value;
     }
 
     // ─── Link display ──────────────────────────────────────────────────────────
@@ -830,15 +890,25 @@
 
     function _buildSurveyPayload(sectionEl, choicesState) {
         const titleInput = sectionEl.querySelector('.chalix-survey-title-input');
-        const startsAtInput = sectionEl.querySelector('.chalix-survey-starts-at-input');
-        const endsAtInput = sectionEl.querySelector('.chalix-survey-ends-at-input');
+        const startMonthInput = sectionEl.querySelector('.chalix-survey-start-month-input');
+        const startYearInput = sectionEl.querySelector('.chalix-survey-start-year-input');
+        const endMonthInput = sectionEl.querySelector('.chalix-survey-end-month-input');
+        const endYearInput = sectionEl.querySelector('.chalix-survey-end-year-input');
         const allowMultipleVotesCheckbox = sectionEl.querySelector('.chalix-allow-multiple-votes-checkbox');
         const allowAddChoiceCheckbox = sectionEl.querySelector('.chalix-allow-add-choice-checkbox');
-        
+
         return {
             title: titleInput ? titleInput.value.trim() : '',
-            starts_at: startsAtInput && startsAtInput.value ? startsAtInput.value : null,
-            ends_at: endsAtInput && endsAtInput.value ? endsAtInput.value : null,
+            starts_at: _buildMonthBoundaryIso(
+                startYearInput ? startYearInput.value : '',
+                startMonthInput ? startMonthInput.value : '',
+                false,
+            ),
+            ends_at: _buildMonthBoundaryIso(
+                endYearInput ? endYearInput.value : '',
+                endMonthInput ? endMonthInput.value : '',
+                true,
+            ),
             allow_multiple_votes: allowMultipleVotesCheckbox ? allowMultipleVotesCheckbox.checked : false,
             allow_add_choice: allowAddChoiceCheckbox ? allowAddChoiceCheckbox.checked : false,
             choices: choicesState.map(function (c, i) {
@@ -952,16 +1022,30 @@
             });
         }
 
-        const startsAtInput = sectionEl.querySelector('.chalix-survey-starts-at-input');
-        if (startsAtInput) {
-            startsAtInput.addEventListener('change', function () {
+        const startMonthInput = sectionEl.querySelector('.chalix-survey-start-month-input');
+        if (startMonthInput) {
+            startMonthInput.addEventListener('change', function () {
                 sectionEl._queueAutoSave();
             });
         }
 
-        const endsAtInput = sectionEl.querySelector('.chalix-survey-ends-at-input');
-        if (endsAtInput) {
-            endsAtInput.addEventListener('change', function () {
+        const startYearInput = sectionEl.querySelector('.chalix-survey-start-year-input');
+        if (startYearInput) {
+            startYearInput.addEventListener('change', function () {
+                sectionEl._queueAutoSave();
+            });
+        }
+
+        const endMonthInput = sectionEl.querySelector('.chalix-survey-end-month-input');
+        if (endMonthInput) {
+            endMonthInput.addEventListener('change', function () {
+                sectionEl._queueAutoSave();
+            });
+        }
+
+        const endYearInput = sectionEl.querySelector('.chalix-survey-end-year-input');
+        if (endYearInput) {
+            endYearInput.addEventListener('change', function () {
                 sectionEl._queueAutoSave();
             });
         }
@@ -1014,8 +1098,10 @@
     function _renderSurveyEditor(container, surveyId, survey) {
         const choices = (survey && survey.choices) ? survey.choices.slice() : [];
         const surveyTitle = (survey && survey.title) ? survey.title : '';
-        const startsAt = (survey && survey.starts_at) ? survey.starts_at.slice(0, 16) : '';
-        const endsAt = (survey && survey.ends_at) ? survey.ends_at.slice(0, 16) : '';
+        const startMonth = _monthFromIso(survey && survey.starts_at);
+        const startYear = _yearFromIso(survey && survey.starts_at);
+        const endMonth = _monthFromIso(survey && survey.ends_at);
+        const endYear = _yearFromIso(survey && survey.ends_at);
         const allowMultipleVotes = (survey && survey.allow_multiple_votes) ? true : false;
         const allowAddChoice = (survey && survey.allow_add_choice) ? true : false;
 
@@ -1042,16 +1128,22 @@
                 <div style="display:flex;gap:12px;margin-bottom:10px;">
                     <div style="flex:1;">
                         <label style="display:block;font-size:12px;font-weight:500;margin-bottom:4px;">Bắt đầu (Từ tháng):</label>
-                        <input type="datetime-local" class="chalix-survey-starts-at-input"
-                               style="width:100%;padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;"
-                               value="${_escapeHtml(startsAt)}" />
+                        <div style="display:flex;gap:8px;">
+                            <select class="chalix-survey-start-month-input"
+                                    style="flex:1;padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;">${_renderMonthOptions(startMonth)}</select>
+                            <select class="chalix-survey-start-year-input"
+                                    style="flex:1;padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;">${_renderYearOptions(startYear)}</select>
+                        </div>
                         <small style="color:#6b7280;font-size:11px;">Để trống = không giới hạn</small>
                     </div>
                     <div style="flex:1;">
                         <label style="display:block;font-size:12px;font-weight:500;margin-bottom:4px;">Kết thúc (Đến tháng):</label>
-                        <input type="datetime-local" class="chalix-survey-ends-at-input"
-                               style="width:100%;padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;"
-                               value="${_escapeHtml(endsAt)}" />
+                        <div style="display:flex;gap:8px;">
+                            <select class="chalix-survey-end-month-input"
+                                    style="flex:1;padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;">${_renderMonthOptions(endMonth)}</select>
+                            <select class="chalix-survey-end-year-input"
+                                    style="flex:1;padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;">${_renderYearOptions(endYear)}</select>
+                        </div>
                         <small style="color:#6b7280;font-size:11px;">Để trống = không giới hạn</small>
                     </div>
                 </div>
@@ -1060,7 +1152,7 @@
                     <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;">
                         <input type="checkbox" class="chalix-allow-multiple-votes-checkbox"
                                ${allowMultipleVotes ? 'checked' : ''} />
-                        <span>Cho phép nộp nhiều lần</span>
+                        <span>Cho phép chọn nhiều phương án</span>
                     </label>
                     <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;">
                         <input type="checkbox" class="chalix-allow-add-choice-checkbox"
