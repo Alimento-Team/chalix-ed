@@ -206,21 +206,46 @@ urlpatterns = [
         name='chalix_get_topic_quiz'
     ),
     
-    # Survey authoring endpoints
-    re_path(
-        r'^dashboard/survey/get/(?P<course_key_string>.+)/$',
-        chalix_dashboard.get_survey_api,
-        name='chalix_get_survey',
+    # Survey campaign endpoints (non-course)
+    path(
+        'dashboard/surveys/',
+        chalix_dashboard.list_surveys_api,
+        name='chalix_list_surveys',
+    ),
+    path(
+        'dashboard/surveys/create/',
+        chalix_dashboard.create_survey_campaign_api,
+        name='chalix_create_survey_campaign',
+    ),
+    path(
+        'dashboard/surveys/<int:survey_id>/',
+        chalix_dashboard.get_survey_campaign_api,
+        name='chalix_get_survey_campaign',
+    ),
+    path(
+        'dashboard/surveys/<int:survey_id>/save/',
+        chalix_dashboard.save_survey_campaign_api,
+        name='chalix_save_survey_campaign',
+    ),
+    path(
+        'dashboard/surveys/<int:survey_id>/publish/',
+        chalix_dashboard.publish_survey_campaign_api,
+        name='chalix_publish_survey_campaign',
+    ),
+    path(
+        'dashboard/surveys/<int:survey_id>/archive/',
+        chalix_dashboard.archive_survey_campaign_api,
+        name='chalix_archive_survey_campaign',
+    ),
+    path(
+        'dashboard/surveys/<int:survey_id>/results/',
+        chalix_dashboard.get_survey_results_api,
+        name='chalix_get_survey_results',
     ),
     re_path(
-        r'^dashboard/survey/save/(?P<course_key_string>.+)/$',
-        chalix_dashboard.save_survey_api,
-        name='chalix_save_survey',
-    ),
-    re_path(
-        r'^dashboard/survey/generate-link/(?P<course_key_string>.+)/$',
-        chalix_dashboard.generate_survey_link_api,
-        name='chalix_generate_survey_link',
+        r'^survey/vote/(?P<public_token>[-_A-Za-z0-9]+)/$',
+        chalix_dashboard.submit_survey_vote_api,
+        name='chalix_submit_survey_vote',
     ),
 
     # Course metadata management

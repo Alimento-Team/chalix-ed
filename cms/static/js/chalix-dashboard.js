@@ -25,8 +25,8 @@
             contentDescription: 'Quản lý các chức năng và cài đặt nền tảng.'
         },
         'learning-management': {
-            label: 'Quản lý khóa học',
-            contentTitle: 'Quản lý khóa học',
+            label: 'Quản lý học tập',
+            contentTitle: 'Quản lý học tập',
             contentDescription: 'Quản lý nội dung học tập, khóa học và tài liệu.'
         },
         'approve-requests': {

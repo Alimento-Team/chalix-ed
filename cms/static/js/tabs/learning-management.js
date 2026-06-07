@@ -782,6 +782,9 @@
                         <button class="lm-subtab-btn" data-view="courses">
                             Khóa học
                         </button>
+                        <button class="lm-subtab-btn" data-view="surveys">
+                            Khảo sát nhu cầu
+                        </button>
                     </div>
 
                     <div class="lm-subtab-content">
@@ -810,6 +813,20 @@
                             </div>
                             <div class="lm-content-area">
                                 <div class="lm-loading">Đang tải danh sách khóa học...</div>
+                            </div>
+                        </div>
+
+                        <!-- Surveys Tab -->
+                        <div id="lm-surveys-tab" class="lm-management-view">
+                            <div class="lm-tab-header">
+                                <h3>Khảo sát nhu cầu</h3>
+                                <button class="lm-btn primary" data-action="create-survey">
+                                    <span class="lm-btn-icon">+</span>
+                                    Tạo khảo sát mới
+                                </button>
+                            </div>
+                            <div class="lm-content-area">
+                                <div class="lm-loading">Đang tải danh sách khảo sát...</div>
                             </div>
                         </div>
                     </div>
@@ -906,11 +923,13 @@
                     
                     const contentArea = targetView.querySelector('.lm-content-area');
                     
-                    // Load data based on view (programs or courses only)
+                    // Load data based on selected view
                     if (viewName === 'programs') {
                         loadProgramsList(contentArea);
                     } else if (viewName === 'courses') {
                         loadCoursesList(contentArea);
+                    } else if (viewName === 'surveys') {
+                        loadSurveysList(contentArea);
                     }
                 }
             });
@@ -940,9 +959,90 @@
                             loadCoursesList(coursesContent);
                         }
                     });
+                } else if (action === 'create-survey') {
+                    openCreateSurveyModal(container);
                 }
             });
         });
+    }
+
+    function canCurrentUserAuthorSurvey() {
+        const roleCode = (window.CMS_ROLE_DATA && window.CMS_ROLE_DATA.user_role_code) || '';
+        const isGlobalStaff = (window.CMS_ROLE_DATA && window.CMS_ROLE_DATA.is_global_staff) || false;
+        return isGlobalStaff || roleCode === 'bo' || roleCode === 'co_quan';
+    }
+
+    function ensureSurveyModuleLoaded(onReady, onError) {
+        const hasModule = window.ChalixSurvey
+            && typeof window.ChalixSurvey.loadSurveyManagement === 'function'
+            && typeof window.ChalixSurvey.createSurveyCampaign === 'function';
+        if (hasModule) {
+            onReady();
+            return;
+        }
+
+        const staleScript = Array.from(document.scripts || []).find((s) =>
+            s.src && s.src.indexOf('chalix-survey-editor.js') !== -1
+        );
+        const baseSrc = staleScript ? staleScript.src.split('?')[0] : '/static/js/chalix-survey-editor.js';
+
+        const script = document.createElement('script');
+        script.id = 'chalix-survey-editor-runtime-loader';
+        script.src = baseSrc + '?v=3.0.0-runtime';
+        script.async = false;
+        script.onload = function () {
+            const nowReady = window.ChalixSurvey
+                && typeof window.ChalixSurvey.loadSurveyManagement === 'function'
+                && typeof window.ChalixSurvey.createSurveyCampaign === 'function';
+            if (nowReady) {
+                onReady();
+                return;
+            }
+            if (onError) onError('Không thể tải module quản lý khảo sát. Vui lòng tải lại trang.');
+        };
+        script.onerror = function () {
+            if (onError) onError('Không thể tải module quản lý khảo sát. Vui lòng tải lại trang.');
+        };
+        document.head.appendChild(script);
+    }
+
+    function loadSurveysList(contentArea) {
+        if (!contentArea) return;
+
+        if (!canCurrentUserAuthorSurvey()) {
+            contentArea.innerHTML = '<div class="lm-empty">Bạn không có quyền quản lý khảo sát nhu cầu.</div>';
+            return;
+        }
+
+        ensureSurveyModuleLoaded(
+            function () {
+                window.ChalixSurvey.loadSurveyManagement(contentArea, true);
+            },
+            function (msg) {
+                contentArea.innerHTML = '<div class="lm-error">' + escapeHtml(msg || 'Không thể tải module quản lý khảo sát.') + '</div>';
+            }
+        );
+    }
+
+    function openCreateSurveyModal(container) {
+        if (!container) return;
+
+        const surveysContent = container.querySelector('#lm-surveys-tab .lm-content-area');
+        if (!surveysContent) return;
+
+        if (!canCurrentUserAuthorSurvey()) {
+            surveysContent.innerHTML = '<div class="lm-empty">Bạn không có quyền tạo khảo sát nhu cầu.</div>';
+            return;
+        }
+
+        ensureSurveyModuleLoaded(
+            function () {
+                window.ChalixSurvey.createSurveyCampaign(surveysContent, true);
+            },
+            function (msg) {
+                surveysContent.innerHTML = '<div class="lm-error">' + escapeHtml(msg || 'Không thể tải module quản lý khảo sát.') + '</div>';
+            }
+        );
     }
 
     function loadProgramsList(contentArea) {
@@ -2518,19 +2618,6 @@
             .catch(err => {
                 console.error('Failed to load final evaluation:', err);
                 finalArea.innerHTML = '<div class="lm-no-topics">Không thể tải thông tin kiểm tra cuối khoá</div>';
-            })
-            .finally(() => {
-                // Survey authoring panel — shown only to bo/co_quan/GlobalStaff
-                const roleCode = (window.CMS_ROLE_DATA && window.CMS_ROLE_DATA.user_role_code) || '';
-                const isGlobalStaff = (window.CMS_ROLE_DATA && window.CMS_ROLE_DATA.is_global_staff) || false;
-                const canAuthorSurvey = isGlobalStaff || roleCode === 'bo' || roleCode === 'co_quan';
-                if (canAuthorSurvey && window.ChalixSurvey) {
-                    window.ChalixSurvey.loadSurveyEditor(
-                        finalArea,
-                        course.id || course.course_key,
-                        true
-                    );
-                }
             });
         })();
     }

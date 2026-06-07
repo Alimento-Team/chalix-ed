@@ -422,15 +422,16 @@ from .models import ChalixSurveyForm, ChalixSurveyChoice  # noqa: E402
 class SurveyChoiceInline(admin.TabularInline):
     model = ChalixSurveyChoice
     extra = 0
-    fields = ('name', 'order_index', 'is_active')
+    fields = ('name', 'order_index', 'is_active', 'vote_count')
+    readonly_fields = ('vote_count',)
     ordering = ('order_index',)
 
 
 @admin.register(ChalixSurveyForm)
 class ChalixSurveyFormAdmin(admin.ModelAdmin):
-    list_display = ['course_key', 'title', 'is_active', 'created_by', 'created_at', 'public_token']
+    list_display = ['id', 'title', 'course_key', 'is_active', 'created_by', 'created_at', 'public_token']
     list_filter = ['is_active']
-    search_fields = ['course_key', 'title', 'public_token']
+    search_fields = ['title', 'public_token']
     readonly_fields = ['public_token', 'created_at', 'updated_at']
     inlines = [SurveyChoiceInline]
 

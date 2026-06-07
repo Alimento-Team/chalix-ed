@@ -752,7 +752,7 @@ user_org_name = get_user_organization_display_name(user) or ''
                         ('statistics', 'Thống kê'),
                         ('create-account', 'Quản lý tài khoản cán bộ'),
                         ('management', 'Quản lý cơ quan'),
-                        ('learning-management', 'Quản lý khóa học'),
+                        ('learning-management', 'Quản lý học tập'),
                         ('approve-requests', 'Phê duyệt yêu cầu'),
                     ]
                     # available_tabs is passed from the view
@@ -840,7 +840,7 @@ user_org_name = get_user_organization_display_name(user) or ''
     </script>
 
     <!-- Chalix Survey Editor shared module (must load before tab scripts) -->
-    <script type="text/javascript" src="${static.url('js/chalix-survey-editor.js')}"></script>
+    <script type="text/javascript" src="${static.url('js/chalix-survey-editor.js')}?v=3.0.0"></script>
 
     <!-- Chalix CMS Dashboard JavaScript -->
     <script type="text/javascript" src="${static.url('js/tabs/learning-management.js')}"></script>

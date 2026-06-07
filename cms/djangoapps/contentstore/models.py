@@ -1696,6 +1696,8 @@ class ChalixSurveyForm(models.Model):
 
     course_key = CourseKeyField(
         max_length=255,
+        null=True,
+        blank=True,
         db_index=True,
         verbose_name=_("Course Key"),
     )
@@ -1746,7 +1748,8 @@ class ChalixSurveyForm(models.Model):
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"Survey {self.course_key} ({'active' if self.is_active else 'inactive'})"
+        target = str(self.course_key) if self.course_key else f"survey-{self.id}"
+        return f"Survey {target} ({'active' if self.is_active else 'inactive'})"
 
 
 class ChalixSurveyChoice(models.Model):
@@ -1784,6 +1787,12 @@ class ChalixSurveyChoice(models.Model):
         verbose_name=_("Is Active"),
     )
 
+    vote_count = models.PositiveIntegerField(
+        default=0,
+        verbose_name=_("Vote Count"),
+        help_text=_("Number of votes recorded for this choice"),
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -1793,7 +1802,7 @@ class ChalixSurveyChoice(models.Model):
         ordering = ["survey", "order_index"]
         indexes = [
             models.Index(fields=["survey", "order_index"], name="cstore_survey_choice_order_idx"),
-            models.Index(fields=["survey", "is_active"], name="cstore_survey_choice_active_idx"),
+            models.Index(fields=["survey", "is_active"], name="cstore_survey_choice_actv_idx"),
         ]
 
     def clean(self):
