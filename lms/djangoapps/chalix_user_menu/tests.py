@@ -566,3 +566,372 @@ class SurveyChoiceDetailTestCase(DemandSurveyTestCase):
             )
         )
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+class SurveyVotingPeriodTestCase(DemandSurveyTestCase):
+    """Test survey voting period validation"""
+
+    def test_survey_submit_before_starts_at(self):
+        """Test that survey submit is rejected if before starts_at"""
+        from cms.djangoapps.contentstore.models import ChalixSurveyForm, ChalixSurveyChoice
+        
+        future_start = timezone.now() + timedelta(days=1)
+        survey = ChalixSurveyForm.objects.create(
+            title='Future Survey',
+            public_token='future-survey-token',
+            starts_at=future_start,
+            allow_multiple_votes=False,
+            allow_add_choice=False
+        )
+        choice = ChalixSurveyChoice.objects.create(
+            survey=survey,
+            name='Option 1',
+            detail_html='<p>Details</p>'
+        )
+        
+        response = self.client.post(
+            reverse('chalix_user_menu:survey_submit', kwargs={'public_token': 'future-survey-token'}),
+            data={
+                'full_name': 'Test User',
+                'email': 'test@example.com',
+                'selected_choice_ids': [choice.id]
+            },
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        data = response.json()
+        self.assertIn('error', data)
+        self.assertIn('chưa bắt đầu', data['error'])
+
+    def test_survey_submit_after_ends_at(self):
+        """Test that survey submit is rejected if after ends_at"""
+        from cms.djangoapps.contentstore.models import ChalixSurveyForm, ChalixSurveyChoice
+        
+        past_end = timezone.now() - timedelta(days=1)
+        survey = ChalixSurveyForm.objects.create(
+            title='Expired Survey',
+            public_token='expired-survey-token',
+            ends_at=past_end,
+            allow_multiple_votes=False,
+            allow_add_choice=False
+        )
+        choice = ChalixSurveyChoice.objects.create(
+            survey=survey,
+            name='Option 1',
+            detail_html='<p>Details</p>'
+        )
+        
+        response = self.client.post(
+            reverse('chalix_user_menu:survey_submit', kwargs={'public_token': 'expired-survey-token'}),
+            data={
+                'full_name': 'Test User',
+                'email': 'test@example.com',
+                'selected_choice_ids': [choice.id]
+            },
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        data = response.json()
+        self.assertIn('error', data)
+        self.assertIn('kết thúc', data['error'])
+
+    def test_survey_submit_within_valid_period(self):
+        """Test that survey submit works within valid voting period"""
+        from cms.djangoapps.contentstore.models import ChalixSurveyForm, ChalixSurveyChoice
+        
+        now = timezone.now()
+        start = now - timedelta(days=1)
+        end = now + timedelta(days=1)
+        
+        survey = ChalixSurveyForm.objects.create(
+            title='Active Survey',
+            public_token='active-survey-token',
+            starts_at=start,
+            ends_at=end,
+            allow_multiple_votes=False,
+            allow_add_choice=False
+        )
+        choice = ChalixSurveyChoice.objects.create(
+            survey=survey,
+            name='Option 1',
+            detail_html='<p>Details</p>'
+        )
+        
+        response = self.client.post(
+            reverse('chalix_user_menu:survey_submit', kwargs={'public_token': 'active-survey-token'}),
+            data={
+                'full_name': 'Test User',
+                'email': 'test@example.com',
+                'selected_choice_ids': [choice.id]
+            },
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+        self.assertTrue(data['success'])
+
+
+class SurveyMultipleVotesTestCase(DemandSurveyTestCase):
+    """Test survey multiple votes setting"""
+
+    def test_survey_disallow_multiple_votes_default(self):
+        """Test that multiple votes are disallowed by default"""
+        from cms.djangoapps.contentstore.models import ChalixSurveyForm, ChalixSurveyChoice
+        
+        survey = ChalixSurveyForm.objects.create(
+            title='Single Vote Survey',
+            public_token='single-vote-token',
+            allow_multiple_votes=False,
+            allow_add_choice=False
+        )
+        choice = ChalixSurveyChoice.objects.create(
+            survey=survey,
+            name='Option 1',
+            detail_html='<p>Details</p>'
+        )
+        
+        # First submission should succeed
+        response1 = self.client.post(
+            reverse('chalix_user_menu:survey_submit', kwargs={'public_token': 'single-vote-token'}),
+            data={
+                'full_name': 'Test User',
+                'email': 'test@example.com',
+                'selected_choice_ids': [choice.id]
+            },
+            content_type='application/json'
+        )
+        self.assertEqual(response1.status_code, status.HTTP_200_OK)
+        
+        # Second submission should fail
+        response2 = self.client.post(
+            reverse('chalix_user_menu:survey_submit', kwargs={'public_token': 'single-vote-token'}),
+            data={
+                'full_name': 'Test User',
+                'email': 'test@example.com',
+                'selected_choice_ids': [choice.id]
+            },
+            content_type='application/json'
+        )
+        self.assertEqual(response2.status_code, 409)
+        data = response2.json()
+        self.assertIn('error', data)
+        self.assertIn('đã nộp', data['error'])
+
+    def test_survey_allow_multiple_votes(self):
+        """Test that multiple votes are allowed when setting is enabled"""
+        from cms.djangoapps.contentstore.models import ChalixSurveyForm, ChalixSurveyChoice
+        
+        survey = ChalixSurveyForm.objects.create(
+            title='Multi Vote Survey',
+            public_token='multi-vote-token',
+            allow_multiple_votes=True,
+            allow_add_choice=False
+        )
+        choice = ChalixSurveyChoice.objects.create(
+            survey=survey,
+            name='Option 1',
+            detail_html='<p>Details</p>'
+        )
+        
+        # First submission
+        response1 = self.client.post(
+            reverse('chalix_user_menu:survey_submit', kwargs={'public_token': 'multi-vote-token'}),
+            data={
+                'full_name': 'Test User',
+                'email': 'test@example.com',
+                'selected_choice_ids': [choice.id]
+            },
+            content_type='application/json'
+        )
+        self.assertEqual(response1.status_code, status.HTTP_200_OK)
+        
+        # Second submission should also succeed
+        response2 = self.client.post(
+            reverse('chalix_user_menu:survey_submit', kwargs={'public_token': 'multi-vote-token'}),
+            data={
+                'full_name': 'Test User',
+                'email': 'test@example.com',
+                'selected_choice_ids': [choice.id]
+            },
+            content_type='application/json'
+        )
+        self.assertEqual(response2.status_code, status.HTTP_200_OK)
+        data = response2.json()
+        self.assertTrue(data['success'])
+
+
+class SurveyAutoPublishTestCase(DemandSurveyTestCase):
+    """Test survey auto-publish feature"""
+
+    def test_survey_auto_published_on_creation(self):
+        """Test that surveys are auto-published upon creation"""
+        from cms.djangoapps.contentstore.models import ChalixSurveyForm
+        
+        survey = ChalixSurveyForm.objects.create(
+            title='Auto Published Survey',
+            public_token='auto-published-token',
+            allow_multiple_votes=False,
+            allow_add_choice=False
+        )
+        
+        # Survey should have status='published' by default
+        self.assertEqual(survey.status, 'published')
+
+    def test_survey_list_shows_only_published_surveys(self):
+        """Test that survey list only shows published surveys, not draft or closed"""
+        from cms.djangoapps.contentstore.models import ChalixSurveyForm
+        
+        # Create published survey
+        published = ChalixSurveyForm.objects.create(
+            title='Published Survey',
+            public_token='published-token',
+            status='published',
+            allow_multiple_votes=False,
+            allow_add_choice=False
+        )
+        
+        # Create draft survey
+        draft = ChalixSurveyForm.objects.create(
+            title='Draft Survey',
+            public_token='draft-token',
+            status='draft',
+            allow_multiple_votes=False,
+            allow_add_choice=False
+        )
+        
+        # Create closed survey
+        closed = ChalixSurveyForm.objects.create(
+            title='Closed Survey',
+            public_token='closed-token',
+            status='closed',
+            allow_multiple_votes=False,
+            allow_add_choice=False
+        )
+        
+        response = self.client.get(reverse('chalix_user_menu:survey_list'))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        data = response.json()
+        self.assertTrue(data['success'])
+        
+        # Only published survey should appear
+        tokens = [s['public_token'] for s in data['surveys']]
+        self.assertIn('published-token', tokens)
+        self.assertNotIn('draft-token', tokens)
+        self.assertNotIn('closed-token', tokens)
+
+    def test_draft_survey_returns_404(self):
+        """Test that accessing a draft survey returns 404"""
+        from cms.djangoapps.contentstore.models import ChalixSurveyForm, ChalixSurveyChoice
+        
+        draft_survey = ChalixSurveyForm.objects.create(
+            title='Draft Survey',
+            public_token='draft-survey-token',
+            status='draft',
+            allow_multiple_votes=False,
+            allow_add_choice=False
+        )
+        ChalixSurveyChoice.objects.create(
+            survey=draft_survey,
+            name='Option 1',
+            detail_html='<p>Details</p>'
+        )
+        
+        # survey_detail should return 404 for draft survey
+        response = self.client.get(
+            reverse('chalix_user_menu:survey_detail', kwargs={'public_token': 'draft-survey-token'})
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_closed_survey_returns_404(self):
+        """Test that accessing a closed survey returns 404"""
+        from cms.djangoapps.contentstore.models import ChalixSurveyForm, ChalixSurveyChoice
+        
+        closed_survey = ChalixSurveyForm.objects.create(
+            title='Closed Survey',
+            public_token='closed-survey-token',
+            status='closed',
+            allow_multiple_votes=False,
+            allow_add_choice=False
+        )
+        ChalixSurveyChoice.objects.create(
+            survey=closed_survey,
+            name='Option 1',
+            detail_html='<p>Details</p>'
+        )
+        
+        # survey_detail should return 404 for closed survey
+        response = self.client.get(
+            reverse('chalix_user_menu:survey_detail', kwargs={'public_token': 'closed-survey-token'})
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+class SurveyAllowAddChoiceTestCase(DemandSurveyTestCase):
+    """Test survey custom-choice submission behavior."""
+
+    def test_submit_with_other_text_creates_choice_when_enabled(self):
+        """When allow_add_choice=True, other_text should create a new choice and count a vote."""
+        from cms.djangoapps.contentstore.models import ChalixSurveyForm, ChalixSurveyChoice
+
+        survey = ChalixSurveyForm.objects.create(
+            title='Allow Other Survey',
+            public_token='allow-other-token',
+            allow_multiple_votes=False,
+            allow_add_choice=True,
+        )
+        base_choice = ChalixSurveyChoice.objects.create(
+            survey=survey,
+            name='Base option',
+            detail_html='<p>Base</p>',
+            order_index=0,
+        )
+
+        response = self.client.post(
+            reverse('chalix_user_menu:survey_submit', kwargs={'public_token': 'allow-other-token'}),
+            data={
+                'full_name': 'Test User',
+                'email': 'test@example.com',
+                'selected_choice_ids': [base_choice.id],
+                'other_text': 'Lựa chọn khác từ người học'
+            },
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        custom_choice = ChalixSurveyChoice.objects.filter(
+            survey=survey,
+            name='Lựa chọn khác từ người học',
+            is_active=True,
+        ).first()
+        self.assertIsNotNone(custom_choice)
+        self.assertEqual(custom_choice.vote_count, 1)
+
+    def test_submit_with_other_text_rejected_when_disabled(self):
+        """When allow_add_choice=False, other_text should be rejected."""
+        from cms.djangoapps.contentstore.models import ChalixSurveyForm, ChalixSurveyChoice
+
+        survey = ChalixSurveyForm.objects.create(
+            title='No Other Survey',
+            public_token='no-other-token',
+            allow_multiple_votes=False,
+            allow_add_choice=False,
+        )
+        choice = ChalixSurveyChoice.objects.create(
+            survey=survey,
+            name='Option 1',
+            detail_html='<p>Details</p>'
+        )
+
+        response = self.client.post(
+            reverse('chalix_user_menu:survey_submit', kwargs={'public_token': 'no-other-token'}),
+            data={
+                'full_name': 'Test User',
+                'email': 'test@example.com',
+                'selected_choice_ids': [choice.id],
+                'other_text': 'Không hợp lệ'
+            },
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('không cho phép', response.json().get('error', ''))

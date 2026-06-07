@@ -1732,6 +1732,30 @@ class ChalixSurveyForm(models.Model):
         help_text=_("The date and time when the survey expires"),
     )
 
+    allow_multiple_votes = models.BooleanField(
+        default=False,
+        verbose_name=_("Allow Multiple Votes"),
+        help_text=_("If False, each respondent can only vote once. If True, respondents can select multiple choices."),
+    )
+
+    allow_add_choice = models.BooleanField(
+        default=False,
+        verbose_name=_("Allow Add Choice"),
+        help_text=_("If True, respondents can add custom choices (Khác option) in addition to predefined ones."),
+    )
+
+    status = models.CharField(
+        max_length=20,
+        choices=[
+            ('published', _('Published')),
+            ('draft', _('Draft')),
+            ('closed', _('Closed')),
+        ],
+        default='published',
+        verbose_name=_("Status"),
+        help_text=_("Survey is auto-published upon creation and becomes immediately available to learners"),
+    )
+
     is_active = models.BooleanField(
         default=True,
         verbose_name=_("Is Active"),

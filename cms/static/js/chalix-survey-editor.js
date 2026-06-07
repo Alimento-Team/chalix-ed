@@ -36,6 +36,11 @@
         return div.innerHTML;
     }
 
+    function _statusLabel(status) {
+        const map = { published: 'Đã phát hành', draft: 'Bản nháp', closed: 'Đã đóng' };
+        return map[status] || status || 'Bản nháp';
+    }
+
     function _getCsrf() {
         const name = 'csrftoken';
         const cookie = document.cookie.split(';').find(c => c.trim().startsWith(name + '='));
@@ -141,6 +146,11 @@
                 padding: 8px 10px;
                 font-size: 13px;
             }
+            .chalix-survey-results-table th:last-child,
+            .chalix-survey-results-table td:last-child {
+                text-align: center;
+                white-space: nowrap;
+            }
             .chalix-survey-results-bar {
                 width: 100%;
                 background: #eef2ff;
@@ -151,6 +161,27 @@
             .chalix-survey-results-bar-fill {
                 height: 8px;
                 background: #3b82f6;
+            }
+            .chalix-respondents-empty {
+                color: #9ca3af;
+                padding: 12px 0;
+                text-align: center;
+            }
+            .chalix-respondents-table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 8px;
+            }
+            .chalix-respondents-table th,
+            .chalix-respondents-table td {
+                border: 1px solid #e5e7eb;
+                padding: 8px 10px;
+                font-size: 13px;
+                vertical-align: top;
+            }
+            .chalix-respondents-table th {
+                background: #f9fafb;
+                font-weight: 600;
             }
 
             /* Field errors */
@@ -632,6 +663,93 @@
         });
     }
 
+    function _openRespondentsModal(choiceId, choiceName) {
+        const stale = document.getElementById('chalix-respondents-modal');
+        if (stale) stale.remove();
+
+        const modal = document.createElement('div');
+        modal.id = 'chalix-respondents-modal';
+        modal.className = 'chalix-choice-popup-overlay';
+        modal.setAttribute('role', 'dialog');
+        modal.setAttribute('aria-modal', 'true');
+        modal.innerHTML = `
+            <div class="chalix-choice-popup-box" style="max-width:900px;">
+                <div class="chalix-choice-popup-header">
+                    <h4>Chi tiết thành viên - ${_escapeHtml(choiceName || '')}</h4>
+                </div>
+                <div class="chalix-choice-popup-body">
+                    <div class="chalix-respondents-content" style="padding:10px;color:#6b7280;">Đang tải danh sách thành viên...</div>
+                </div>
+                <div class="chalix-choice-popup-actions">
+                    <button class="lm-btn secondary chalix-respondents-close" style="padding:8px 20px;">Đóng</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+        const close = function () { modal.remove(); };
+        modal.querySelector('.chalix-respondents-close').addEventListener('click', close);
+        modal.addEventListener('click', function (e) { if (e.target === modal) close(); });
+        modal.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
+        modal.querySelector('.chalix-respondents-close').focus();
+
+        fetch('/api/chalix/surveys/choice/' + choiceId + '/respondents/', {
+            credentials: 'same-origin',
+            headers: { 'Accept': 'application/json' }
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            if (!data.success) {
+                throw new Error(data.error || 'Không thể tải danh sách thành viên');
+            }
+
+            const container = modal.querySelector('.chalix-respondents-content');
+            const respondents = data.respondents || [];
+            if (!respondents.length) {
+                container.innerHTML = '<div class="chalix-respondents-empty">Chưa có thành viên nào chọn chương trình này.</div>';
+                return;
+            }
+
+            const rows = respondents.map(function (item) {
+                let submittedAt = item.submitted_at || '';
+                try {
+                    if (submittedAt) {
+                        submittedAt = new Date(submittedAt).toLocaleString('vi-VN');
+                    }
+                } catch (e) {
+                    // Keep original value if date parse fails
+                }
+
+                return `
+                    <tr>
+                        <td>${_escapeHtml(item.full_name || '')}</td>
+                        <td>${_escapeHtml(item.email || '')}</td>
+                        <td>${_escapeHtml(item.phone_number || '')}</td>
+                        <td>${_escapeHtml(submittedAt)}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            container.innerHTML = `
+                <table class="chalix-respondents-table">
+                    <thead>
+                        <tr>
+                            <th>Họ và tên</th>
+                            <th>Email</th>
+                            <th>Điện thoại</th>
+                            <th>Thời gian nộp</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            `;
+        })
+        .catch(function (err) {
+            const container = modal.querySelector('.chalix-respondents-content');
+            container.innerHTML = '<div style="color:#dc2626;padding:10px;">' + _escapeHtml(err.message || 'Không thể tải danh sách thành viên') + '</div>';
+        });
+    }
+
     // ─── Save + publish link ───────────────────────────────────────────────────
 
     function _renderSurveyResults(sectionEl, surveyId) {
@@ -670,6 +788,12 @@
                                 <div class="chalix-survey-results-bar-fill" style="width:${Math.max(0, Math.min(100, pct))}%;"></div>
                             </div>
                         </td>
+                        <td style="width:170px;">
+                            <button class="lm-btn secondary chalix-view-respondents-btn"
+                                    data-choice-id="${choice.id}"
+                                    data-choice-name="${_escapeHtml(choice.name || '')}"
+                                    style="padding:4px 10px;font-size:12px;">Chi tiết thành viên</button>
+                        </td>
                     </tr>
                 `;
             }).join('');
@@ -682,11 +806,22 @@
                             <th>Số phiếu</th>
                             <th>Tỷ lệ</th>
                             <th>Biểu đồ</th>
+                            <th>Thành viên</th>
                         </tr>
                     </thead>
                     <tbody>${rows}</tbody>
                 </table>
             `;
+
+            resultsArea.querySelectorAll('.chalix-view-respondents-btn').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    const choiceId = parseInt(btn.getAttribute('data-choice-id'), 10);
+                    const choiceName = btn.getAttribute('data-choice-name') || '';
+                    if (!Number.isNaN(choiceId)) {
+                        _openRespondentsModal(choiceId, choiceName);
+                    }
+                });
+            });
         })
         .catch(function (err) {
             resultsArea.innerHTML = '<div style="padding:10px;color:#dc2626;">' + _escapeHtml(err.message || 'Không thể tải kết quả khảo sát') + '</div>';
@@ -695,8 +830,17 @@
 
     function _buildSurveyPayload(sectionEl, choicesState) {
         const titleInput = sectionEl.querySelector('.chalix-survey-title-input');
+        const startsAtInput = sectionEl.querySelector('.chalix-survey-starts-at-input');
+        const endsAtInput = sectionEl.querySelector('.chalix-survey-ends-at-input');
+        const allowMultipleVotesCheckbox = sectionEl.querySelector('.chalix-allow-multiple-votes-checkbox');
+        const allowAddChoiceCheckbox = sectionEl.querySelector('.chalix-allow-add-choice-checkbox');
+        
         return {
             title: titleInput ? titleInput.value.trim() : '',
+            starts_at: startsAtInput && startsAtInput.value ? startsAtInput.value : null,
+            ends_at: endsAtInput && endsAtInput.value ? endsAtInput.value : null,
+            allow_multiple_votes: allowMultipleVotesCheckbox ? allowMultipleVotesCheckbox.checked : false,
+            allow_add_choice: allowAddChoiceCheckbox ? allowAddChoiceCheckbox.checked : false,
             choices: choicesState.map(function (c, i) {
                 const item = { name: c.name, detail_html: c.detail_html, order_index: i };
                 if (typeof c.id === 'number') item.id = c.id;
@@ -794,49 +938,6 @@
         state.pending = false;
     }
 
-    function _saveSurveyAndGenerateLink(sectionEl, surveyId, choicesState) {
-        const genBtn = sectionEl.querySelector('.chalix-gen-link-btn');
-        const msgEl = sectionEl.querySelector('.chalix-survey-link-msg');
-        _cancelAutoSave(sectionEl);
-        genBtn.disabled = true;
-        genBtn.textContent = 'Đang xử lý...';
-        msgEl.textContent = '';
-        msgEl.style.color = '';
-
-        if (!choicesState.length) {
-            msgEl.textContent = '❌ Cần có ít nhất một chương trình trước khi tạo link';
-            msgEl.style.color = '#dc2626';
-            genBtn.disabled = false;
-            genBtn.textContent = 'Tạo link khảo sát nhu cầu học tập';
-            return;
-        }
-
-        _saveSurveyDraft(sectionEl, surveyId, choicesState, { isAuto: false })
-        .then(function () {
-            return fetch('/api/chalix/dashboard/surveys/' + surveyId + '/publish/', {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: { 'X-CSRFToken': _getCsrf() }
-            });
-        })
-        .then(function (r) { return r.json(); })
-        .then(function (linkData) {
-            if (!linkData.success) throw new Error(linkData.error || 'Không phát hành được link');
-            _showGeneratedLink(sectionEl, linkData.link);
-            msgEl.textContent = '✅ Đã phát hành khảo sát và tạo link thành công!';
-            msgEl.style.color = '#16a34a';
-            _renderSurveyResults(sectionEl, surveyId);
-        })
-        .catch(function (err) {
-            msgEl.textContent = '❌ ' + err.message;
-            msgEl.style.color = '#dc2626';
-        })
-        .finally(function () {
-            genBtn.disabled = false;
-            genBtn.textContent = 'Tạo link khảo sát nhu cầu học tập';
-        });
-    }
-
     // ─── Section event wiring ──────────────────────────────────────────────────
 
     function _wireSectionEvents(sectionEl, surveyId, choicesState) {
@@ -851,12 +952,36 @@
             });
         }
 
+        const startsAtInput = sectionEl.querySelector('.chalix-survey-starts-at-input');
+        if (startsAtInput) {
+            startsAtInput.addEventListener('change', function () {
+                sectionEl._queueAutoSave();
+            });
+        }
+
+        const endsAtInput = sectionEl.querySelector('.chalix-survey-ends-at-input');
+        if (endsAtInput) {
+            endsAtInput.addEventListener('change', function () {
+                sectionEl._queueAutoSave();
+            });
+        }
+
+        const allowMultipleVotesCheckbox = sectionEl.querySelector('.chalix-allow-multiple-votes-checkbox');
+        if (allowMultipleVotesCheckbox) {
+            allowMultipleVotesCheckbox.addEventListener('change', function () {
+                sectionEl._queueAutoSave();
+            });
+        }
+
+        const allowAddChoiceCheckbox = sectionEl.querySelector('.chalix-allow-add-choice-checkbox');
+        if (allowAddChoiceCheckbox) {
+            allowAddChoiceCheckbox.addEventListener('change', function () {
+                sectionEl._queueAutoSave();
+            });
+        }
+
         sectionEl.querySelector('.chalix-add-choice-btn').addEventListener('click', function () {
             _openChoiceEditor(null, choicesState, sectionEl);
-        });
-
-        sectionEl.querySelector('.chalix-gen-link-btn').addEventListener('click', function () {
-            _saveSurveyAndGenerateLink(sectionEl, surveyId, choicesState);
         });
 
         const copyBtn = sectionEl.querySelector('.chalix-copy-link-btn');
@@ -888,10 +1013,11 @@
 
     function _renderSurveyEditor(container, surveyId, survey) {
         const choices = (survey && survey.choices) ? survey.choices.slice() : [];
-        const existingLink = (survey && survey.public_token)
-            ? window.location.origin + '/survey/' + survey.public_token + '/'
-            : null;
         const surveyTitle = (survey && survey.title) ? survey.title : '';
+        const startsAt = (survey && survey.starts_at) ? survey.starts_at.slice(0, 16) : '';
+        const endsAt = (survey && survey.ends_at) ? survey.ends_at.slice(0, 16) : '';
+        const allowMultipleVotes = (survey && survey.allow_multiple_votes) ? true : false;
+        const allowAddChoice = (survey && survey.allow_add_choice) ? true : false;
 
         const section = document.createElement('div');
         section.className = 'chalix-survey-editor';
@@ -911,6 +1037,39 @@
                        placeholder="Nhập tên biểu mẫu khảo sát" />
             </div>
 
+            <div style="margin-bottom:14px;padding:12px;background:#f9fafb;border-radius:6px;border:1px solid #e5e7eb;">
+                <h5 style="margin:0 0 10px;font-size:13px;font-weight:600;color:#374151;">Thời gian khảo sát</h5>
+                <div style="display:flex;gap:12px;margin-bottom:10px;">
+                    <div style="flex:1;">
+                        <label style="display:block;font-size:12px;font-weight:500;margin-bottom:4px;">Bắt đầu (Từ tháng):</label>
+                        <input type="datetime-local" class="chalix-survey-starts-at-input"
+                               style="width:100%;padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;"
+                               value="${_escapeHtml(startsAt)}" />
+                        <small style="color:#6b7280;font-size:11px;">Để trống = không giới hạn</small>
+                    </div>
+                    <div style="flex:1;">
+                        <label style="display:block;font-size:12px;font-weight:500;margin-bottom:4px;">Kết thúc (Đến tháng):</label>
+                        <input type="datetime-local" class="chalix-survey-ends-at-input"
+                               style="width:100%;padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;"
+                               value="${_escapeHtml(endsAt)}" />
+                        <small style="color:#6b7280;font-size:11px;">Để trống = không giới hạn</small>
+                    </div>
+                </div>
+
+                <div style="display:flex;gap:16px;margin-bottom:8px;">
+                    <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;">
+                        <input type="checkbox" class="chalix-allow-multiple-votes-checkbox"
+                               ${allowMultipleVotes ? 'checked' : ''} />
+                        <span>Cho phép nộp nhiều lần</span>
+                    </label>
+                    <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;">
+                        <input type="checkbox" class="chalix-allow-add-choice-checkbox"
+                               ${allowAddChoice ? 'checked' : ''} />
+                        <span>Cho phép thêm lựa chọn khác</span>
+                    </label>
+                </div>
+            </div>
+
             <table class="chalix-survey-table">
                 <thead>
                     <tr>
@@ -926,24 +1085,6 @@
                     }
                 </tbody>
             </table>
-
-            <div class="chalix-survey-link-area" style="margin-top:16px;">
-                <div>
-                    <button class="lm-btn primary chalix-gen-link-btn"
-                            style="padding:8px 20px;">Phát hành và tạo link khảo sát</button>
-                </div>
-                ${existingLink ? `
-                    <div class="chalix-survey-link-display" style="margin-top:8px;">
-                        <span class="chalix-survey-link-label">Link hiện tại:</span>
-                        <input type="text" class="chalix-survey-link-input"
-                               style="flex:1;max-width:420px;padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;"
-                               readonly value="${_escapeHtml(existingLink)}" />
-                        <button class="lm-btn secondary chalix-copy-link-btn"
-                                style="padding:6px 14px;white-space:nowrap;">Sao chép</button>
-                    </div>
-                ` : ''}
-                <div class="chalix-survey-link-msg" style="font-size:13px;min-height:18px;"></div>
-            </div>
 
             <div class="chalix-survey-results">
                 <div class="chalix-survey-results-header">
@@ -977,8 +1118,7 @@
                     <div class="lm-card-icon">📝</div>
                     <h4 class="lm-card-title">${_escapeHtml(survey.title || 'Khảo sát nhu cầu')}</h4>
                 </div>
-                <div class="lm-card-meta">${_escapeHtml(survey.status || 'draft')} • ${survey.choice_count || 0} chương trình</div>
-                <div class="lm-card-desc">${survey.public_token ? 'Đã phát hành link khảo sát' : 'Chưa phát hành'}</div>
+                <div class="lm-card-meta">${_escapeHtml(_statusLabel(survey.status))} • ${survey.choice_count || 0} chương trình</div>
                 <div class="lm-card-actions">
                     <button class="lm-card-btn view" data-action="open-survey" data-id="${survey.id}">Quản lý</button>
                     ${canAuthor ? `<button class="lm-card-btn delete" data-action="archive-survey" data-id="${survey.id}">Lưu trữ</button>` : ''}

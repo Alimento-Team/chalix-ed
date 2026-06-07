@@ -4,10 +4,12 @@ Dashboard views for Vietnamese CMS interface with role-based access control
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
 from django.http import JsonResponse, HttpResponse
+from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from django.utils.translation import gettext as _
 from django.views.decorators.http import require_POST, require_http_methods, require_GET
 from django.core.exceptions import PermissionDenied
-from django.db import transaction
+from django.db import connection, transaction
 from django.db.models import F
 import json
 import uuid
@@ -348,32 +350,55 @@ def survey_choice_respondents(request, choice_id):
         return Response({'error': 'Forbidden'}, status=403)
 
     try:
-        from cms.djangoapps.contentstore.models import ChalixDemandSurveyChoice
-        choice = ChalixDemandSurveyChoice.objects.get(pk=choice_id, is_active=True)
-    except ChalixDemandSurveyChoice.DoesNotExist:
+        from cms.djangoapps.contentstore.models import ChalixSurveyChoice
+        choice = ChalixSurveyChoice.objects.get(pk=choice_id, is_active=True)
+    except ChalixSurveyChoice.DoesNotExist:
         return Response({'error': 'Choice not found'}, status=404)
+    except Exception as exc:
+        logger.error('survey_choice_respondents model lookup failed: %s', exc, exc_info=True)
+        return Response({'error': 'Choice model not available'}, status=500)
 
-    # In LMS app normally, but since we share DB and used Shadow models in LMS
-    # we can use apps.get_model to access the response table.
-    from django.apps import apps
-    try:
-        ResponseChoice = apps.get_model('chalix_user_menu', 'ChalixDemandSurveyResponseChoice')
-    except LookupError:
-        # Fallback if the app label isn't loaded (unlikely in combined process)
-        return Response({'error': 'Response model not available'}, status=500)
+    # CMS runtime might not include the chalix_user_menu app, so query shared tables directly.
+    table_pairs = [
+        (
+            'chalix_user_menu_chalixdemandsurveyresponsechoice',
+            'chalix_user_menu_chalixdemandsurveyresponse',
+        ),
+        (
+            'lms_djangoapps_chalix_user_menu_chalixdemandsurveyresponsechoice',
+            'lms_djangoapps_chalix_user_menu_chalixdemandsurveyresponse',
+        ),
+    ]
 
-    respondent_links = ResponseChoice.objects.filter(
-        choice_id=choice_id
-    ).select_related('response').order_by('-response__submitted_at')
+    rows = None
+    with connection.cursor() as cursor:
+        for response_choice_table, response_table in table_pairs:
+            sql = f"""
+                SELECT r.full_name, r.email, r.phone_number, r.submitted_at
+                FROM {response_choice_table} rc
+                INNER JOIN {response_table} r ON rc.response_id = r.id
+                WHERE rc.choice_id = %s
+                ORDER BY r.submitted_at DESC
+            """
+            try:
+                cursor.execute(sql, [choice_id])
+                rows = cursor.fetchall()
+                break
+            except Exception:
+                continue
+
+    if rows is None:
+        logger.error('survey_choice_respondents could not query response tables for choice_id=%s', choice_id)
+        return Response({'error': 'Response data unavailable'}, status=500)
 
     respondents = [
         {
-            'full_name': r.response.full_name,
-            'email': r.response.email,
-            'phone_number': r.response.phone_number,
-            'submitted_at': r.response.submitted_at.isoformat(),
+            'full_name': row[0] or '',
+            'email': row[1] or '',
+            'phone_number': row[2] or '',
+            'submitted_at': row[3].isoformat() if hasattr(row[3], 'isoformat') else str(row[3] or ''),
         }
-        for r in respondent_links
+        for row in rows
     ]
 
     return Response({
@@ -3835,14 +3860,17 @@ def update_course_metadata_api(request):
 def _survey_summary_payload(survey):
     choices_qs = survey.choices.filter(is_active=True)
     choice_count = choices_qs.count()
-    status = 'published' if survey.public_token else 'draft'
     return {
         'id': survey.id,
         'title': survey.title,
-        'status': status,
+        'status': getattr(survey, 'status', ('published' if survey.public_token else 'draft')),
         'is_active': survey.is_active,
         'choice_count': choice_count,
         'public_token': survey.public_token,
+        'starts_at': survey.starts_at.isoformat() if survey.starts_at else None,
+        'ends_at': survey.ends_at.isoformat() if survey.ends_at else None,
+        'allow_multiple_votes': bool(getattr(survey, 'allow_multiple_votes', False)),
+        'allow_add_choice': bool(getattr(survey, 'allow_add_choice', False)),
         'created_at': survey.created_at.isoformat() if survey.created_at else None,
         'updated_at': survey.updated_at.isoformat() if survey.updated_at else None,
     }
@@ -3889,6 +3917,7 @@ def create_survey_campaign_api(request):
     survey = ChalixSurveyForm.objects.create(
         title=title[:500],
         course_key=_empty_survey_course_key(),
+        status='published',
         created_by=request.user,
         is_active=True,
     )
@@ -3951,6 +3980,26 @@ def save_survey_campaign_api(request, survey_id):
 
     choices_data = data.get('choices', [])
     title = (data.get('title') or '').strip()[:500]
+    starts_at_raw = data.get('starts_at')
+    ends_at_raw = data.get('ends_at')
+    allow_multiple_votes = bool(data.get('allow_multiple_votes', False))
+    allow_add_choice = bool(data.get('allow_add_choice', False))
+
+    def _parse_optional_datetime(raw_value, field_label):
+        if raw_value in (None, ''):
+            return None
+
+        parsed = parse_datetime(str(raw_value))
+        if parsed is None:
+            raise ValueError(_(f'{field_label} không hợp lệ'))
+        if timezone.is_naive(parsed):
+            parsed = timezone.make_aware(parsed, timezone.get_current_timezone())
+        return parsed
+
+    starts_at = _parse_optional_datetime(starts_at_raw, 'Ngày bắt đầu')
+    ends_at = _parse_optional_datetime(ends_at_raw, 'Ngày kết thúc')
+    if starts_at and ends_at and ends_at < starts_at:
+        return JsonResponse({'success': False, 'error': _('Ngày kết thúc phải sau ngày bắt đầu')}, status=400)
 
     if not choices_data:
         return JsonResponse({'success': False, 'error': _('Cần có ít nhất một chương trình')}, status=400)
@@ -3965,9 +4014,33 @@ def save_survey_campaign_api(request, survey_id):
 
     try:
         with transaction.atomic():
+            update_fields = []
             if title:
                 survey.title = title
-                survey.save(update_fields=['title', 'updated_at'])
+                update_fields.append('title')
+
+            if survey.starts_at != starts_at:
+                survey.starts_at = starts_at
+                update_fields.append('starts_at')
+
+            if survey.ends_at != ends_at:
+                survey.ends_at = ends_at
+                update_fields.append('ends_at')
+
+            if survey.allow_multiple_votes != allow_multiple_votes:
+                survey.allow_multiple_votes = allow_multiple_votes
+                update_fields.append('allow_multiple_votes')
+
+            if survey.allow_add_choice != allow_add_choice:
+                survey.allow_add_choice = allow_add_choice
+                update_fields.append('allow_add_choice')
+
+            if getattr(survey, 'status', None) != 'published':
+                survey.status = 'published'
+                update_fields.append('status')
+
+            if update_fields:
+                survey.save(update_fields=update_fields + ['updated_at'])
 
             incoming_ids = set()
             for idx, choice in enumerate(choices_data):
