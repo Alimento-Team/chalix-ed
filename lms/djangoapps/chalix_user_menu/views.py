@@ -13,6 +13,8 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from django.utils.decorators import method_decorator
 from django.utils.translation import gettext as _
 from django.core.paginator import Paginator
+from django.db import transaction
+from django.db.models import F
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
@@ -28,7 +30,10 @@ from openedx.core.djangoapps.models.course_details import CourseDetails
 from django.conf import settings
 import requests
 
-from .models import UserLearningPlan, TeachingRequest, UserRequest, UserPersonalization, Notification, NotificationType, NotificationPreference
+from .models import (
+    UserLearningPlan, TeachingRequest, UserRequest, UserPersonalization, Notification, NotificationType, NotificationPreference,
+    ChalixDemandSurveyResponse, ChalixDemandSurveyResponseChoice, ChalixSurveyForm, ChalixSurveyChoice
+)
 
 logger = logging.getLogger(__name__)
 
@@ -904,3 +909,223 @@ def professional_fields_proxy(request):
             'can_manage': False,
             'is_bo': False,
         })
+
+
+# --- Survey API Endpoints ---
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def survey_list(request):
+    """
+    List all active surveys for the learner.
+    Returns:
+        - surveys: list of {public_token, title, created_at, has_responded}
+    """
+    try:
+        surveys = ChalixSurveyForm.objects.filter(is_active=True).order_by('-created_at')
+        
+        # Check if user has already responded to each survey
+        survey_ids_responded = set(ChalixDemandSurveyResponse.objects.filter(
+            respondent_user=request.user
+        ).values_list('survey_id', flat=True))
+
+        data = []
+        for s in surveys:
+            data.append({
+                'public_token': s.public_token,
+                'title': s.title or f"Khảo sát {s.course_key}",
+                'course_key': str(s.course_key) if s.course_key else None,
+                'starts_at': s.starts_at.isoformat() if s.starts_at else None,
+                'ends_at': s.ends_at.isoformat() if s.ends_at else None,
+                'created_at': s.created_at.isoformat(),
+                'has_responded': s.id in survey_ids_responded
+            })
+
+        return Response({
+            'success': True,
+            'surveys': data
+        })
+    except Exception as e:
+        logger.error(f"Error in survey_list: {str(e)}")
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def survey_detail(request, public_token):
+    """
+    Get detailed information for a specific survey including choices grouped by group_name,
+    plus user pre-fill data and already_submitted flag.
+    """
+    try:
+        from common.djangoapps.student.models_api import get_phone_number
+        
+        survey = get_object_or_404(ChalixSurveyForm, public_token=public_token, is_active=True)
+        
+        # Fetch active choices and group them
+        choices = ChalixSurveyChoice.objects.filter(
+            survey=survey, 
+            is_active=True
+        ).order_by('group_order', 'order_index')
+
+        groups = []
+        group_map = {}  # group_name -> index in groups list
+        
+        for choice in choices:
+            gname = choice.group_name or ''
+            if gname not in group_map:
+                group_map[gname] = len(groups)
+                groups.append({
+                    'group_name': gname,
+                    'group_order': choice.group_order,
+                    'choices': []
+                })
+            
+            groups[group_map[gname]]['choices'].append({
+                'id': choice.id,
+                'name': choice.name,
+                'has_detail': bool(choice.detail_html and choice.detail_html.strip())
+            })
+
+        # Check if user has already responded
+        response_obj = ChalixDemandSurveyResponse.objects.filter(
+            survey_id=survey.id, 
+            respondent_user=request.user
+        ).first()
+
+        # Pre-fill user data
+        try:
+            profile_name = request.user.profile.name
+        except Exception:
+            profile_name = f"{request.user.first_name} {request.user.last_name}".strip() or request.user.username
+        phone = get_phone_number(request.user.id) or ''
+
+        data = {
+            'id': survey.id,
+            'public_token': survey.public_token,
+            'title': survey.title,
+            'starts_at': survey.starts_at.isoformat() if survey.starts_at else None,
+            'ends_at': survey.ends_at.isoformat() if survey.ends_at else None,
+            'groups': groups,
+            'user_prefill': {
+                'full_name': profile_name,
+                'email': request.user.email,
+                'phone_number': phone,
+            },
+            'already_submitted': response_obj is not None,
+            'responded_at': response_obj.submitted_at.isoformat() if response_obj else None,
+            'selected_choice_ids': list(ChalixDemandSurveyResponseChoice.objects.filter(
+                response=response_obj
+            ).values_list('choice_id', flat=True)) if response_obj else []
+        }
+
+        return Response({
+            'success': True,
+            'survey': data,
+            'groups': groups,
+            'user_prefill': data['user_prefill'],
+            'already_submitted': response_obj is not None
+        })
+    except Exception as e:
+        logger.error(f"Error in survey_detail: {str(e)}")
+        return Response({'success': False, 'error': str(e)}, status=500)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def survey_submit(request, public_token):
+    """
+    Submit learner response for a survey.
+    Expects JSON: {
+        "full_name": "...",
+        "email": "...",
+        "phone_number": "...",
+        "selected_choice_ids": [1, 2, 3],
+        "other_text": "..."
+    }
+    """
+    try:
+        from common.djangoapps.student.models_api import get_phone_number
+        
+        survey = get_object_or_404(ChalixSurveyForm, public_token=public_token, is_active=True)
+        choice_ids = request.data.get('selected_choice_ids', [])
+        
+        # Check if user already responded
+        if ChalixDemandSurveyResponse.objects.filter(survey_id=survey.id, respondent_user=request.user).exists():
+            return Response({'success': False, 'error': 'Bạn đã nộp khảo sát này rồi'}, status=409)
+
+        # Get and validate form data
+        full_name = str(request.data.get('full_name', '')).strip()[:500]
+        email = str(request.data.get('email', '')).strip()[:254]
+        phone_number = str(request.data.get('phone_number', '')).strip()[:50]
+        other_text = str(request.data.get('other_text', '')).strip()[:500]
+
+        if not full_name:
+            return Response({'success': False, 'error': 'Họ và tên không được để trống'}, status=400)
+        if not email:
+            return Response({'success': False, 'error': 'Email không được để trống'}, status=400)
+
+        # Validate choice IDs belong to this survey
+        if choice_ids:
+            valid_ids = set(
+                ChalixSurveyChoice.objects.filter(
+                    survey=survey, is_active=True, pk__in=choice_ids
+                ).values_list('pk', flat=True)
+            )
+            invalid = set(int(c) for c in choice_ids) - valid_ids
+            if invalid:
+                return Response(
+                    {'success': False, 'error': f'Invalid choice IDs: {invalid}'},
+                    status=400
+                )
+
+        with transaction.atomic():
+            # Create response with correct field names
+            response_obj = ChalixDemandSurveyResponse.objects.create(
+                survey_id=survey.id,
+                respondent_user=request.user,
+                full_name=full_name,
+                email=email,
+                phone_number=phone_number,
+                other_text=other_text
+            )
+            
+            # Record choices and increment vote_counts
+            if choice_ids:
+                ChalixDemandSurveyResponseChoice.objects.bulk_create([
+                    ChalixDemandSurveyResponseChoice(response=response_obj, choice_id=int(cid))
+                    for cid in choice_ids
+                ])
+                # Atomic increment — safe under concurrent requests
+                ChalixSurveyChoice.objects.filter(pk__in=choice_ids).update(vote_count=F('vote_count') + 1)
+
+        return Response({
+            'success': True,
+            'message': 'Cảm ơn bạn đã tham gia khảo sát!'
+        })
+    except Exception as e:
+        logger.error(f"Error in survey_submit: {str(e)}")
+        return Response({'success': False, 'error': 'Không thể ghi nhận phiếu khảo sát'}, status=500)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def survey_choice_detail(request, public_token, choice_id):
+    """
+    Get full HTML details for a specific choice (lazy-loaded on "Chi tiết" click).
+    Used for the detail modal popup in the survey taker UI.
+    """
+    try:
+        survey = get_object_or_404(ChalixSurveyForm, public_token=public_token, is_active=True)
+        choice = get_object_or_404(ChalixSurveyChoice, id=choice_id, survey=survey, is_active=True)
+        return Response({
+            'success': True,
+            'choice': {
+                'id': choice.id,
+                'name': choice.name,
+                'detail_html': choice.detail_html
+            }
+        })
+    except Exception as e:
+        logger.error(f"Error in survey_choice_detail: {str(e)}")
+        return Response({'success': False, 'error': str(e)}, status=404)

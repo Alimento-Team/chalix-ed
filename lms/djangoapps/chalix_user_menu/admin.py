@@ -4,7 +4,17 @@ Django admin configuration for Chalix User Menu models
 from django.contrib import admin
 from django.utils.translation import gettext_lazy as _
 
-from .models import UserLearningPlan, TeachingRequest, UserRequest, UserPersonalization, Notification, NotificationType, NotificationPreference
+from .models import (
+    UserLearningPlan,
+    TeachingRequest,
+    UserRequest,
+    UserPersonalization,
+    Notification,
+    NotificationType,
+    NotificationPreference,
+    ChalixDemandSurveyResponse,
+    ChalixDemandSurveyResponseChoice,
+)
 
 
 @admin.register(UserLearningPlan)
@@ -226,3 +236,17 @@ class NotificationPreferenceAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
+
+
+class ResponseChoiceInline(admin.TabularInline):
+    model = ChalixDemandSurveyResponseChoice
+    extra = 0
+    readonly_fields = ('choice_id',)
+
+
+@admin.register(ChalixDemandSurveyResponse)
+class ChalixDemandSurveyResponseAdmin(admin.ModelAdmin):
+    list_display = ('survey_id', 'respondent_user', 'full_name', 'email', 'submitted_at')
+    list_filter = ('survey_id',)
+    inlines = [ResponseChoiceInline]
+    readonly_fields = ('submitted_at',)

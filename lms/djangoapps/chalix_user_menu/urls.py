@@ -20,6 +20,10 @@ from .views import (
     notification_preferences,
     course_detail_api,
     professional_fields_proxy,
+    survey_list,
+    survey_detail,
+    survey_submit,
+    survey_choice_detail,
 )
 
 app_name = 'chalix_user_menu'
@@ -60,6 +64,12 @@ urlpatterns = [
 
     # Professional fields proxy (to avoid CORS issues)
     path('professional-fields/', professional_fields_proxy, name='professional_fields_proxy'),
+
+    # Survey Viewer & Taker
+    path('surveys/', survey_list, name='survey_list'),
+    path('surveys/<str:public_token>/', survey_detail, name='survey_detail'),
+    path('surveys/<str:public_token>/submit/', survey_submit, name='survey_submit'),
+    path('surveys/<str:public_token>/choices/<int:choice_id>/detail/', survey_choice_detail, name='survey_choice_detail'),
 
     # Logout
     path('logout/', user_logout, name='user_logout'),

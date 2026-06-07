@@ -103,6 +103,19 @@ urlpatterns = [
         chalix_dashboard.delete_course_api,
         name='chalix_delete_course'
     ),
+
+    # Demand Survey Statistics
+    path(
+        'surveys/<int:survey_id>/results/',
+        chalix_dashboard.survey_results,
+        name='survey_results'
+    ),
+    path(
+        'surveys/choice/<int:choice_id>/respondents/',
+        chalix_dashboard.survey_choice_respondents,
+        name='survey_choice_respondents'
+    ),
+
     # Delete program endpoint
     path(
         'dashboard/delete-program/',

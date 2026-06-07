@@ -1718,6 +1718,20 @@ class ChalixSurveyForm(models.Model):
         help_text=_("URL-safe token used for the shareable survey link"),
     )
 
+    starts_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name=_("Starts At"),
+        help_text=_("The date and time when the survey becomes active"),
+    )
+
+    ends_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name=_("Ends At"),
+        help_text=_("The date and time when the survey expires"),
+    )
+
     is_active = models.BooleanField(
         default=True,
         verbose_name=_("Is Active"),
@@ -1782,6 +1796,20 @@ class ChalixSurveyChoice(models.Model):
         verbose_name=_("Order Index"),
     )
 
+    group_name = models.CharField(
+        max_length=300,
+        blank=True,
+        default='',
+        verbose_name=_("Group Name"),
+        help_text=_("Section header label, e.g. 'NHÓM 1: TÊN CHỦ ĐỀ 1'. Leave blank for ungrouped choices."),
+    )
+
+    group_order = models.PositiveIntegerField(
+        default=0,
+        verbose_name=_("Group Order"),
+        help_text=_("Controls the display order of groups; choices within the same group_name sort by order_index."),
+    )
+
     is_active = models.BooleanField(
         default=True,
         verbose_name=_("Is Active"),
@@ -1799,7 +1827,7 @@ class ChalixSurveyChoice(models.Model):
     class Meta:
         verbose_name = _("Survey Choice")
         verbose_name_plural = _("Survey Choices")
-        ordering = ["survey", "order_index"]
+        ordering = ["survey", "group_order", "order_index"]
         indexes = [
             models.Index(fields=["survey", "order_index"], name="cstore_survey_choice_order_idx"),
             models.Index(fields=["survey", "is_active"], name="cstore_survey_choice_actv_idx"),

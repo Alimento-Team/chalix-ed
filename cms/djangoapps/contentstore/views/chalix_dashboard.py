@@ -12,6 +12,9 @@ from django.db.models import F
 import json
 import uuid
 import logging
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
 
 logger = logging.getLogger(__name__)
 
@@ -292,11 +295,93 @@ def dashboard_api(request):
     return JsonResponse(data)
 
 
-def _get_statistics_data(request):
-    """Get statistics data for the dashboard statistics tab."""
-    from django.contrib.auth import get_user_model
-    from django.db.models import Q
-    from cms.djangoapps.contentstore.models import ChalixUserRole
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def survey_results(request, survey_id):
+    """
+    Return per-choice vote_count and percentage for a survey.
+    Accessible only to users who can author surveys (bo / co_quan / global_staff).
+    """
+    if not can_author_survey(request.user):
+        return Response({'error': 'Forbidden'}, status=403)
+
+    try:
+        from cms.djangoapps.contentstore.models import ChalixDemandSurvey, ChalixDemandSurveyChoice
+        survey = ChalixDemandSurvey.objects.get(pk=survey_id, is_active=True)
+    except ChalixDemandSurvey.DoesNotExist:
+        return Response({'error': 'Survey not found'}, status=404)
+
+    choices = ChalixDemandSurveyChoice.objects.filter(
+        survey=survey, is_active=True
+    ).order_by('group_order', 'order_index')
+
+    total_votes = sum(c.vote_count for c in choices)
+
+    choice_data = [
+        {
+            'id': c.id,
+            'name': c.name,
+            'group_name': c.group_name,
+            'vote_count': c.vote_count,
+            'percentage': round(c.vote_count / total_votes * 100, 1) if total_votes > 0 else 0,
+        }
+        for c in choices
+    ]
+
+    return Response({
+        'success': True,
+        'survey_id': survey.pk,
+        'title': survey.title,
+        'total_votes': total_votes,
+        'choices': choice_data,
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def survey_choice_respondents(request, choice_id):
+    """
+    Return a list of respondents who voted for a specific choice.
+    Used for the "Chi tiết thành viên" popup in CMS.
+    """
+    if not can_author_survey(request.user):
+        return Response({'error': 'Forbidden'}, status=403)
+
+    try:
+        from cms.djangoapps.contentstore.models import ChalixDemandSurveyChoice
+        choice = ChalixDemandSurveyChoice.objects.get(pk=choice_id, is_active=True)
+    except ChalixDemandSurveyChoice.DoesNotExist:
+        return Response({'error': 'Choice not found'}, status=404)
+
+    # In LMS app normally, but since we share DB and used Shadow models in LMS
+    # we can use apps.get_model to access the response table.
+    from django.apps import apps
+    try:
+        ResponseChoice = apps.get_model('chalix_user_menu', 'ChalixDemandSurveyResponseChoice')
+    except LookupError:
+        # Fallback if the app label isn't loaded (unlikely in combined process)
+        return Response({'error': 'Response model not available'}, status=500)
+
+    respondent_links = ResponseChoice.objects.filter(
+        choice_id=choice_id
+    ).select_related('response').order_by('-response__submitted_at')
+
+    respondents = [
+        {
+            'full_name': r.response.full_name,
+            'email': r.response.email,
+            'phone_number': r.response.phone_number,
+            'submitted_at': r.response.submitted_at.isoformat(),
+        }
+        for r in respondent_links
+    ]
+
+    return Response({
+        'success': True,
+        'choice_id': choice_id,
+        'choice_name': choice.name,
+        'respondents': respondents
+    })
 
     User = get_user_model()
 

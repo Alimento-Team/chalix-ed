@@ -1,10 +1,12 @@
 """
 Models for Chalix User Menu functionality
 """
+from django.conf import settings
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
+from opaque_keys.edx.django.models import CourseKeyField
 
 
 class UserLearningPlan(models.Model):
@@ -347,3 +349,106 @@ class NotificationPreference(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.notification_type.display_name} - {self.get_delivery_method_display()}"
+
+
+class ChalixDemandSurveyResponse(models.Model):
+    """
+    Records a student's submission to a demand survey.
+    One response per user per survey is enforced via unique_together.
+    """
+
+    survey_id = models.IntegerField(
+        db_index=True,
+        verbose_name=_("Survey ID"),
+        help_text=_("PK of the survey model in the contentstore app."),
+    )
+
+    respondent_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='demand_survey_responses',
+        verbose_name=_("Respondent"),
+    )
+
+    full_name = models.CharField(max_length=500, verbose_name=_("Họ và tên"))
+    email = models.EmailField(verbose_name=_("Email"))
+    phone_number = models.CharField(max_length=50, blank=True, verbose_name=_("Điện thoại"))
+    other_text = models.CharField(max_length=500, blank=True, verbose_name=_("Khác"))
+    submitted_at = models.DateTimeField(auto_now_add=True, verbose_name=_("Submitted At"))
+
+    class Meta:
+        app_label = 'chalix_user_menu'
+        verbose_name = _("Demand Survey Response")
+        verbose_name_plural = _("Demand Survey Responses")
+        unique_together = [['survey_id', 'respondent_user']]
+        indexes = [
+            models.Index(fields=['survey_id', 'submitted_at']),
+        ]
+
+    def __str__(self):
+        return f"Response survey={self.survey_id} user={self.respondent_user_id}"
+
+
+class ChalixDemandSurveyResponseChoice(models.Model):
+    """
+    Through table mapping each response row to selected survey choice IDs.
+    """
+
+    response = models.ForeignKey(
+        ChalixDemandSurveyResponse,
+        on_delete=models.CASCADE,
+        related_name='selected_choices',
+    )
+    choice_id = models.IntegerField(db_index=True, verbose_name=_("Choice ID"))
+
+    class Meta:
+        app_label = 'chalix_user_menu'
+        unique_together = [['response', 'choice_id']]
+
+
+# --- Shadow models for CMS survey data (Shared DB) ---
+
+class ChalixSurveyForm(models.Model):
+    """
+    Shadow model for ChalixSurveyForm in contentstore (CMS).
+    Managed by CMS; LMS has read-only/vote-increment access via shared DB.
+    """
+    course_key = CourseKeyField(max_length=255, null=True, blank=True, db_index=True)
+    title = models.CharField(max_length=500, blank=True)
+    public_token = models.CharField(max_length=64, unique=True, db_index=True, blank=True)
+    starts_at = models.DateTimeField(null=True, blank=True)
+    ends_at = models.DateTimeField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.DO_NOTHING, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        managed = False
+        db_table = 'contentstore_chalixsurveyform'
+
+    def __str__(self):
+        return f"Survey (Shadow) {self.public_token}"
+
+
+class ChalixSurveyChoice(models.Model):
+    """
+    Shadow model for ChalixSurveyChoice in contentstore (CMS).
+    """
+    survey = models.ForeignKey(ChalixSurveyForm, on_delete=models.DO_NOTHING, related_name="choices")
+    name = models.CharField(max_length=500)
+    detail_html = models.TextField(blank=True)
+    order_index = models.PositiveIntegerField(default=0)
+    group_name = models.CharField(max_length=300, blank=True, default='')
+    group_order = models.PositiveIntegerField(default=0)
+    vote_count = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        managed = False
+        db_table = 'contentstore_chalixsurveychoice'
+        ordering = ["group_order", "order_index"]
