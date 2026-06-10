@@ -855,11 +855,8 @@ def create_course_api(request):
             'course_level': course_level,
         }
 
-        if course_category:
-            course_fields['course_category'] = course_category
-            course_fields['publish_type'] = course_category
-        if professional_field_id:
-            course_fields['professional_field_id'] = professional_field_id
+        # Keep category/professional_field in Chalix metadata only.
+        # Passing non-standard keys into create_new_course can fail course creation.
         
         # Set final_evaluation_type (from payload or inherit from template program)
         if final_evaluation_type:
@@ -906,6 +903,17 @@ def create_course_api(request):
             # Courses created by 'bo' (ministry level) are public
             is_public_course = (creator_role == 'bo')
 
+        selected_professional_field = None
+        if professional_field_id:
+            try:
+                from cms.djangoapps.contentstore.models import ProfessionalField
+                selected_professional_field = ProfessionalField.objects.filter(
+                    id=int(professional_field_id),
+                    is_active=True,
+                ).first()
+            except Exception:
+                selected_professional_field = None
+
         metadata_defaults = {
             'creator': request.user,
             'creator_role': creator_role,
@@ -914,6 +922,7 @@ def create_course_api(request):
             'is_mandatory_course': (course_category == 'mandatory'),
             'course_category': course_category or None,
             'publish_type': course_category or None,
+            'professional_field': selected_professional_field,
         }
 
         metadata, created = ChalixCourseMetadata.objects.get_or_create(
@@ -932,14 +941,7 @@ def create_course_api(request):
                 metadata.is_mandatory_course = (course_category == 'mandatory')
 
             if professional_field_id:
-                try:
-                    from cms.djangoapps.contentstore.models import ProfessionalField
-                    metadata.professional_field = ProfessionalField.objects.filter(
-                        id=int(professional_field_id),
-                        is_active=True,
-                    ).first()
-                except Exception:
-                    metadata.professional_field = metadata.professional_field
+                metadata.professional_field = selected_professional_field or metadata.professional_field
 
             metadata.save()
 

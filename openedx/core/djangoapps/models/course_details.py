@@ -158,7 +158,7 @@ class CourseDetails:
         # Fetch course_category and professional_field from ChalixCourseMetadata
         try:
             from cms.djangoapps.contentstore.models import ChalixCourseMetadata
-            chalix_metadata = ChalixCourseMetadata.objects.filter(course_key=course_key).first()
+            chalix_metadata = ChalixCourseMetadata.objects.filter(course_id=course_key).first()
             if chalix_metadata:
                 course_details.course_category = chalix_metadata.course_category or ""
                 # Fetch professional field info
@@ -375,7 +375,7 @@ class CourseDetails:
             try:
                 from cms.djangoapps.contentstore.models import ChalixCourseMetadata
                 chalix_metadata, created = ChalixCourseMetadata.objects.get_or_create(
-                    course_key=course_key
+                    course_id=course_key
                 )
                 if chalix_metadata.course_category != jsondict['course_category']:
                     chalix_metadata.course_category = jsondict['course_category']
@@ -399,7 +399,7 @@ class CourseDetails:
             try:
                 from cms.djangoapps.contentstore.models import ChalixCourseMetadata, ProfessionalField
                 chalix_metadata, created = ChalixCourseMetadata.objects.get_or_create(
-                    course_key=course_key
+                    course_id=course_key
                 )
                 
                 professional_field_id = jsondict['professional_field_id']

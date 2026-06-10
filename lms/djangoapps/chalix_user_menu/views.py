@@ -1062,7 +1062,27 @@ def survey_submit(request, public_token):
     }
     """
     try:
-        from common.djangoapps.student.models_api import get_phone_number
+        def _parse_choice_ids(data):
+            """Normalize choice IDs from list/string/int payload shapes."""
+            raw_value = data.get('selected_choice_ids', None)
+            if raw_value is None:
+                raw_value = data.get('choice_id', [])
+
+            if raw_value in (None, ''):
+                return []
+
+            if isinstance(raw_value, (list, tuple, set)):
+                raw_ids = list(raw_value)
+            elif isinstance(raw_value, str):
+                # Accept comma-separated values for backward compatibility.
+                raw_ids = [part.strip() for part in raw_value.split(',') if part.strip()]
+            else:
+                raw_ids = [raw_value]
+
+            try:
+                return [int(cid) for cid in raw_ids]
+            except (TypeError, ValueError):
+                raise ValueError('selected_choice_ids phải là số hoặc danh sách số')
         
         survey = get_object_or_404(ChalixSurveyForm, public_token=public_token, is_active=True, status='published')
         
@@ -1079,7 +1099,10 @@ def survey_submit(request, public_token):
                 'error': 'Thời gian khảo sát đã kết thúc'
             }, status=400)
         
-        choice_ids = request.data.get('selected_choice_ids', [])
+        try:
+            choice_ids = _parse_choice_ids(request.data)
+        except ValueError as exc:
+            return Response({'success': False, 'error': str(exc)}, status=400)
 
         existing_response = ChalixDemandSurveyResponse.objects.filter(
             survey_id=survey.id,
@@ -1118,7 +1141,7 @@ def survey_submit(request, public_token):
                     survey=survey, is_active=True, pk__in=choice_ids
                 ).values_list('pk', flat=True)
             )
-            invalid = set(int(c) for c in choice_ids) - valid_ids
+            invalid = set(choice_ids) - valid_ids
             if invalid:
                 return Response(
                     {'success': False, 'error': f'Invalid choice IDs: {invalid}'},
@@ -1136,7 +1159,7 @@ def survey_submit(request, public_token):
                 other_text=other_text
             )
 
-            selected_choice_ids = [int(cid) for cid in choice_ids]
+            selected_choice_ids = list(choice_ids)
 
             if survey.allow_add_choice and other_text:
                 next_order = (ChalixSurveyChoice.objects.filter(survey=survey)
