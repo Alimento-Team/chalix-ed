@@ -785,8 +785,11 @@ def create_course_api(request):
     short_description = _get_payload_value(payload, 'short_description', 'shortDescription')
     template_program_id = _get_payload_value(payload, 'template_program_id', 'templateProgramId', default=None)
     course_type = _get_payload_value(payload, 'course_type', 'courseType', default='')
+    course_category = _get_payload_value(payload, 'course_category', 'courseCategory', default='')
     online_course_link = _get_payload_value(payload, 'online_course_link', 'onlineCourseLink', default='')
     instructor = _get_payload_value(payload, 'instructor', default='')
+    instructor_username = _get_payload_value(payload, 'instructor_username', 'instructorUsername', default='')
+    professional_field_id = _get_payload_value(payload, 'professional_field_id', 'professionalFieldId', default='')
     estimated_hours_raw = _get_payload_value(payload, 'estimated_hours', 'estimatedHours', default=None)
     final_evaluation_type = _get_payload_value(payload, 'final_evaluation_type', 'finalEvaluationType', default='')
 
@@ -827,12 +830,36 @@ def create_course_api(request):
         # Use OpenEDX standard course creation
         # Get course_level from payload
         course_level = _get_payload_value(payload, 'course_level', 'courseLevel', default='')
+        from cms.djangoapps.contentstore.chalix_roles import get_user_primary_role
+        primary_role = get_user_primary_role(request.user)
+        role_name = primary_role.role if primary_role else None
+
+        # Normalize category and role permissions for mandatory/elective course creation.
+        if course_category not in ('mandatory', 'elective'):
+            course_category = ''
+        if course_category and role_name not in ('bo', 'co_quan'):
+            course_category = ''
+
+        # Normalize professional field ID (optional)
+        if professional_field_id in (None, ''):
+            professional_field_id = ''
+        else:
+            try:
+                professional_field_id = str(int(professional_field_id))
+            except (TypeError, ValueError):
+                return JsonResponse({'errMsg': 'Lĩnh vực chuyên môn không hợp lệ.'}, status=400)
         
         course_fields = {
             'display_name': title,
             'course_type': course_type,
             'course_level': course_level,
         }
+
+        if course_category:
+            course_fields['course_category'] = course_category
+            course_fields['publish_type'] = course_category
+        if professional_field_id:
+            course_fields['professional_field_id'] = professional_field_id
         
         # Set final_evaluation_type (from payload or inherit from template program)
         if final_evaluation_type:
@@ -869,9 +896,6 @@ def create_course_api(request):
         logger.info(f"[CHALIX] Created OpenEDX course with key: {course_key}")
         
         # Create Chalix course metadata for visibility and access control
-        from cms.djangoapps.contentstore.chalix_roles import get_user_primary_role
-        
-        primary_role = get_user_primary_role(request.user)
         is_public_course = False
         creator_role = None
         creator_org = None
@@ -881,18 +905,58 @@ def create_course_api(request):
             creator_org = primary_role.organization
             # Courses created by 'bo' (ministry level) are public
             is_public_course = (creator_role == 'bo')
-        
-        ChalixCourseMetadata.objects.get_or_create(
+
+        metadata_defaults = {
+            'creator': request.user,
+            'creator_role': creator_role,
+            'creator_organization': creator_org,
+            'is_public': is_public_course,
+            'is_mandatory_course': (course_category == 'mandatory'),
+            'course_category': course_category or None,
+            'publish_type': course_category or None,
+        }
+
+        metadata, created = ChalixCourseMetadata.objects.get_or_create(
             course_id=course_key,
-            defaults={
-                'creator': request.user,
-                'creator_role': creator_role,
-                'creator_organization': creator_org,
-                'is_public': is_public_course,
-                'is_mandatory_course': False  # Default to non-mandatory
-            }
+            defaults=metadata_defaults,
         )
+
+        if not created:
+            metadata.creator = metadata.creator or request.user
+            metadata.creator_role = creator_role
+            metadata.creator_organization = creator_org
+            metadata.is_public = is_public_course
+            if course_category:
+                metadata.course_category = course_category
+                metadata.publish_type = course_category
+                metadata.is_mandatory_course = (course_category == 'mandatory')
+
+            if professional_field_id:
+                try:
+                    from cms.djangoapps.contentstore.models import ProfessionalField
+                    metadata.professional_field = ProfessionalField.objects.filter(
+                        id=int(professional_field_id),
+                        is_active=True,
+                    ).first()
+                except Exception:
+                    metadata.professional_field = metadata.professional_field
+
+            metadata.save()
+
         logger.info(f"[CHALIX] Created course metadata - Public: {is_public_course}, Role: {creator_role}, Org: {creator_org}")
+
+        # Assign instructor if selected in form
+        if instructor_username:
+            try:
+                from common.djangoapps.student.models import User
+                from common.djangoapps.student.roles import CourseStaffRole, CourseInstructorRole
+                from common.djangoapps.student.models import CourseEnrollment
+                instructor_user = User.objects.get(username=instructor_username, is_active=True)
+                CourseInstructorRole(course_key).add_users(instructor_user)
+                CourseStaffRole(course_key).add_users(instructor_user)
+                CourseEnrollment.enroll(instructor_user, course_key)
+            except Exception as assign_error:
+                logger.warning("[CHALIX] Failed to assign instructor '%s' to %s: %s", instructor_username, course_key, assign_error)
         
         # Create course structure based on program topics if template provided
         units_created = 0
@@ -1062,6 +1126,29 @@ def list_local_courses_api(request):
     # Get courses accessible to the user using standard OpenEDX logic
     courses, _ = get_courses_accessible_to_user(request)
     courses_list = list(courses)
+
+    # Keep creator-created courses visible even if role/group index is temporarily stale.
+    existing_ids = {str(getattr(course, 'id', '')) for course in courses_list}
+    try:
+        local_created_keys = list(
+            LocalCourse.objects.filter(created_by=request.user)
+            .exclude(course_key__isnull=True)
+            .exclude(course_key='')
+            .values_list('course_key', flat=True)
+            .distinct()
+        )
+        if local_created_keys:
+            from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
+            overview_map = {
+                str(overview.id): overview
+                for overview in CourseOverview.objects.filter(id__in=local_created_keys)
+            }
+            for key in local_created_keys:
+                if key not in existing_ids and key in overview_map:
+                    courses_list.append(overview_map[key])
+                    existing_ids.add(key)
+    except Exception as e:
+        logger.warning("Could not append locally created course list fallback: %s", e)
     
     # Convert to our expected format
     formatted_courses = []

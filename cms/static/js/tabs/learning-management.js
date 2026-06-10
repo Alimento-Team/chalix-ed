@@ -3188,8 +3188,8 @@
         fetch('/api/chalix/user-role/')
             .then(response => response.json())
             .then(data => {
-                // Show category field only for 'bo' (Bộ) role
-                if (data.role === 'bo') {
+                // Show category field for both 'bo' and 'co_quan' roles.
+                if (data.role === 'bo' || data.role === 'co_quan') {
                     const categoryField = overlay.querySelector('#course-category-field');
                     if (categoryField) {
                         categoryField.style.display = 'block';
@@ -4010,6 +4010,21 @@
     }
 
     function proceedWithCourseCreation(courseData, messageEl, createBtn, overlay, onSuccess) {
+        const parseErrorMessage = async (err) => {
+            try {
+                if (err && typeof err.json === 'function') {
+                    const data = await err.json();
+                    return data.errMsg || data.error || data.message || '';
+                }
+                if (err && typeof err.text === 'function') {
+                    return await err.text();
+                }
+            } catch (parseError) {
+                // ignore parse error and fallback to default message
+            }
+            return '';
+        };
+
         // Try to create via API
         fetch(`/api/chalix/dashboard/create-course/`, {
             method: 'POST',
@@ -4031,18 +4046,12 @@
                 if (onSuccess) onSuccess();
             }, 1500);
         })
-        .catch(err => {
+        .catch(async (err) => {
             console.error('Failed to create course:', err);
-            // Fallback: simulate success for now
-            const creationType = courseData.creation_type;
-            const successMessage = creationType === 'from_program' 
-                ? `Đã tạo khóa học với ${courseData.units.length} đơn vị từ chương trình (mô phỏng - API chưa sẵn sàng)`
-                : 'Đã tạo khóa học thành công (mô phỏng - API chưa sẵn sàng)';
-            messageEl.innerHTML = `<div class="lm-message lm-success">${successMessage}</div>`;
-            setTimeout(() => {
-                document.body.removeChild(overlay);
-                if (onSuccess) onSuccess();
-            }, 2000);
+            const detail = await parseErrorMessage(err);
+            const message = detail || 'Không thể tạo khóa học. Vui lòng kiểm tra lại thông tin và thử lại.';
+            messageEl.innerHTML = `<div class="lm-message lm-error">${escapeHtml(message)}</div>`;
+            createBtn.disabled = false;
         });
     }
 
