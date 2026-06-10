@@ -2393,7 +2393,7 @@ def _get_approve_requests_statistics_data(request):
     - score_sum < 0 => adjustment required
     """
     import re
-    from django.db.models import Count
+    from django.db.models import Count, Q
     from lms.djangoapps.course_home_api.reviews.models import CourseEmojiReview
 
     role = get_user_primary_role(request.user)
@@ -2402,13 +2402,24 @@ def _get_approve_requests_statistics_data(request):
         return JsonResponse({'error': 'Bạn không có quyền xem dữ liệu phê duyệt yêu cầu.'}, status=403)
 
     queryset = ChalixTopicEmotionAggregate.objects.all()
-    visible_course_ids = None
 
-    # Agency users only see courses visible to their organization.
-    if role and role.role == 'co_quan':
-        courses, _ = get_courses_accessible_to_user(request)
-        visible_course_ids = {str(course.id) for course in courses}
+    # Keep course visibility aligned with learner-dashboard:
+    # - Public courses are visible to everyone.
+    # - Private courses are visible only to users in the same organization.
+    user_org = getattr(role, 'organization', None) if role else None
+    visibility_q = Q(is_public=True)
+    if user_org:
+        visibility_q |= Q(is_public=False, creator_organization=user_org)
+
+    visible_course_ids = {
+        str(course_id)
+        for course_id in ChalixCourseMetadata.objects.filter(visibility_q).values_list('course_id', flat=True)
+    }
+
+    if visible_course_ids:
         queryset = queryset.filter(course_id__in=visible_course_ids)
+    else:
+        queryset = queryset.none()
 
     def normalize_topic_number(value):
         token = (value or '').strip()
@@ -2496,8 +2507,10 @@ def _get_approve_requests_statistics_data(request):
             return outline_cache[course_id]
 
     live_queryset = CourseEmojiReview.objects.exclude(unit_usage_key__isnull=True).exclude(unit_usage_key='')
-    if visible_course_ids is not None:
+    if visible_course_ids:
         live_queryset = live_queryset.filter(course_key__in=visible_course_ids)
+    else:
+        live_queryset = live_queryset.none()
 
     live_rows = list(
         live_queryset
