@@ -107,8 +107,9 @@
                     <!-- Users list -->
                     <div id="existing-users">
                         <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px;">
-                            <div style="flex:1;">
+                            <div style="flex:1; display:flex; gap:8px; align-items:center;">
                                 <input id="users-search" type="search" placeholder="Tìm theo username, email hoặc họ tên" style="height:40px; padding:8px 12px; border:1px solid #d9d9d9; border-radius:8px; font-size:14px; width:100%; max-width:420px;" />
+                                <button id="users-search-btn" type="button" class="cta-btn" style="min-width:110px; height:40px; background:#00aaed; color:#fff; padding:6px 12px; font-size:13px;">Tìm kiếm</button>
                             </div>
                             <div>
                                 <select id="users-per-page" style="height:40px; padding:8px 12px; border:1px solid #d9d9d9; border-radius:8px; font-size:14px;">
@@ -1133,9 +1134,9 @@
         async function uploadUsersFile(file) {
             try {
                 const formData = new FormData();
-                formData.append('file', file);
-                
-                const response = await fetch('/api/contentstore/v1/users/bulk-create', {
+                formData.append('excel_file', file);
+
+                let response = await fetch('/api/contentstore/v1/users/excel/import', {
                     method: 'POST',
                     headers: {
                         'X-CSRFToken': getCSRFToken()
@@ -1143,6 +1144,20 @@
                     credentials: 'include',
                     body: formData
                 });
+
+                // Backward-compatible fallback for environments still using legacy endpoint.
+                if (!response.ok && response.status === 404) {
+                    const fallbackFormData = new FormData();
+                    fallbackFormData.append('file', file);
+                    response = await fetch('/api/contentstore/v1/users/bulk-create', {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRFToken': getCSRFToken()
+                        },
+                        credentials: 'include',
+                        body: fallbackFormData
+                    });
+                }
                 
                 const result = await response.json();
                 
@@ -1192,51 +1207,69 @@
             nextBtn.disabled = usersState.page * usersState.per_page >= usersState.total;
         }
 
-        // Wire control events
-        document.addEventListener('DOMContentLoaded', () => {
-            const searchEl = document.getElementById('users-search');
-            const perPageEl = document.getElementById('users-per-page');
-            const prevBtn = document.getElementById('users-prev-page');
-            const nextBtn = document.getElementById('users-next-page');
+        // Wire control events immediately after render (tab is mounted dynamically after DOM ready).
+        const searchEl = document.getElementById('users-search');
+        const searchBtn = document.getElementById('users-search-btn');
+        const perPageEl = document.getElementById('users-per-page');
+        const prevBtn = document.getElementById('users-prev-page');
+        const nextBtn = document.getElementById('users-next-page');
 
-            if (searchEl) {
-                let debounce;
-                searchEl.addEventListener('input', (e) => {
-                    clearTimeout(debounce);
-                    debounce = setTimeout(() => {
-                        const q = e.target.value || '';
-                        const perPage = parseInt(perPageEl.value, 10) || 50;
-                        loadUsers(1, perPage, q);
-                    }, 350);
-                });
-            }
+        const performSearch = () => {
+            const q = (searchEl && searchEl.value) ? searchEl.value.trim() : '';
+            const perPage = perPageEl ? (parseInt(perPageEl.value, 10) || 50) : 50;
+            loadUsers(1, perPage, q);
+        };
 
-            if (perPageEl) {
-                perPageEl.addEventListener('change', (e) => {
-                    const perPage = parseInt(e.target.value, 10) || 50;
-                    const q = document.getElementById('users-search').value || '';
-                    loadUsers(1, perPage, q);
-                });
-            }
+        if (searchEl) {
+            let debounce;
+            searchEl.addEventListener('input', () => {
+                clearTimeout(debounce);
+                debounce = setTimeout(() => {
+                    performSearch();
+                }, 350);
+            });
+            searchEl.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    performSearch();
+                }
+            });
+        }
 
-            if (prevBtn) {
-                prevBtn.addEventListener('click', () => {
-                    if (usersState.page > 1) {
-                        const perPage = usersState.per_page || parseInt(document.getElementById('users-per-page').value, 10) || 50;
-                        const q = document.getElementById('users-search').value || '';
-                        loadUsers(usersState.page - 1, perPage, q);
-                    }
-                });
-            }
+        if (searchBtn) {
+            searchBtn.addEventListener('click', () => {
+                performSearch();
+            });
+        }
 
-            if (nextBtn) {
-                nextBtn.addEventListener('click', () => {
-                    const perPage = usersState.per_page || parseInt(document.getElementById('users-per-page').value, 10) || 50;
-                    const q = document.getElementById('users-search').value || '';
+        if (perPageEl) {
+            perPageEl.addEventListener('change', (e) => {
+                const perPage = parseInt(e.target.value, 10) || 50;
+                const q = (searchEl && searchEl.value) ? searchEl.value.trim() : '';
+                loadUsers(1, perPage, q);
+            });
+        }
+
+        if (prevBtn) {
+            prevBtn.addEventListener('click', () => {
+                if (usersState.page > 1) {
+                    const perPage = usersState.per_page || (perPageEl ? (parseInt(perPageEl.value, 10) || 50) : 50);
+                    const q = (searchEl && searchEl.value) ? searchEl.value.trim() : '';
+                    loadUsers(usersState.page - 1, perPage, q);
+                }
+            });
+        }
+
+        if (nextBtn) {
+            nextBtn.addEventListener('click', () => {
+                const totalPages = Math.max(1, Math.ceil((usersState.total || 0) / (usersState.per_page || 1)));
+                if (usersState.page < totalPages) {
+                    const perPage = usersState.per_page || (perPageEl ? (parseInt(perPageEl.value, 10) || 50) : 50);
+                    const q = (searchEl && searchEl.value) ? searchEl.value.trim() : '';
                     loadUsers(usersState.page + 1, perPage, q);
-                });
-            }
-        });
+                }
+            });
+        }
         
         // Event handlers setup complete
     }
