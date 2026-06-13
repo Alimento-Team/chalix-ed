@@ -191,7 +191,16 @@ class CourseRunSerializer(serializers.Serializer):
         return instance.course_overview.has_ended()
 
     def get_homeUrl(self, instance):
-        return course_home_url(instance.course_id)
+        import logging
+        log = logging.getLogger(__name__)
+        try:
+            url = course_home_url(instance.course_id)
+            log.info(f"[DEBUG] get_homeUrl for {instance.course_id}: {url}")
+            return url
+        except Exception as e:
+            log.error(f"[ERROR] get_homeUrl for {instance.course_id}: {e}", exc_info=True)
+            # Return empty string instead of None to prevent validation errors
+            return ""
 
     def get_progressUrl(self, instance):
         return course_progress_url(instance.course_id)
@@ -339,7 +348,12 @@ class EnrollmentSerializer(serializers.Serializer):
 
     def to_representation(self, instance):
         """Serialize the enrollment instance to be able to update the values before the API finishes rendering."""
+        import logging
+        log = logging.getLogger(__name__)
+        
         serialized_enrollment = super().to_representation(instance)
+        log.info(f"[DEBUG] Enrollment for {instance.course_id}: coursewareAccess={serialized_enrollment.get('coursewareAccess')}")
+        
         course_key, serialized_enrollment = CourseEnrollmentAPIRenderStarted().run_filter(
             course_key=instance.course_id,
             serialized_enrollment=serialized_enrollment,

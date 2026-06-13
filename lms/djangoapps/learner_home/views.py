@@ -584,6 +584,8 @@ def check_course_access(user, course_enrollments):
         }
     }
     """
+    import logging
+    log = logging.getLogger(__name__)
 
     course_access_dict = {}
 
@@ -592,18 +594,33 @@ def check_course_access(user, course_enrollments):
     )
 
     for course_enrollment in course_enrollments:
-        course_access_dict[course_enrollment.course_id] = {
-            "has_unmet_prerequisites": course_enrollment.course_id
-            in courses_with_unmet_prerequisites,
-            "is_too_early_to_view": not check_course_open_for_learner(
+        try:
+            is_too_early = not check_course_open_for_learner(
                 user, course_enrollment.course
-            ),
-            "user_has_staff_access": any(
+            )
+            has_staff = any(
                 administrative_accesses_to_course_for_user(
                     user, course_enrollment.course_id
                 )
-            ),
-        }
+            )
+            course_access_dict[course_enrollment.course_id] = {
+                "has_unmet_prerequisites": course_enrollment.course_id
+                in courses_with_unmet_prerequisites,
+                "is_too_early_to_view": is_too_early,
+                "user_has_staff_access": has_staff,
+            }
+            log.info(f"[DEBUG] Course access for {course_enrollment.course_id}: "
+                    f"unmet_prereqs={course_access_dict[course_enrollment.course_id]['has_unmet_prerequisites']}, "
+                    f"too_early={is_too_early}, "
+                    f"staff={has_staff}")
+        except Exception as e:
+            log.error(f"[ERROR] check_course_access for {course_enrollment.course_id}: {e}", exc_info=True)
+            # Default to restrictive access
+            course_access_dict[course_enrollment.course_id] = {
+                "has_unmet_prerequisites": True,
+                "is_too_early_to_view": True,
+                "user_has_staff_access": False,
+            }
 
     return course_access_dict
 
