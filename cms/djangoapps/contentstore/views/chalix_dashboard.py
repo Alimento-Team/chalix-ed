@@ -2395,11 +2395,9 @@ def _get_approve_requests_statistics_data(request):
     - score_sum < 0 => adjustment required
     """
     import re
-    from django.db.models import Count, Q
+    from django.db.models import Q
 
     try:
-        from lms.djangoapps.course_home_api.reviews.models import CourseEmojiReview
-
         role = get_user_primary_role(request.user)
         can_view = bool(is_bo_user(request.user) or (role and role.role == 'co_quan'))
         if not can_view:
@@ -2510,17 +2508,43 @@ def _get_approve_requests_statistics_data(request):
                 outline_cache[course_id] = {'course_name': course_id, 'unit_map': {}}
                 return outline_cache[course_id]
 
-        live_queryset = CourseEmojiReview.objects.exclude(unit_usage_key__isnull=True).exclude(unit_usage_key='')
-        if visible_course_ids:
-            live_queryset = live_queryset.filter(course_key__in=visible_course_ids)
-        else:
-            live_queryset = live_queryset.none()
+        # CMS runtime may not load LMS review app into INSTALLED_APPS.
+        # Query review table directly to avoid model import/app-label errors.
+        live_rows = []
+        review_table_candidates = [
+            'course_home_api_courseemojireview',
+            'lms_djangoapps_course_home_api_courseemojireview',
+        ]
+        with connection.cursor() as cursor:
+            for review_table in review_table_candidates:
+                try:
+                    params = []
+                    where_clause = "WHERE unit_usage_key IS NOT NULL AND unit_usage_key <> ''"
+                    if visible_course_ids:
+                        placeholders = ','.join(['%s'] * len(visible_course_ids))
+                        where_clause += f" AND course_key IN ({placeholders})"
+                        params.extend(sorted(visible_course_ids))
 
-        live_rows = list(
-            live_queryset
-            .values('course_key', 'unit_usage_key', 'rating')
-            .annotate(total=Count('id'))
-        )
+                    sql = f"""
+                        SELECT course_key, unit_usage_key, rating, COUNT(id) AS total
+                        FROM {review_table}
+                        {where_clause}
+                        GROUP BY course_key, unit_usage_key, rating
+                    """
+                    cursor.execute(sql, params)
+                    raw_rows = cursor.fetchall()
+                    live_rows = [
+                        {
+                            'course_key': row[0],
+                            'unit_usage_key': row[1],
+                            'rating': row[2],
+                            'total': row[3],
+                        }
+                        for row in raw_rows
+                    ]
+                    break
+                except Exception:
+                    continue
 
         fallback_topic_index_map = {}
         rating_to_field = {
