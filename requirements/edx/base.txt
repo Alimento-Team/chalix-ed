@@ -33,6 +33,8 @@ asgiref==3.8.1
     #   django-countries
 asn1crypto==1.5.1
     # via snowflake-connector-python
+async-timeout==5.0.1
+    # via redis
 attrs==25.3.0
     # via
     #   -r requirements/edx/kernel.in
@@ -568,6 +570,8 @@ enmerkar-underscore==2.4.0
     # via -r requirements/edx/kernel.in
 enterprise-integrated-channels==0.1.9
     # via -r requirements/edx/bundled.in
+et-xmlfile==2.0.0
+    # via openpyxl
 event-tracking==3.3.0
     # via
     #   -r requirements/edx/kernel.in
@@ -846,6 +850,8 @@ openedx-learning==0.26.0
     #   -r requirements/edx/kernel.in
 openedx-mongodbproxy==0.3.0
     # via -r requirements/edx/kernel.in
+openpyxl==3.1.5
+    # via -r requirements/edx/bundled.in
 optimizely-sdk==5.2.0
     # via -r requirements/edx/bundled.in
 ora2==6.16.3
@@ -1215,7 +1221,6 @@ uritemplate==4.2.0
     #   google-api-python-client
 urllib3==2.2.3
     # via
-    #   -c requirements/edx/../common_constraints.txt
     #   botocore
     #   elasticsearch
     #   requests

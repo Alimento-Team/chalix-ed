@@ -85,6 +85,11 @@ astroid==3.3.10
     #   pylint
     #   pylint-celery
     #   sphinx-autoapi
+async-timeout==5.0.1
+    # via
+    #   -r requirements/edx/doc.txt
+    #   -r requirements/edx/testing.txt
+    #   redis
 attrs==25.3.0
     # via
     #   -r requirements/edx/doc.txt
@@ -883,6 +888,11 @@ enterprise-integrated-channels==0.1.9
     # via
     #   -r requirements/edx/doc.txt
     #   -r requirements/edx/testing.txt
+et-xmlfile==2.0.0
+    # via
+    #   -r requirements/edx/doc.txt
+    #   -r requirements/edx/testing.txt
+    #   openpyxl
 event-tracking==3.3.0
     # via
     #   -r requirements/edx/doc.txt
@@ -1406,6 +1416,10 @@ openedx-learning==0.26.0
     #   -r requirements/edx/doc.txt
     #   -r requirements/edx/testing.txt
 openedx-mongodbproxy==0.3.0
+    # via
+    #   -r requirements/edx/doc.txt
+    #   -r requirements/edx/testing.txt
+openpyxl==3.1.5
     # via
     #   -r requirements/edx/doc.txt
     #   -r requirements/edx/testing.txt
@@ -2182,7 +2196,6 @@ uritemplate==4.2.0
     #   google-api-python-client
 urllib3==2.2.3
     # via
-    #   -c requirements/edx/../common_constraints.txt
     #   -r requirements/edx/doc.txt
     #   -r requirements/edx/testing.txt
     #   botocore

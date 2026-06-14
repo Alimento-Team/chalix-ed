@@ -55,6 +55,10 @@ asn1crypto==1.5.1
     #   snowflake-connector-python
 astroid==3.3.10
     # via sphinx-autoapi
+async-timeout==5.0.1
+    # via
+    #   -r requirements/edx/base.txt
+    #   redis
 attrs==25.3.0
     # via
     #   -r requirements/edx/base.txt
@@ -655,6 +659,10 @@ enmerkar-underscore==2.4.0
     # via -r requirements/edx/base.txt
 enterprise-integrated-channels==0.1.9
     # via -r requirements/edx/base.txt
+et-xmlfile==2.0.0
+    # via
+    #   -r requirements/edx/base.txt
+    #   openpyxl
 event-tracking==3.3.0
     # via
     #   -r requirements/edx/base.txt
@@ -1010,6 +1018,8 @@ openedx-learning==0.26.0
     #   -c requirements/edx/../constraints.txt
     #   -r requirements/edx/base.txt
 openedx-mongodbproxy==0.3.0
+    # via -r requirements/edx/base.txt
+openpyxl==3.1.5
     # via -r requirements/edx/base.txt
 optimizely-sdk==5.2.0
     # via -r requirements/edx/base.txt
@@ -1522,7 +1532,6 @@ uritemplate==4.2.0
     #   google-api-python-client
 urllib3==2.2.3
     # via
-    #   -c requirements/edx/../common_constraints.txt
     #   -r requirements/edx/base.txt
     #   botocore
     #   elasticsearch
