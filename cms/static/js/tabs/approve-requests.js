@@ -57,15 +57,23 @@
                 },
             })
                 .then(async (response) => {
+                    const contentType = response.headers.get('content-type') || '';
+                    const payload = contentType.includes('application/json')
+                        ? await response.json()
+                        : { error: await response.text() };
+
                     if (!response.ok) {
-                        const text = await response.text();
-                        throw new Error(text || `HTTP ${response.status}`);
+                        throw new Error(payload.error || payload.detail || `HTTP ${response.status}`);
                     }
-                    return response.json();
+
+                    return payload;
                 })
                 .then((data) => {
                     if (loadingEl) {
                         loadingEl.style.display = 'none';
+                    }
+                    if (data && data.error) {
+                        throw new Error(data.error);
                     }
                     if (contentEl) {
                         contentEl.style.display = 'block';
@@ -78,7 +86,9 @@
                     }
                     if (errorEl) {
                         errorEl.style.display = 'block';
-                        errorEl.textContent = 'Không thể tải dữ liệu phê duyệt yêu cầu.';
+                        errorEl.textContent = error && error.message
+                            ? error.message
+                            : 'Không thể tải dữ liệu phê duyệt yêu cầu.';
                     }
                     // Keep detailed error in console for debugging.
                     console.error('[Approve Requests] Failed to load data', error);

@@ -2396,267 +2396,275 @@ def _get_approve_requests_statistics_data(request):
     """
     import re
     from django.db.models import Count, Q
-    from lms.djangoapps.course_home_api.reviews.models import CourseEmojiReview
 
-    role = get_user_primary_role(request.user)
-    can_view = bool(is_bo_user(request.user) or (role and role.role == 'co_quan'))
-    if not can_view:
-        return JsonResponse({'error': 'Bạn không có quyền xem dữ liệu phê duyệt yêu cầu.'}, status=403)
+    try:
+        from lms.djangoapps.course_home_api.reviews.models import CourseEmojiReview
 
-    queryset = ChalixTopicEmotionAggregate.objects.all()
+        role = get_user_primary_role(request.user)
+        can_view = bool(is_bo_user(request.user) or (role and role.role == 'co_quan'))
+        if not can_view:
+            return JsonResponse({'error': 'Bạn không có quyền xem dữ liệu phê duyệt yêu cầu.'}, status=403)
 
-    # Keep course visibility aligned with learner-dashboard:
-    # - Public courses are visible to everyone.
-    # - Private courses are visible only to users in the same organization.
-    user_org = getattr(role, 'organization', None) if role else None
-    visibility_q = Q(is_public=True)
-    if user_org:
-        visibility_q |= Q(is_public=False, creator_organization=user_org)
+        queryset = ChalixTopicEmotionAggregate.objects.all()
 
-    visible_course_ids = {
-        str(course_id)
-        for course_id in ChalixCourseMetadata.objects.filter(visibility_q).values_list('course_id', flat=True)
-    }
+        # Keep course visibility aligned with learner-dashboard:
+        # - Public courses are visible to everyone.
+        # - Private courses are visible only to users in the same organization.
+        user_org = getattr(role, 'organization', None) if role else None
+        visibility_q = Q(is_public=True)
+        if user_org:
+            visibility_q |= Q(is_public=False, creator_organization=user_org)
 
-    if visible_course_ids:
-        queryset = queryset.filter(course_id__in=visible_course_ids)
-    else:
-        queryset = queryset.none()
-
-    def normalize_topic_number(value):
-        token = (value or '').strip()
-        match = re.search(r'(\d+)', token)
-        if match:
-            return str(int(match.group(1)))
-        return token or '0'
-
-    rows_map = {}
-    for row in queryset.values(
-        'course_id',
-        'course_name',
-        'topic_number',
-        'topic_name',
-        'like_count',
-        'neutral_count',
-        'dislike_count',
-        'score_sum',
-        'adjust_required',
-    ):
-        normalized_topic = normalize_topic_number(row.get('topic_number'))
-        key = (row.get('course_id'), normalized_topic)
-        rows_map[key] = {
-            'course_id': row.get('course_id'),
-            'course_name': row.get('course_name') or row.get('course_id'),
-            'topic_number': normalized_topic,
-            'topic_name': row.get('topic_name') or f"Chuyên đề {normalized_topic}",
-            'like_count': int(row.get('like_count') or 0),
-            'neutral_count': int(row.get('neutral_count') or 0),
-            'dislike_count': int(row.get('dislike_count') or 0),
-            'score_sum': int(row.get('score_sum') or 0),
-            'adjust_required': bool(row.get('adjust_required')),
+        visible_course_ids = {
+            str(course_id)
+            for course_id in ChalixCourseMetadata.objects.filter(visibility_q).values_list('course_id', flat=True)
         }
 
-    store = modulestore()
-    outline_cache = {}
+        if visible_course_ids:
+            queryset = queryset.filter(course_id__in=visible_course_ids)
+        else:
+            queryset = queryset.none()
 
-    def get_course_outline_topic_meta(course_id):
-        cached = outline_cache.get(course_id)
-        if cached is not None:
-            return cached
+        def normalize_topic_number(value):
+            token = (value or '').strip()
+            match = re.search(r'(\d+)', token)
+            if match:
+                return str(int(match.group(1)))
+            return token or '0'
 
-        try:
-            course_key = CourseKey.from_string(course_id)
-            course = store.get_course(course_key)
-            if not course:
+        rows_map = {}
+        for row in queryset.values(
+            'course_id',
+            'course_name',
+            'topic_number',
+            'topic_name',
+            'like_count',
+            'neutral_count',
+            'dislike_count',
+            'score_sum',
+            'adjust_required',
+        ):
+            normalized_topic = normalize_topic_number(row.get('topic_number'))
+            key = (row.get('course_id'), normalized_topic)
+            rows_map[key] = {
+                'course_id': row.get('course_id'),
+                'course_name': row.get('course_name') or row.get('course_id'),
+                'topic_number': normalized_topic,
+                'topic_name': row.get('topic_name') or f"Chuyên đề {normalized_topic}",
+                'like_count': int(row.get('like_count') or 0),
+                'neutral_count': int(row.get('neutral_count') or 0),
+                'dislike_count': int(row.get('dislike_count') or 0),
+                'score_sum': int(row.get('score_sum') or 0),
+                'adjust_required': bool(row.get('adjust_required')),
+            }
+
+        store = modulestore()
+        outline_cache = {}
+
+        def get_course_outline_topic_meta(course_id):
+            cached = outline_cache.get(course_id)
+            if cached is not None:
+                return cached
+
+            try:
+                course_key = CourseKey.from_string(course_id)
+                course = store.get_course(course_key)
+                if not course:
+                    outline_cache[course_id] = {'course_name': course_id, 'unit_map': {}}
+                    return outline_cache[course_id]
+
+                course_name = getattr(course, 'display_name', None) or course_id
+                unit_map = {}
+                topic_index = 0
+
+                course_children = store.get_children(course.location, depth=None) or []
+                chapter_children = [child for child in course_children if getattr(child, 'category', None) == 'chapter']
+                vertical_children = [child for child in course_children if getattr(child, 'category', None) == 'vertical']
+
+                if chapter_children:
+                    for chapter in chapter_children:
+                        sequentials = store.get_children(chapter.location, depth=None) or []
+                        for sequential in sequentials:
+                            if getattr(sequential, 'category', None) != 'sequential':
+                                continue
+                            verticals = store.get_children(sequential.location, depth=None) or []
+                            for unit_block in verticals:
+                                if getattr(unit_block, 'category', None) != 'vertical':
+                                    continue
+                                topic_index += 1
+                                unit_map[str(unit_block.location)] = {
+                                    'topic_number': str(topic_index),
+                                    'topic_name': getattr(unit_block, 'display_name', None) or f"Chuyên đề {topic_index}",
+                                }
+                else:
+                    for unit_block in vertical_children:
+                        topic_index += 1
+                        unit_map[str(unit_block.location)] = {
+                            'topic_number': str(topic_index),
+                            'topic_name': getattr(unit_block, 'display_name', None) or f"Chuyên đề {topic_index}",
+                        }
+
+                outline_cache[course_id] = {'course_name': course_name, 'unit_map': unit_map}
+                return outline_cache[course_id]
+            except Exception:
                 outline_cache[course_id] = {'course_name': course_id, 'unit_map': {}}
                 return outline_cache[course_id]
 
-            course_name = getattr(course, 'display_name', None) or course_id
-            unit_map = {}
-            topic_index = 0
-
-            course_children = store.get_children(course.location, depth=None) or []
-            chapter_children = [child for child in course_children if getattr(child, 'category', None) == 'chapter']
-            vertical_children = [child for child in course_children if getattr(child, 'category', None) == 'vertical']
-
-            if chapter_children:
-                for chapter in chapter_children:
-                    sequentials = store.get_children(chapter.location, depth=None) or []
-                    for sequential in sequentials:
-                        if getattr(sequential, 'category', None) != 'sequential':
-                            continue
-                        verticals = store.get_children(sequential.location, depth=None) or []
-                        for unit_block in verticals:
-                            if getattr(unit_block, 'category', None) != 'vertical':
-                                continue
-                            topic_index += 1
-                            unit_map[str(unit_block.location)] = {
-                                'topic_number': str(topic_index),
-                                'topic_name': getattr(unit_block, 'display_name', None) or f"Chuyên đề {topic_index}",
-                            }
-            else:
-                for unit_block in vertical_children:
-                    topic_index += 1
-                    unit_map[str(unit_block.location)] = {
-                        'topic_number': str(topic_index),
-                        'topic_name': getattr(unit_block, 'display_name', None) or f"Chuyên đề {topic_index}",
-                    }
-
-            outline_cache[course_id] = {'course_name': course_name, 'unit_map': unit_map}
-            return outline_cache[course_id]
-        except Exception:
-            outline_cache[course_id] = {'course_name': course_id, 'unit_map': {}}
-            return outline_cache[course_id]
-
-    live_queryset = CourseEmojiReview.objects.exclude(unit_usage_key__isnull=True).exclude(unit_usage_key='')
-    if visible_course_ids:
-        live_queryset = live_queryset.filter(course_key__in=visible_course_ids)
-    else:
-        live_queryset = live_queryset.none()
-
-    live_rows = list(
-        live_queryset
-        .values('course_key', 'unit_usage_key', 'rating')
-        .annotate(total=Count('id'))
-    )
-
-    fallback_topic_index_map = {}
-    rating_to_field = {
-        'like': 'like_count',
-        'neutral': 'neutral_count',
-        'dislike': 'dislike_count',
-    }
-
-    for row in live_rows:
-        course_id = row.get('course_key')
-        unit_usage_key = row.get('unit_usage_key')
-        rating = row.get('rating')
-        total = int(row.get('total') or 0)
-
-        target_field = rating_to_field.get(rating)
-        if not course_id or not unit_usage_key or not target_field or total <= 0:
-            continue
-
-        outline_meta = get_course_outline_topic_meta(course_id)
-        course_name = outline_meta.get('course_name') or course_id
-        unit_meta = (outline_meta.get('unit_map') or {}).get(unit_usage_key)
-
-        if unit_meta:
-            topic_number = normalize_topic_number(unit_meta.get('topic_number'))
-            topic_name = unit_meta.get('topic_name') or f"Chuyên đề {topic_number}"
+        live_queryset = CourseEmojiReview.objects.exclude(unit_usage_key__isnull=True).exclude(unit_usage_key='')
+        if visible_course_ids:
+            live_queryset = live_queryset.filter(course_key__in=visible_course_ids)
         else:
-            fallback_map = fallback_topic_index_map.setdefault(course_id, {})
-            if unit_usage_key not in fallback_map:
-                fallback_map[unit_usage_key] = str(len(fallback_map) + 1)
-            topic_number = fallback_map[unit_usage_key]
-            topic_name = f"Chuyên đề {topic_number}"
+            live_queryset = live_queryset.none()
 
-        key = (course_id, topic_number)
-        if key not in rows_map:
-            rows_map[key] = {
-                'course_id': course_id,
-                'course_name': course_name,
-                'topic_number': topic_number,
-                'topic_name': topic_name,
-                'like_count': 0,
-                'neutral_count': 0,
-                'dislike_count': 0,
-                'score_sum': 0,
-                'adjust_required': False,
-            }
+        live_rows = list(
+            live_queryset
+            .values('course_key', 'unit_usage_key', 'rating')
+            .annotate(total=Count('id'))
+        )
 
-        rows_map[key][target_field] += total
-        rows_map[key]['course_name'] = rows_map[key].get('course_name') or course_name
-        rows_map[key]['topic_name'] = rows_map[key].get('topic_name') or topic_name
-
-    rows = []
-    for row in rows_map.values():
-        row['score_sum'] = int(row.get('like_count') or 0) - int(row.get('dislike_count') or 0)
-        row['adjust_required'] = int(row.get('score_sum') or 0) < 0
-        rows.append(row)
-
-    def topic_sort_key(topic_number):
-        match = re.search(r'(\d+)$', (topic_number or '').strip())
-        if match:
-            return int(match.group(1))
-        return 999999
-
-    topic_number_order = sorted({row['topic_number'] for row in rows}, key=topic_sort_key)
-
-    course_map = {}
-    for row in rows:
-        course_id = row['course_id']
-        entry = course_map.setdefault(course_id, {
-            'course_id': course_id,
-            'course_name': row.get('course_name') or course_id,
-            'topics_by_number': {},
-            'needs_adjustment': False,
-            'recommendation': '',
-        })
-        needs_adjustment = bool(row.get('adjust_required')) or int(row.get('score_sum') or 0) < 0
-        entry['topics_by_number'][row['topic_number']] = {
-            'topic_number': row['topic_number'],
-            'topic_name': row.get('topic_name') or row['topic_number'],
-            'like_count': int(row.get('like_count') or 0),
-            'neutral_count': int(row.get('neutral_count') or 0),
-            'dislike_count': int(row.get('dislike_count') or 0),
-            'score_sum': int(row.get('score_sum') or 0),
-            'needs_adjustment': needs_adjustment,
+        fallback_topic_index_map = {}
+        rating_to_field = {
+            'like': 'like_count',
+            'neutral': 'neutral_count',
+            'dislike': 'dislike_count',
         }
-        entry['needs_adjustment'] = entry['needs_adjustment'] or needs_adjustment
 
-    courses = []
-    for data in course_map.values():
-        topic_stats = []
-        adjust_topic_labels = []
+        for row in live_rows:
+            course_id = row.get('course_key')
+            unit_usage_key = row.get('unit_usage_key')
+            rating = row.get('rating')
+            total = int(row.get('total') or 0)
 
-        for index, topic_number in enumerate(topic_number_order, start=1):
-            topic_data = data['topics_by_number'].get(topic_number)
-            if not topic_data:
-                topic_data = {
+            target_field = rating_to_field.get(rating)
+            if not course_id or not unit_usage_key or not target_field or total <= 0:
+                continue
+
+            outline_meta = get_course_outline_topic_meta(course_id)
+            course_name = outline_meta.get('course_name') or course_id
+            unit_meta = (outline_meta.get('unit_map') or {}).get(unit_usage_key)
+
+            if unit_meta:
+                topic_number = normalize_topic_number(unit_meta.get('topic_number'))
+                topic_name = unit_meta.get('topic_name') or f"Chuyên đề {topic_number}"
+            else:
+                fallback_map = fallback_topic_index_map.setdefault(course_id, {})
+                if unit_usage_key not in fallback_map:
+                    fallback_map[unit_usage_key] = str(len(fallback_map) + 1)
+                topic_number = fallback_map[unit_usage_key]
+                topic_name = f"Chuyên đề {topic_number}"
+
+            key = (course_id, topic_number)
+            if key not in rows_map:
+                rows_map[key] = {
+                    'course_id': course_id,
+                    'course_name': course_name,
                     'topic_number': topic_number,
-                    'topic_name': f'Chuyên đề {index}',
+                    'topic_name': topic_name,
                     'like_count': 0,
                     'neutral_count': 0,
                     'dislike_count': 0,
                     'score_sum': 0,
-                    'needs_adjustment': False,
+                    'adjust_required': False,
                 }
 
-            topic_stats.append(topic_data)
-            if topic_data['needs_adjustment']:
-                topic_label_match = re.search(r'(\d+)$', topic_number or '')
-                topic_label = topic_label_match.group(1) if topic_label_match else topic_number
-                adjust_topic_labels.append(str(topic_label))
+            rows_map[key][target_field] += total
+            rows_map[key]['course_name'] = rows_map[key].get('course_name') or course_name
+            rows_map[key]['topic_name'] = rows_map[key].get('topic_name') or topic_name
 
-        if adjust_topic_labels:
-            recommendation = f"Cần điều chỉnh chuyên đề {', '.join(adjust_topic_labels)}"
-        else:
-            recommendation = 'Không cần điều chỉnh'
+        rows = []
+        for row in rows_map.values():
+            row['score_sum'] = int(row.get('like_count') or 0) - int(row.get('dislike_count') or 0)
+            row['adjust_required'] = int(row.get('score_sum') or 0) < 0
+            rows.append(row)
 
-        courses.append({
-            'course_id': data['course_id'],
-            'course_name': data['course_name'],
-            'needs_adjustment': data['needs_adjustment'],
-            'recommendation': recommendation,
-            'topic_stats': topic_stats,
+        def topic_sort_key(topic_number):
+            match = re.search(r'(\d+)$', (topic_number or '').strip())
+            if match:
+                return int(match.group(1))
+            return 999999
+
+        topic_number_order = sorted({row['topic_number'] for row in rows}, key=topic_sort_key)
+
+        course_map = {}
+        for row in rows:
+            course_id = row['course_id']
+            entry = course_map.setdefault(course_id, {
+                'course_id': course_id,
+                'course_name': row.get('course_name') or course_id,
+                'topics_by_number': {},
+                'needs_adjustment': False,
+                'recommendation': '',
+            })
+            needs_adjustment = bool(row.get('adjust_required')) or int(row.get('score_sum') or 0) < 0
+            entry['topics_by_number'][row['topic_number']] = {
+                'topic_number': row['topic_number'],
+                'topic_name': row.get('topic_name') or row['topic_number'],
+                'like_count': int(row.get('like_count') or 0),
+                'neutral_count': int(row.get('neutral_count') or 0),
+                'dislike_count': int(row.get('dislike_count') or 0),
+                'score_sum': int(row.get('score_sum') or 0),
+                'needs_adjustment': needs_adjustment,
+            }
+            entry['needs_adjustment'] = entry['needs_adjustment'] or needs_adjustment
+
+        courses = []
+        for data in course_map.values():
+            topic_stats = []
+            adjust_topic_labels = []
+
+            for index, topic_number in enumerate(topic_number_order, start=1):
+                topic_data = data['topics_by_number'].get(topic_number)
+                if not topic_data:
+                    topic_data = {
+                        'topic_number': topic_number,
+                        'topic_name': f'Chuyên đề {index}',
+                        'like_count': 0,
+                        'neutral_count': 0,
+                        'dislike_count': 0,
+                        'score_sum': 0,
+                        'needs_adjustment': False,
+                    }
+
+                topic_stats.append(topic_data)
+                if topic_data['needs_adjustment']:
+                    topic_label_match = re.search(r'(\d+)$', topic_number or '')
+                    topic_label = topic_label_match.group(1) if topic_label_match else topic_number
+                    adjust_topic_labels.append(str(topic_label))
+
+            if adjust_topic_labels:
+                recommendation = f"Cần điều chỉnh chuyên đề {', '.join(adjust_topic_labels)}"
+            else:
+                recommendation = 'Không cần điều chỉnh'
+
+            courses.append({
+                'course_id': data['course_id'],
+                'course_name': data['course_name'],
+                'needs_adjustment': data['needs_adjustment'],
+                'recommendation': recommendation,
+                'topic_stats': topic_stats,
+            })
+
+        courses.sort(key=lambda item: (0 if item['needs_adjustment'] else 1, item['course_name']))
+
+        topic_headers = []
+        for index, topic_number in enumerate(topic_number_order, start=1):
+            topic_headers.append({
+                'topic_number': topic_number,
+                'display_name': f'Chuyên đề {index}',
+            })
+
+        return JsonResponse({
+            'courses': courses,
+            'topic_headers': topic_headers,
+            'total_courses': len(courses),
+            'adjust_courses': sum(1 for course in courses if course['needs_adjustment']),
         })
-
-    courses.sort(key=lambda item: (0 if item['needs_adjustment'] else 1, item['course_name']))
-
-    topic_headers = []
-    for index, topic_number in enumerate(topic_number_order, start=1):
-        topic_headers.append({
-            'topic_number': topic_number,
-            'display_name': f'Chuyên đề {index}',
-        })
-
-    return JsonResponse({
-        'courses': courses,
-        'topic_headers': topic_headers,
-        'total_courses': len(courses),
-        'adjust_courses': sum(1 for course in courses if course['needs_adjustment']),
-    })
+    except Exception as exc:
+        logger.exception('Failed to build approve-requests statistics: %s', exc)
+        return JsonResponse({
+            'error': 'Không thể tải dữ liệu phê duyệt yêu cầu.',
+            'detail': str(exc),
+        }, status=500)
 
 
 def _get_statistics_data(request):
