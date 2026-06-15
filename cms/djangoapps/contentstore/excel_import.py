@@ -6,7 +6,7 @@ Supports Vietnamese user profile fields and bulk user creation.
 import io
 import logging
 from datetime import datetime
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, TYPE_CHECKING, Optional
 
 from django.contrib.auth.models import User
 from django.contrib.auth.hashers import make_password
@@ -16,6 +16,9 @@ from django.db import transaction
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 from common.djangoapps.student.models import UserProfile
+
+if TYPE_CHECKING:
+    from cms.djangoapps.contentstore.models import ChalixOrganization
 
 logger = logging.getLogger(__name__)
 
@@ -238,7 +241,7 @@ def validate_user_data(user_data: Dict[str, Any]) -> Tuple[bool, List[str]]:
     return len(errors) == 0, errors
 
 
-def create_user_from_data(user_data: Dict[str, Any], created_by: User, force_org: ChalixOrganization = None) -> Tuple[User, List[str]]:
+def create_user_from_data(user_data: Dict[str, Any], created_by: User, force_org: Optional['ChalixOrganization'] = None) -> Tuple[User, List[str]]:
     """
     Create a user account and profile from validated data.
     
@@ -388,7 +391,7 @@ def create_user_from_data(user_data: Dict[str, Any], created_by: User, force_org
 def import_users_from_excel(
     file_content: bytes,
     created_by: User,
-    force_org: ChalixOrganization = None
+    force_org: Optional['ChalixOrganization'] = None
 ) -> Dict[str, Any]:
     """
     Import multiple users from an Excel file.

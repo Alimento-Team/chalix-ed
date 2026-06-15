@@ -3898,11 +3898,11 @@ def download_user_template_api(request):
                 
                 template_file = request.FILES['file']
                 
-                # Validate file extension
-                if not template_file.name.endswith(('.xlsx', '.xls')):
+                # openpyxl only supports .xlsx in this flow
+                if not template_file.name.lower().endswith('.xlsx'):
                     return JsonResponse({
                         'success': False,
-                        'message': 'File phải có định dạng Excel (.xlsx hoặc .xls).'
+                        'message': 'File phải có định dạng Excel .xlsx.'
                     }, status=400)
                 
                 # Validate file size (max 5MB for template)
@@ -4004,10 +4004,10 @@ def import_users_from_excel_api(request):
     
     excel_file = request.FILES['excel_file']
     
-    # Validate file extension
-    if not excel_file.name.endswith(('.xlsx', '.xls')):
+    # openpyxl only supports .xlsx in this flow
+    if not excel_file.name.lower().endswith('.xlsx'):
         return JsonResponse({
-            'error': 'File phải có định dạng Excel (.xlsx hoặc .xls).'
+            'error': 'File phải có định dạng Excel .xlsx.'
         }, status=400)
     
     # Validate file size (max 10MB)
