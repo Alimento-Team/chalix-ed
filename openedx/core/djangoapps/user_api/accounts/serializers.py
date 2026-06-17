@@ -173,6 +173,11 @@ class UserReadOnlySerializer(serializers.Serializer):  # lint-amnesty, pylint: d
             "year_of_birth": None,
             "level_of_education": None,
             "mailing_address": None,
+            "birth_date": None,
+            "job_position": None,
+            "province": None,
+            "civil_servant_type": None,
+            "job_title": None,
             "cccd": None,
             "requires_parental_consent": None,
             "account_privacy": self.configuration.get('default_visibility'),
@@ -199,10 +204,17 @@ class UserReadOnlySerializer(serializers.Serializer):  # lint-amnesty, pylint: d
                     "gender": AccountLegacyProfileSerializer.convert_empty_to_None(user_profile.gender),
                     "goals": user_profile.goals,
                     "year_of_birth": user_profile.year_of_birth,
+                    "birth_date": user_profile.birth_date,
                     "level_of_education": AccountLegacyProfileSerializer.convert_empty_to_None(
                         user_profile.level_of_education
                     ),
                     "mailing_address": user_profile.mailing_address,
+                    "job_position": AccountLegacyProfileSerializer.convert_empty_to_None(user_profile.job_position),
+                    "province": AccountLegacyProfileSerializer.convert_empty_to_None(user_profile.province),
+                    "civil_servant_type": AccountLegacyProfileSerializer.convert_empty_to_None(
+                        user_profile.civil_servant_type
+                    ),
+                    "job_title": AccountLegacyProfileSerializer.convert_empty_to_None(user_profile.job_title),
                     "cccd": user_profile.get_meta().get('cccd', ''),
                     "requires_parental_consent": user_profile.requires_parental_consent(),
                     "account_privacy": get_profile_visibility(user_profile, user, self.configuration),
@@ -302,7 +314,7 @@ class AccountLegacyProfileSerializer(serializers.HyperlinkedModelSerializer, Rea
             "name", "gender", "goals", "year_of_birth", "birth_date", "level_of_education", "country", "state",
             "social_links", "mailing_address", "bio", "profile_image", "requires_parental_consent",
             "language_proficiencies", "phone_number", "city", "job_position", "province", "civil_servant_type",
-            "cccd"
+            "job_title", "cccd"
         )
         # Currently no read-only field, but keep this so view code doesn't need to know.
         read_only_fields = ()

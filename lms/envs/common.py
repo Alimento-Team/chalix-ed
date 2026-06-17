@@ -4325,6 +4325,7 @@ ACCOUNT_VISIBILITY_CONFIGURATION["admin_fields"] = (
         "job_position",
         "province",
         "civil_servant_type",
+        "job_title",
         "state",
         "goals",
         "is_active",

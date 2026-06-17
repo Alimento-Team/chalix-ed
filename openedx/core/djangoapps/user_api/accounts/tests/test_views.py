@@ -362,7 +362,7 @@ class TestAccountsAPI(FilteredQueryCountMixin, CacheIsolationTestCase, UserAPITe
 
     ENABLED_CACHES = ['default']
     TOTAL_QUERY_COUNT = 26
-    FULL_RESPONSE_FIELD_COUNT = 29
+    FULL_RESPONSE_FIELD_COUNT = 30
 
     def setUp(self):
         super().setUp()
@@ -925,6 +925,24 @@ class TestAccountsAPI(FilteredQueryCountMixin, CacheIsolationTestCase, UserAPITe
             # except for account_privacy, which cannot be an empty string.
             response = self.send_patch(client, {field: ""})
             assert '' == response.data[field]
+
+    def test_patch_account_job_fields(self):
+        client = self.login_client("client", "user")
+        update = {
+            "job_position": "leader",
+            "civil_servant_type": "civil_servant",
+            "job_title": "Software Engineer",
+        }
+
+        response = self.send_patch(client, update)
+        assert update["job_position"] == response.data["job_position"]
+        assert update["civil_servant_type"] == response.data["civil_servant_type"]
+        assert update["job_title"] == response.data["job_title"]
+
+        profile = UserProfile.objects.get(user=self.user)
+        assert update["job_position"] == profile.job_position
+        assert update["civil_servant_type"] == profile.civil_servant_type
+        assert update["job_title"] == profile.job_title
 
     def test_patch_inactive_user(self):
         """ Verify that a user can patch her own account, even if inactive. """

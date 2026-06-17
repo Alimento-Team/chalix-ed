@@ -248,6 +248,25 @@ class TestAccountApi(UserSettingsEventTestMixin, EmailTemplateTagMixin, CreateAc
         account_settings = get_account_settings(self.default_request)[0]
         assert level_of_education == account_settings['level_of_education']
 
+    def test_update_profile_job_fields(self):
+        update = {
+            "job_position": "leader",
+            "civil_servant_type": "civil_servant",
+            "job_title": "Software Engineer",
+        }
+
+        update_account_settings(self.user, update)
+
+        profile = UserProfile.objects.get(user=self.user)
+        assert update["job_position"] == profile.job_position
+        assert update["civil_servant_type"] == profile.civil_servant_type
+        assert update["job_title"] == profile.job_title
+
+        account_settings = get_account_settings(self.default_request)[0]
+        assert update["job_position"] == account_settings["job_position"]
+        assert update["civil_servant_type"] == account_settings["civil_servant_type"]
+        assert update["job_title"] == account_settings["job_title"]
+
     @patch('openedx.features.enterprise_support.api.enterprise_customer_for_request')
     @patch('openedx.features.enterprise_support.utils.third_party_auth.provider.Registry.get')
     @ddt.data(
