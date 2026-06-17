@@ -610,9 +610,16 @@ def get_extended_profile(user_profile):
 
     extended_profile = []
     for field_name in extended_profile_field_names:
+        if hasattr(user_profile, field_name) and field_name not in ('id', 'user', 'meta'):
+            field_value = getattr(user_profile, field_name)
+            if field_value is None:
+                field_value = ""
+        else:
+            field_value = extended_profile_fields_data.get(field_name, "")
+
         extended_profile.append({
             "field_name": field_name,
-            "field_value": extended_profile_fields_data.get(field_name, "")
+            "field_value": field_value
         })
     return extended_profile
 

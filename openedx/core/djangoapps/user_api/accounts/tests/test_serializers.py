@@ -4,6 +4,7 @@ Test cases to cover Accounts-related serializers of the User API application
 
 
 import logging
+from unittest.mock import patch
 
 from django.test import TestCase
 from django.test.client import RequestFactory
@@ -52,3 +53,25 @@ class UserReadOnlySerializerTest(TestCase):  # lint-amnesty, pylint: disable=mis
 
         assert data['username'] == self.user.username
         assert data['name'] is None
+
+    @patch('openedx.core.djangoapps.user_api.accounts.serializers.configuration_helpers.get_value')
+    def test_serializer_reads_model_backed_extended_profile_fields(self, mock_get_value):
+        """
+        Test serializer includes configured extended profile fields from model columns and meta.
+        """
+        mock_get_value.return_value = ['job_title', 'cccd']
+        profile = UserProfile.objects.create(user=self.user, name='test name', job_title='Software Engineer')
+        profile.set_meta({'cccd': '0123456789'})
+        profile.save()
+
+        config = {
+            "default_visibility": "public",
+            "public_fields": ['extended_profile'],
+        }
+
+        data = UserReadOnlySerializer(self.user, configuration=config, context={'request': self.request}).data
+
+        assert data['extended_profile'] == [
+            {'field_name': 'job_title', 'field_value': 'Software Engineer'},
+            {'field_name': 'cccd', 'field_value': '0123456789'},
+        ]
