@@ -466,7 +466,7 @@ class AccountLegacyProfileSerializer(serializers.HyperlinkedModelSerializer, Rea
 
         # Update all fields on the user profile that are writeable,
         # except for "language_proficiencies" and "social_links", which we'll update separately
-        update_fields = set(self.get_writeable_fields()) - {"language_proficiencies"} - {"social_links"}
+        update_fields = set(self.get_writeable_fields()) - {"language_proficiencies"} - {"social_links"} - {"cccd"}
         for field_name in update_fields:
             default = getattr(instance, field_name)
             field_value = validated_data.get(field_name, default)
