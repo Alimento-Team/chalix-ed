@@ -350,12 +350,18 @@ def _update_extended_profile_if_needed(data, user_profile):
     if 'extended_profile' in data:
         meta = user_profile.get_meta()
         new_extended_profile = data['extended_profile']
+        profile_changed = False
         for field in new_extended_profile:
             field_name = field['field_name']
             new_value = field['field_value']
-            meta[field_name] = new_value
+            if hasattr(user_profile, field_name) and field_name not in ('id', 'user', 'meta'):
+                setattr(user_profile, field_name, new_value or None)
+                profile_changed = True
+            else:
+                meta[field_name] = new_value
         user_profile.set_meta(meta)
-        user_profile.save()
+        if profile_changed or new_extended_profile:
+            user_profile.save()
 
 
 def _update_state_if_needed(data, user_profile):
