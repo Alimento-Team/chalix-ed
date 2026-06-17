@@ -582,6 +582,7 @@ class UserProfile(models.Model):
     civil_servant_type = models.CharField(
         blank=True, null=True, max_length=20, choices=CIVIL_SERVANT_TYPE_CHOICES, db_index=True
     )
+    job_title = models.CharField(blank=True, null=True, max_length=255, db_index=True)
 
     @property
     def has_profile_image(self):
