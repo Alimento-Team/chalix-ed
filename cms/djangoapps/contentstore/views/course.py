@@ -853,7 +853,7 @@ def get_courses_accessible_to_user(request):
     Arguments:
         request: the request object
     """
-    if GlobalStaff().has_user(request.user):
+    if GlobalStaff().has_user(request.user) or is_bo_user(request.user):
         # user has global access so no need to get courses from django groups
         courses, in_process_course_actions = _accessible_courses_summary_iter(request)
     else:

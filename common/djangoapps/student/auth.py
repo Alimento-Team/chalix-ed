@@ -73,6 +73,24 @@ def user_has_role(user, role):
     return False
 
 
+def _has_chalix_bo_global_access(user):
+    """
+    Return True when user has Chalix 'bo' role.
+
+    This helper is intentionally import-safe because student auth code is shared
+    by both LMS and CMS, while Chalix role models live under CMS apps.
+    """
+    if not (user and user.is_authenticated and user.is_active):
+        return False
+
+    try:
+        from cms.djangoapps.contentstore.chalix_roles import is_bo_user
+        return is_bo_user(user)
+    except Exception:
+        # If Chalix roles are unavailable in this service variant, ignore.
+        return False
+
+
 def get_user_permissions(user, course_key, org=None, service_variant=None):
     """
     Get the bitmask of permissions that this user has in the given course context.
@@ -94,8 +112,8 @@ def get_user_permissions(user, course_key, org=None, service_variant=None):
     if is_ccx_course(course_key):
         return STUDIO_NO_PERMISSIONS
     all_perms = STUDIO_EDIT_ROLES | STUDIO_VIEW_USERS | STUDIO_EDIT_CONTENT | STUDIO_VIEW_CONTENT
-    # global staff, org instructors, and course instructors have all permissions:
-    if GlobalStaff().has_user(user) or OrgInstructorRole(org=org).has_user(user):
+    # global staff, Chalix bo users, org instructors, and course instructors have all permissions:
+    if GlobalStaff().has_user(user) or _has_chalix_bo_global_access(user) or OrgInstructorRole(org=org).has_user(user):
         return all_perms
     if course_key and user_has_role(user, CourseInstructorRole(course_key)):
         return all_perms

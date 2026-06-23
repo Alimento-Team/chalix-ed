@@ -256,7 +256,7 @@ def can_manage_courses(user: User) -> bool:
 def can_edit_course(user: User, course_id=None) -> bool:
     """
     Check if user can edit a specific course.
-    Only users with 'co_quan' or 'giang_vien' roles can edit courses.
+    Users with 'bo', 'co_quan', or 'giang_vien' roles can edit courses.
     
     Args:
         user: The user to check
@@ -275,7 +275,11 @@ def can_edit_course(user: User, course_id=None) -> bool:
     if not primary_role:
         return False
     
-    # Only co_quan and giang_vien can edit courses
+    # bo users can edit all courses platform-wide
+    if primary_role.role == 'bo':
+        return True
+
+    # Only co_quan and giang_vien can edit courses otherwise
     if primary_role.role not in ['co_quan', 'giang_vien']:
         return False
     
