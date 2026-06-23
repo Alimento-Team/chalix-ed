@@ -334,10 +334,40 @@ class FinalEvaluationQuizSubmitView(APIView):
                 is_completed=False
             )
             
+            # Get all questions for this evaluation upfront to ensure we count total correctly
+            all_evaluation_questions = list(ChalixQuizQuestion.objects.filter(
+                evaluation_id=evaluation.id,
+                is_active=True
+            ).values_list('id', flat=True))
+            
+            # Count only questions that have valid correct answers (not misconfigured)
+            valid_question_ids = []
+            misconfigured_question_ids = []
+            
+            for q_id in all_evaluation_questions:
+                correct_choices = ChalixQuizChoice.objects.filter(
+                    question_id=q_id,
+                    is_active=True,
+                    is_correct=True
+                ).exists()
+                if correct_choices:
+                    valid_question_ids.append(q_id)
+                else:
+                    misconfigured_question_ids.append(q_id)
+            
+            # If there are misconfigured questions, fail early
+            if misconfigured_question_ids:
+                attempt.delete()
+                return Response({
+                    'error': 'Một số câu hỏi chưa được cấu hình đáp án đúng. Vui lòng liên hệ quản trị viên để cập nhật bộ câu hỏi.',
+                    'misconfigured_question_ids': misconfigured_question_ids,
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Total questions is the count of valid (configured) questions
+            total_questions = len(valid_question_ids)
+            
             # Process submitted answers
             correct_count = 0
-            total_questions = 0
-            misconfigured_question_ids = []
             answer_details = []
             
             for question_id_str, choice_ids in answers.items():
@@ -351,11 +381,9 @@ class FinalEvaluationQuizSubmitView(APIView):
                     ).order_by('order_index'))
                     correct_choice_ids = [choice.id for choice in all_choices if choice.is_correct]
 
+                    # Skip if no correct answers configured (shouldn't happen due to earlier check)
                     if not correct_choice_ids:
-                        misconfigured_question_ids.append(question.id)
                         continue
-
-                    total_questions += 1
 
                     if not isinstance(choice_ids, (list, tuple)):
                         choice_ids = [choice_ids]
@@ -412,13 +440,6 @@ class FinalEvaluationQuizSubmitView(APIView):
                                 
                 except (ValueError, ChalixQuizQuestion.DoesNotExist, ChalixQuizChoice.DoesNotExist):
                     continue
-
-            if misconfigured_question_ids:
-                attempt.delete()
-                return Response({
-                    'error': 'Một số câu hỏi chưa được cấu hình đáp án đúng. Vui lòng liên hệ quản trị viên để cập nhật bộ câu hỏi.',
-                    'misconfigured_question_ids': misconfigured_question_ids,
-                }, status=status.HTTP_400_BAD_REQUEST)
             
             # Calculate score
             from decimal import Decimal
