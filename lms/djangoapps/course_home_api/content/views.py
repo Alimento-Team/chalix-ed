@@ -1803,31 +1803,55 @@ class UnitQuizResultView(DeveloperErrorViewMixin, APIView):
         if not quiz_ids:
             return Response({'has_result': False}, status=status.HTTP_200_OK)
 
-        # Find the most recently completed attempt across all quizzes for this unit + user
-        attempt = (
+        # Aggregate latest completed attempt PER quiz in this unit for the current user.
+        # Previous behavior returned only one latest attempt, which produced 1/1 for multi-question units.
+        attempts = (
             TopicQuizAttempt.objects
             .filter(quiz_id__in=quiz_ids, learner=request.user, is_completed=True)
-            .order_by('-completed_at')
-            .first()
+            .order_by('quiz_id', '-completed_at')
         )
 
-        # Also try matching by unit_id directly (set when submitted via units/{unit_id}/quizzes/{quiz_id}/submit/)
-        if not attempt:
-            attempt = (
+        latest_by_quiz = {}
+        for attempt in attempts:
+            if attempt.quiz_id not in latest_by_quiz:
+                latest_by_quiz[attempt.quiz_id] = attempt
+
+        # Legacy fallback: attempts created without quiz_id matching but with unit_id populated.
+        if not latest_by_quiz:
+            legacy_attempt = (
                 TopicQuizAttempt.objects
                 .filter(unit_id__in=[decoded_unit_id, unit_id], learner=request.user, is_completed=True)
                 .order_by('-completed_at')
                 .first()
             )
+            if not legacy_attempt:
+                return Response({'has_result': False}, status=status.HTTP_200_OK)
 
-        if not attempt:
+            return Response({
+                'has_result': True,
+                'points_earned': legacy_attempt.correct_answers,
+                'points_possible': legacy_attempt.total_questions,
+                'percentage': float(legacy_attempt.score) if legacy_attempt.score is not None else 0.0,
+                'passed': legacy_attempt.passed,
+                'completed_at': legacy_attempt.completed_at.isoformat() if legacy_attempt.completed_at else None,
+            }, status=status.HTTP_200_OK)
+
+        points_earned = sum(a.correct_answers or 0 for a in latest_by_quiz.values())
+        points_possible = sum(a.total_questions or 0 for a in latest_by_quiz.values())
+        percentage = round((points_earned / points_possible * 100.0), 2) if points_possible > 0 else 0.0
+        completed_at = max(
+            [a.completed_at for a in latest_by_quiz.values() if a.completed_at],
+            default=None,
+        )
+
+        if points_possible <= 0:
             return Response({'has_result': False}, status=status.HTTP_200_OK)
 
         return Response({
             'has_result': True,
-            'points_earned': attempt.correct_answers,
-            'points_possible': attempt.total_questions,
-            'percentage': float(attempt.score) if attempt.score is not None else 0.0,
-            'passed': attempt.passed,
-            'completed_at': attempt.completed_at.isoformat() if attempt.completed_at else None,
+            'points_earned': points_earned,
+            'points_possible': points_possible,
+            'percentage': percentage,
+            'passed': percentage >= 70,
+            'completed_at': completed_at.isoformat() if completed_at else None,
         }, status=status.HTTP_200_OK)
