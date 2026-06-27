@@ -4,6 +4,14 @@
     // Learning Management JS loaded (debug log removed)
 
     window.CMS_TABS = window.CMS_TABS || {};
+    const learningSearchState = {
+        query: '',
+        currentView: 'programs',
+        activeContainer: null,
+        lastPrograms: [],
+        lastCourses: []
+    };
+    let isHeaderSearchBound = false;
 
     // returns an inline SVG element (DOM node) for a given icon token
     function getIconSvg(token) {
@@ -770,6 +778,9 @@
         if (!container) return;
         // [LM] Starting render (log removed)
         ensureStyles();
+        bindHeaderSearch();
+        learningSearchState.activeContainer = container;
+        learningSearchState.currentView = 'programs';
 
         container.innerHTML = `
             <div class="lm-wrap">
@@ -920,6 +931,7 @@
                 const targetView = container.querySelector(`#lm-${viewName}-tab`);
                 if (targetView) {
                     targetView.classList.add('active');
+                    learningSearchState.currentView = viewName;
                     
                     const contentArea = targetView.querySelector('.lm-content-area');
                     
@@ -1060,7 +1072,8 @@
         })
         .then(data => {
             const programs = data.programs || [];
-            renderProgramsList(contentArea, programs);
+            learningSearchState.lastPrograms = programs;
+            renderProgramsList(contentArea, filterPrograms(programs, learningSearchState.query), learningSearchState.query);
         })
         .catch(err => {
             console.error('Failed to load programs:', err);
@@ -1089,7 +1102,8 @@
                 }
             ];
             // Using demo programs data (log removed)
-            renderProgramsList(contentArea, demoPrograms);
+            learningSearchState.lastPrograms = demoPrograms;
+            renderProgramsList(contentArea, filterPrograms(demoPrograms, learningSearchState.query), learningSearchState.query);
         });
     }
 
@@ -1108,7 +1122,8 @@
         })
         .then(data => {
             const courses = data.courses || [];
-            renderCoursesList(contentArea, courses);
+            learningSearchState.lastCourses = courses;
+            renderCoursesList(contentArea, filterCourses(courses, learningSearchState.query), learningSearchState.query);
         })
         .catch(err => {
             console.error('Failed to load courses:', err);
@@ -1136,15 +1151,19 @@
                 }
             ];
             // Using demo courses data (log removed)
-            renderCoursesList(contentArea, demoCourses);
+            learningSearchState.lastCourses = demoCourses;
+            renderCoursesList(contentArea, filterCourses(demoCourses, learningSearchState.query), learningSearchState.query);
         });
     }
 
-    function renderProgramsList(contentArea, programs) {
+    function renderProgramsList(contentArea, programs, query = '') {
         if (!contentArea) return;
 
         if (programs.length === 0) {
-            contentArea.innerHTML = '<div class="lm-empty">Chưa có chương trình học nào. Tạo chương trình học đầu tiên của bạn!</div>';
+            const emptyMessage = query
+                ? 'Không tìm thấy chương trình học phù hợp với từ khóa tìm kiếm.'
+                : 'Chưa có chương trình học nào. Tạo chương trình học đầu tiên của bạn!';
+            contentArea.innerHTML = `<div class="lm-empty">${emptyMessage}</div>`;
             return;
         }
 
@@ -1207,11 +1226,14 @@
         contentArea.appendChild(grid);
     }
 
-    function renderCoursesList(contentArea, courses) {
+    function renderCoursesList(contentArea, courses, query = '') {
         if (!contentArea) return;
 
         if (courses.length === 0) {
-            contentArea.innerHTML = '<div class="lm-empty">Chưa có khóa học nào. Tạo khóa học đầu tiên của bạn!</div>';
+            const emptyMessage = query
+                ? 'Không tìm thấy khóa học phù hợp với từ khóa tìm kiếm.'
+                : 'Chưa có khóa học nào. Tạo khóa học đầu tiên của bạn!';
+            contentArea.innerHTML = `<div class="lm-empty">${emptyMessage}</div>`;
             return;
         }
 
@@ -1311,6 +1333,107 @@
 
         contentArea.innerHTML = '';
         contentArea.appendChild(grid);
+    }
+
+    function bindHeaderSearch() {
+        if (isHeaderSearchBound) return;
+
+        const searchInput = document.querySelector('.search-bar .search-input');
+        const searchButton = document.querySelector('.search-bar .search-button');
+        if (!searchInput || !searchButton) return;
+
+        const applySearch = () => {
+            learningSearchState.query = (searchInput.value || '').trim();
+            applyLearningManagementSearch();
+        };
+
+        searchInput.addEventListener('input', applySearch);
+        searchInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                applySearch();
+            }
+        });
+        searchButton.addEventListener('click', (event) => {
+            event.preventDefault();
+            applySearch();
+        });
+
+        isHeaderSearchBound = true;
+    }
+
+    function applyLearningManagementSearch() {
+        const activeLearningTab = document.querySelector('.cms-tab.active[data-tab="learning-management"]');
+        if (!activeLearningTab || !learningSearchState.activeContainer) return;
+
+        if (learningSearchState.currentView === 'programs') {
+            const programsContent = learningSearchState.activeContainer.querySelector('#lm-programs-tab .lm-content-area');
+            if (programsContent) {
+                renderProgramsList(
+                    programsContent,
+                    filterPrograms(learningSearchState.lastPrograms, learningSearchState.query),
+                    learningSearchState.query
+                );
+            }
+            return;
+        }
+
+        if (learningSearchState.currentView === 'courses') {
+            const coursesContent = learningSearchState.activeContainer.querySelector('#lm-courses-tab .lm-content-area');
+            if (coursesContent) {
+                renderCoursesList(
+                    coursesContent,
+                    filterCourses(learningSearchState.lastCourses, learningSearchState.query),
+                    learningSearchState.query
+                );
+            }
+        }
+    }
+
+    function filterPrograms(programs, query) {
+        const keyword = (query || '').trim().toLowerCase();
+        if (!keyword) return programs || [];
+
+        return (programs || []).filter((program) => {
+            const topics = Array.isArray(program.topics) ? program.topics : [];
+            const topicText = topics
+                .map((topic) => (typeof topic === 'string' ? topic : (topic && topic.title) || ''))
+                .join(' ');
+
+            const haystack = [
+                program.title,
+                program.short_description,
+                program.description,
+                program.id,
+                topicText
+            ]
+                .filter(Boolean)
+                .join(' ')
+                .toLowerCase();
+
+            return haystack.includes(keyword);
+        });
+    }
+
+    function filterCourses(courses, query) {
+        const keyword = (query || '').trim().toLowerCase();
+        if (!keyword) return courses || [];
+
+        return (courses || []).filter((course) => {
+            const haystack = [
+                course.title,
+                course.short_description,
+                course.course_key,
+                course.course_type,
+                course.course_level,
+                course.instructor
+            ]
+                .filter(Boolean)
+                .join(' ')
+                .toLowerCase();
+
+            return haystack.includes(keyword);
+        });
     }
 
     // Detailed view functions
