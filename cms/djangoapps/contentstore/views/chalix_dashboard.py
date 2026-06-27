@@ -99,73 +99,113 @@ def _create_course_structure_from_program(store, course_key, user_id, template_p
     Returns number of units created.
     """
     units_created = 0
-    
+
+    def _normalize_name(value):
+        return ' '.join(str(value or '').split()).strip().casefold()
+
+    def _find_child(parent_block, category, display_name):
+        normalized_target = _normalize_name(display_name)
+        for child in parent_block.get_children():
+            if child.category != category:
+                continue
+            if _normalize_name(getattr(child, 'display_name', '')) == normalized_target:
+                return child
+        return None
+
     # Get the course object from the course key
     course = store.get_course(course_key)
-    
-    # Create a main section to organize all program topics
-    main_chapter = store.create_child(
-        user_id,
-        course.location,  # Use course location instead of course_key
-        'chapter',
-        fields={
-            'display_name': template_program.title,
-        }
-    )
-    
-    # For each program topic, create a subsection with an empty unit
-    for i, topic in enumerate(program_topics, 1):
-        # Create subsection (sequential) for the topic
-        # Topic name becomes the subsection name in the course outline
-        sequential = store.create_child(
+
+    main_chapter_name = template_program.title
+    main_chapter = _find_child(course, 'chapter', main_chapter_name)
+    if not main_chapter:
+        main_chapter = store.create_child(
             user_id,
-            main_chapter.location,
-            'sequential',
+            course.location,  # Use course location instead of course_key
+            'chapter',
             fields={
-                'display_name': topic.title,  # Program topic name → Subsection name
+                'display_name': main_chapter_name,
             }
         )
+    
+    seen_topic_names = set()
+
+    # For each program topic, create a subsection with an empty unit
+    for topic in program_topics:
+        topic_title = str(getattr(topic, 'title', '') or '').strip()
+        if not topic_title:
+            continue
+
+        normalized_topic_title = _normalize_name(topic_title)
+        if normalized_topic_title in seen_topic_names:
+            continue
+        seen_topic_names.add(normalized_topic_title)
+
+        # Create subsection (sequential) for the topic
+        # Topic name becomes the subsection name in the course outline
+        sequential = _find_child(main_chapter, 'sequential', topic_title)
+        if not sequential:
+            sequential = store.create_child(
+                user_id,
+                main_chapter.location,
+                'sequential',
+                fields={
+                    'display_name': topic_title,  # Program topic name → Subsection name
+                }
+            )
         
         # Create an empty unit (vertical) under the subsection
         # This unit will be empty, allowing instructors to add content
-        vertical = store.create_child(
-            user_id,
-            sequential.location,
-            'vertical',
-            fields={
-                'display_name': f'{topic.title} - Bài học',  # Topic name → Unit name
-            }
-        )
+        vertical_name = f'{topic_title} - Bài học'
+        vertical = _find_child(sequential, 'vertical', vertical_name)
+        created_vertical = vertical is None
+        if not vertical:
+            vertical = store.create_child(
+                user_id,
+                sequential.location,
+                'vertical',
+                fields={
+                    'display_name': vertical_name,  # Topic name → Unit name
+                }
+            )
         
         # Publish the created components so they appear in the course
         store.publish(sequential.location, user_id)
         store.publish(vertical.location, user_id)
-        units_created += 1
+        if created_vertical:
+            units_created += 1
 
     # Add final evaluation topic
-    final_evaluation_sequential = store.create_child(
-        user_id,
-        main_chapter.location,
-        'sequential',
-        fields={
-            'display_name': 'Kiểm tra cuối khoá',
-        }
-    )
+    final_evaluation_title = 'Kiểm tra cuối khoá'
+    final_evaluation_sequential = _find_child(main_chapter, 'sequential', final_evaluation_title)
+    if not final_evaluation_sequential:
+        final_evaluation_sequential = store.create_child(
+            user_id,
+            main_chapter.location,
+            'sequential',
+            fields={
+                'display_name': final_evaluation_title,
+            }
+        )
     
     # Create an empty unit for the final evaluation
-    final_evaluation_vertical = store.create_child(
-        user_id,
-        final_evaluation_sequential.location,
-        'vertical',
-        fields={
-            'display_name': 'Kiểm tra cuối khoá - Bài kiểm tra',
-        }
-    )
+    final_evaluation_vertical_name = 'Kiểm tra cuối khoá - Bài kiểm tra'
+    final_evaluation_vertical = _find_child(final_evaluation_sequential, 'vertical', final_evaluation_vertical_name)
+    created_final_vertical = final_evaluation_vertical is None
+    if not final_evaluation_vertical:
+        final_evaluation_vertical = store.create_child(
+            user_id,
+            final_evaluation_sequential.location,
+            'vertical',
+            fields={
+                'display_name': final_evaluation_vertical_name,
+            }
+        )
     
     # Publish the final evaluation components
     store.publish(final_evaluation_sequential.location, user_id)
     store.publish(final_evaluation_vertical.location, user_id)
-    units_created += 1
+    if created_final_vertical:
+        units_created += 1
 
     # Publish the main chapter
     store.publish(main_chapter.location, user_id)
@@ -1336,6 +1376,7 @@ def create_program_api(request):
 
             # Add topics if provided
             topics_to_create = []
+            seen_topic_titles = set()
             for index, topic_item in enumerate(topics):
                 # Handle both string topics and object topics. Coerce to string before strip
                 if isinstance(topic_item, dict):
@@ -1344,7 +1385,9 @@ def create_program_api(request):
                 else:
                     topic_title = str(topic_item).strip()
 
-                if topic_title:
+                normalized_topic_title = ' '.join(topic_title.split()).casefold()
+                if topic_title and normalized_topic_title not in seen_topic_titles:
+                    seen_topic_titles.add(normalized_topic_title)
                     topics_to_create.append(ProgramTopic(
                         program=program,
                         title=topic_title,
@@ -1466,6 +1509,7 @@ def update_program_api(request):
             
             # Add new topics
             topics_to_create = []
+            seen_topic_titles = set()
             for index, topic_item in enumerate(topics):
                 # Handle both string topics and object topics. Coerce to string before strip
                 if isinstance(topic_item, dict):
@@ -1474,7 +1518,9 @@ def update_program_api(request):
                 else:
                     topic_title = str(topic_item).strip()
 
-                if topic_title:
+                normalized_topic_title = ' '.join(topic_title.split()).casefold()
+                if topic_title and normalized_topic_title not in seen_topic_titles:
+                    seen_topic_titles.add(normalized_topic_title)
                     topics_to_create.append(ProgramTopic(
                         program=program,
                         title=topic_title,

@@ -369,11 +369,7 @@
             '</div></div>',
             '<div class="chalix-topics-section">',
             '<h4 class="chalix-topics-title">Thêm chuyên đề</h4>',
-            '<div class="chalix-topics-list">',
-            '<div class="chalix-topic-item">',
-            '<span class="chalix-topic-text">Tổng quan về đơn vị sự nghiệp công lập</span>',
-            '<button type="button" class="chalix-topic-remove">×</button>',
-            '</div></div>',
+            '<div class="chalix-topics-list"></div>',
             '<button type="button" class="chalix-add-topic-btn">+ Thêm mới</button>',
             '</div>'
         ].join('');
@@ -541,9 +537,10 @@
             const title = overlay.querySelector('.chalix-input-title').value.trim();
             const updateTopics = overlay.querySelector('#update-topics').checked;
             const selectedIcon = overlay.querySelector('.chalix-icon-option.selected')?.dataset.icon || '🌱';
+            const topicsList = topicsSection.querySelector('.chalix-topics-list');
             
             // Collect topics
-            const topics = Array.from(topicsSection.querySelectorAll('.chalix-topic-text'))
+            const topics = Array.from((topicsList || topicsSection).querySelectorAll('.chalix-topic-text'))
                 .map(el => el.textContent.trim())
                 .filter(text => text.length > 0);
 
