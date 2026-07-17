@@ -68,4 +68,15 @@ class MFEConfigView(APIView):
                 settings.MFE_CONFIG_OVERRIDES,
             )
             mfe_config.update(app_config.get(mfe, {}))
+
+        # Allow guide links to be edited as top-level SiteConfiguration keys.
+        additional_site_keys = {
+            'CHALIX_GUIDE_CIVIL_SERVANTS_URL': 'GUIDE_CIVIL_SERVANTS_URL',
+            'CHALIX_GUIDE_MINISTRY_AGENCY_URL': 'GUIDE_MINISTRY_AGENCY_URL',
+        }
+        for site_key, mfe_key in additional_site_keys.items():
+            value = configuration_helpers.get_value(site_key, mfe_config.get(mfe_key, ''))
+            if value:
+                mfe_config[mfe_key] = value
+
         return JsonResponse(mfe_config, status=status.HTTP_200_OK)

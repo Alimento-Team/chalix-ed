@@ -26,15 +26,24 @@ class MFEConfigTestCase(APITestCase):
         """Test the get mfe config from site configuration with the mfe api.
 
         Expected result:
-        - The get_value method of the configuration_helpers in the views is called once with the
-        parameters ("MFE_CONFIG", settings.MFE_CONFIG)
+        - The get_value method of the configuration_helpers in the views is called for MFE_CONFIG
+        and for guide URL keys.
         - The status of the response of the request is a HTTP_200_OK.
         - The json of the response of the request is equal to the mocked configuration.
         """
-        configuration_helpers_mock.get_value.return_value = {"EXAMPLE_VAR": "value"}
+        configuration_helpers_mock.get_value.side_effect = [
+            {"EXAMPLE_VAR": "value"},
+            "",
+            "",
+        ]
         response = self.client.get(self.mfe_config_api_url)
 
-        configuration_helpers_mock.get_value.assert_called_once_with("MFE_CONFIG", settings.MFE_CONFIG)
+        calls = [
+            call("MFE_CONFIG", settings.MFE_CONFIG),
+            call("CHALIX_GUIDE_CIVIL_SERVANTS_URL", ""),
+            call("CHALIX_GUIDE_MINISTRY_AGENCY_URL", ""),
+        ]
+        configuration_helpers_mock.get_value.assert_has_calls(calls)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.json(), {"EXAMPLE_VAR": "value"})
 
@@ -43,7 +52,9 @@ class MFEConfigTestCase(APITestCase):
         """Test the get mfe config with a query param from site configuration.
 
         Expected result:
-        - The get_value method of the configuration_helpers in the views is called twice, once with the
+        - The get_value method of the configuration_helpers in the views is called for MFE_CONFIG,
+        MFE_CONFIG_OVERRIDES, and guide URL keys.
+        - Called with the
         parameters ("MFE_CONFIG", settings.MFE_CONFIG)
         and once with the parameters ("MFE_CONFIG_OVERRIDES", settings.MFE_CONFIG_OVERRIDES).
         - The json of the response is the merge of both mocked configurations.
@@ -51,12 +62,18 @@ class MFEConfigTestCase(APITestCase):
         configuration_helpers_mock.get_value.side_effect = [
             {"EXAMPLE_VAR": "value", "OTHER": "other"},
             {"mymfe": {"EXAMPLE_VAR": "mymfe_value"}},
+            "",
+            "",
         ]
 
         response = self.client.get(f"{self.mfe_config_api_url}?mfe=mymfe")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        calls = [call("MFE_CONFIG", settings.MFE_CONFIG),
-                 call("MFE_CONFIG_OVERRIDES", settings.MFE_CONFIG_OVERRIDES)]
+        calls = [
+            call("MFE_CONFIG", settings.MFE_CONFIG),
+            call("MFE_CONFIG_OVERRIDES", settings.MFE_CONFIG_OVERRIDES),
+            call("CHALIX_GUIDE_CIVIL_SERVANTS_URL", ""),
+            call("CHALIX_GUIDE_MINISTRY_AGENCY_URL", ""),
+        ]
         configuration_helpers_mock.get_value.assert_has_calls(calls)
         self.assertEqual(response.json(), {"EXAMPLE_VAR": "mymfe_value", "OTHER": "other"})
 
@@ -114,17 +131,23 @@ class MFEConfigTestCase(APITestCase):
         precedence.
 
         Expected result:
-        - The get_value method of the configuration_helpers in the views is called twice, once with the
+        - The get_value method of the configuration_helpers in the views is called for MFE_CONFIG,
+        MFE_CONFIG_OVERRIDES, and guide URL keys.
+        - Called with the
         parameters ("MFE_CONFIG", settings.MFE_CONFIG)
         and once with the parameters ("MFE_CONFIG_OVERRIDES", settings.MFE_CONFIG_OVERRIDES).
         - The json of the response is the expected_response passed by ddt.data.
         """
-        configuration_helpers_mock.get_value.side_effect = [mfe_config, mfe_config_overrides]
+        configuration_helpers_mock.get_value.side_effect = [mfe_config, mfe_config_overrides, "", ""]
 
         response = self.client.get(f"{self.mfe_config_api_url}?mfe=mymfe")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        calls = [call("MFE_CONFIG", settings.MFE_CONFIG),
-                 call("MFE_CONFIG_OVERRIDES", settings.MFE_CONFIG_OVERRIDES)]
+        calls = [
+            call("MFE_CONFIG", settings.MFE_CONFIG),
+            call("MFE_CONFIG_OVERRIDES", settings.MFE_CONFIG_OVERRIDES),
+            call("CHALIX_GUIDE_CIVIL_SERVANTS_URL", ""),
+            call("CHALIX_GUIDE_MINISTRY_AGENCY_URL", ""),
+        ]
         configuration_helpers_mock.get_value.assert_has_calls(calls)
         self.assertEqual(response.json(), expected_response)
 
