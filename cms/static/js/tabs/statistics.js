@@ -19,9 +19,6 @@
                 return;
             }
 
-            const contentTitle = options.contentTitle || 'Thống kê hệ thống';
-            const contentDescription = options.contentDescription || 'Xem các thống kê và báo cáo tổng quan về hệ thống học tập.';
-
             // Clear container
             container.innerHTML = '';
 
@@ -34,49 +31,44 @@
             const statisticsHTML = `
                 <div class="statistics-container">
                     <div class="statistics-header">
-                        <h2>${contentTitle}</h2>
-                        <p class="statistics-description">${contentDescription}</p>
-                        
-                        ${`
-                        <div class="statistics-toolbar">
+                        <div class="statistics-controls-row">
                             <div class="statistics-year-filter">
                                 <label for="filter-year">Năm</label>
                                 <select id="filter-year" class="year-dropdown" aria-label="Lọc theo năm">
                                     <option value="2026" selected>2026</option>
                                 </select>
                             </div>
-                        </div>
-                        `}
 
-                        <!-- Table navigation buttons -->
-                        <div class="statistics-nav-buttons">
-                            ${isAgencyUser ? `
-                            <button class="stat-nav-btn active" data-table="statistics-table-section-1">
-                                <i class="fa fa-clock-o"></i>
-                                <span>Giờ học công chức</span>
-                            </button>
-                            <button class="stat-nav-btn" data-table="statistics-table-section-2">
-                                <i class="fa fa-users"></i>
-                                <span>Người học khóa học</span>
-                            </button>
-                            ` : `
-                            <button class="stat-nav-btn active" data-table="statistics-table-section-1">
-                                <i class="fa fa-building"></i>
-                                <span>Người học theo cơ quan</span>
-                            </button>
-                            <button class="stat-nav-btn" data-table="statistics-table-section-2">
-                                <i class="fa fa-users"></i>
-                                <span>Người học khóa học</span>
-                            </button>
-                            <button class="stat-nav-btn" data-table="statistics-table-section-3">
-                                <i class="fa fa-graduation-cap"></i>
-                                <span>Khóa học theo cơ quan</span>
-                            </button>
-                            <button class="stat-nav-btn" data-table="statistics-table-section-4">
-                                <i class="fa fa-clock-o"></i>
-                                <span>Giờ học công chức</span>
-                            </button>
-                            `}
+                            <!-- Table navigation buttons -->
+                            <div class="statistics-nav-buttons">
+                                ${isAgencyUser ? `
+                                <button class="stat-nav-btn active" data-table="statistics-table-section-1">
+                                    <i class="fa fa-clock-o"></i>
+                                    <span>Giờ học công chức</span>
+                                </button>
+                                <button class="stat-nav-btn" data-table="statistics-table-section-2">
+                                    <i class="fa fa-users"></i>
+                                    <span>Người học khóa học</span>
+                                </button>
+                                ` : `
+                                <button class="stat-nav-btn active" data-table="statistics-table-section-1">
+                                    <i class="fa fa-building"></i>
+                                    <span>Người học theo cơ quan</span>
+                                </button>
+                                <button class="stat-nav-btn" data-table="statistics-table-section-2">
+                                    <i class="fa fa-users"></i>
+                                    <span>Người học khóa học</span>
+                                </button>
+                                <button class="stat-nav-btn" data-table="statistics-table-section-3">
+                                    <i class="fa fa-graduation-cap"></i>
+                                    <span>Khóa học theo cơ quan</span>
+                                </button>
+                                <button class="stat-nav-btn" data-table="statistics-table-section-4">
+                                    <i class="fa fa-clock-o"></i>
+                                    <span>Giờ học công chức</span>
+                                </button>
+                                `}
+                            </div>
                         </div>
                     </div>
                     <div class="statistics-content">
@@ -89,8 +81,8 @@
                                 <!-- Search and Filter Controls -->
                                 <div class="statistics-filters">
                                     <div class="filter-row">
-                                        <div class="filter-group">
-                                            <label for="filter-search-id">Tìm kiếm theo ID/Tên:</label>
+                                        <div class="filter-group filter-group-inline">
+                                            <label for="filter-search-id">Tìm kiếm</label>
                                             <input type="text" id="filter-search-id" class="form-control" placeholder="Nhập ID hoặc tên người học..." />
                                         </div>
                                     </div>
@@ -214,8 +206,8 @@
                                 <!-- Search and Filter Controls -->
                                 <div class="statistics-filters">
                                     <div class="filter-row">
-                                        <div class="filter-group">
-                                            <label for="filter-search-id">Tìm kiếm theo ID/Tên:</label>
+                                        <div class="filter-group filter-group-inline">
+                                            <label for="filter-search-id">Tìm kiếm</label>
                                             <input type="text" id="filter-search-id" class="form-control" placeholder="Nhập ID hoặc tên người học..." />
                                         </div>
                                     </div>
@@ -341,29 +333,30 @@
             style.id = 'statistics-styles';
             style.textContent = `
                 .statistics-container {
-                    padding: 20px;
+                    padding: 10px 20px 20px;
                     font-family: 'Open Sans', Arial, sans-serif;
                 }
 
-                .statistics-header h2 {
-                    color: #2c5aa0;
+                .statistics-header {
                     margin-bottom: 10px;
-                    font-size: 24px;
-                    font-weight: 600;
                 }
 
-                .statistics-description {
-                    color: #666;
-                    margin-bottom: 20px;
-                    font-size: 14px;
+                .statistics-controls-row {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    gap: 16px;
+                    margin-bottom: 14px;
+                    flex-wrap: wrap;
                 }
 
                 .statistics-nav-buttons {
                     display: flex;
                     gap: 12px;
-                    margin-top: 20px;
-                    margin-bottom: 30px;
+                    margin-top: 0;
+                    margin-bottom: 0;
                     flex-wrap: wrap;
+                    justify-content: flex-end;
                 }
 
                 .statistics-toolbar {
@@ -446,16 +439,16 @@
 
                 .statistics-filters {
                     background: #f8f9fa;
-                    padding: 20px;
+                    padding: 14px 16px;
                     border-radius: 8px;
-                    margin-bottom: 20px;
+                    margin-bottom: 16px;
                     border: 1px solid #dee2e6;
                 }
 
                 .filter-row {
                     display: flex;
                     gap: 20px;
-                    margin-bottom: 15px;
+                    margin-bottom: 0;
                 }
 
                 .filter-group {
@@ -477,6 +470,21 @@
                     border: 1px solid #ccc;
                     border-radius: 4px;
                     font-size: 13px;
+                }
+
+                .filter-group-inline {
+                    display: flex;
+                    align-items: center;
+                    gap: 12px;
+                }
+
+                .filter-group-inline label {
+                    margin-bottom: 0;
+                    min-width: 64px;
+                }
+
+                .filter-group-inline input {
+                    max-width: 360px;
                 }
 
                 .filter-actions {
@@ -736,6 +744,12 @@
                 }
 
                 @media (max-width: 768px) {
+                    .statistics-controls-row {
+                        flex-direction: column;
+                        align-items: flex-start;
+                        gap: 10px;
+                    }
+
                     .filter-row {
                         flex-direction: column;
                         gap: 10px;
@@ -753,11 +767,21 @@
                     .statistics-nav-buttons {
                         flex-direction: column;
                         gap: 8px;
+                        width: 100%;
                     }
 
                     .stat-nav-btn {
                         width: 100%;
                         justify-content: center;
+                    }
+
+                    .filter-group-inline {
+                        flex-direction: column;
+                        align-items: flex-start;
+                    }
+
+                    .filter-group-inline input {
+                        max-width: 100%;
                     }
                 }
 
