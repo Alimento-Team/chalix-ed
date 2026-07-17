@@ -483,6 +483,12 @@ lms_base_url = _mfe_conf.get('LMS_BASE_URL') or getattr(settings, 'LMS_ROOT_URL'
         .cms-content { min-height: calc(100vh - 220px); } /* Account for Chalix header + footer */
         /* Dashboard-specific adjustments for content area */
         body.view-dashboard .wrapper-view { padding-top: 0; }
+
+        /* Hide the default Studio footer below the custom CMS footer. */
+        body.view-dashboard.chalix-cms .wrapper-footer,
+        body.view-dashboard.chalix-cms footer.primary {
+            display: none !important;
+        }
         
         /* Ensure main content doesn't overlap header */
         #main, #content {
