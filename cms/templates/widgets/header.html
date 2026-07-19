@@ -22,6 +22,8 @@
   learner_dashboard_url = mfe_config.get('LEARNER_DASHBOARD_URL', f'{lms_base_url}/dashboard')
   # Build personalization URL - use chr(38) for ampersand to avoid template escaping issues
   separator = chr(38) if '?' in learner_dashboard_url else '?'
+  category_url = f"{learner_dashboard_url}{separator}tab=user-guides"
+  learning_url = f"{learner_dashboard_url}{separator}tab=learning-survey"
   personalization_url = f"{learner_dashboard_url}{separator}tab=personalized"
   account_settings_url = mfe_config.get('ACCOUNT_SETTINGS_URL', '') or f'{lms_base_url}/account'
   account_profile_url = mfe_config.get('ACCOUNT_PROFILE_URL', '') or lms_base_url
@@ -221,11 +223,11 @@
               <i class="fa fa-home nav-icon" aria-hidden="true"></i>
               <span class="nav-label">Trang chủ</span>
             </a>
-            <a href="#" class="nav-item">
+            <a href="${category_url}" class="nav-item">
               <i class="fa fa-list nav-icon" aria-hidden="true"></i>
               <span class="nav-label">Danh mục</span>
             </a>
-            <a href="#" class="nav-item">
+            <a href="${learning_url}" class="nav-item">
               <i class="fa fa-graduation-cap nav-icon" aria-hidden="true"></i>
               <span class="nav-label">Học tập</span>
             </a>

@@ -678,6 +678,12 @@ from cms.djangoapps.contentstore.chalix_roles import get_user_organization_displ
 
 # Get user organization name from Chalix role
 user_org_name = get_user_organization_display_name(user) or ''
+
+# Build direct learner-dashboard tab URLs so header tabs work in a single click.
+dashboard_tab_separator = chr(38) if '?' in learner_dashboard_url else '?'
+dashboard_category_url = f"{learner_dashboard_url}{dashboard_tab_separator}tab=user-guides"
+dashboard_learning_url = f"{learner_dashboard_url}{dashboard_tab_separator}tab=learning-survey"
+dashboard_personalization_url = f"{learner_dashboard_url}{dashboard_tab_separator}tab=personalized"
 %>
 
 <div class="chalix-header-wrapper" id="view-top">
@@ -718,15 +724,15 @@ user_org_name = get_user_organization_display_name(user) or ''
                         <i class="fa fa-home nav-icon" aria-hidden="true"></i>
                         <span class="nav-label">Trang chủ</span>
                     </a>
-                    <a href="${learner_dashboard_url}" class="nav-item">
+                    <a href="${dashboard_category_url}" class="nav-item">
                         <i class="fa fa-list nav-icon" aria-hidden="true"></i>
                         <span class="nav-label">Danh mục</span>
                     </a>
-                    <a href="${learning_base_url}" class="nav-item">
+                    <a href="${dashboard_learning_url}" class="nav-item">
                         <i class="fa fa-graduation-cap nav-icon" aria-hidden="true"></i>
                         <span class="nav-label">Học tập</span>
                     </a>
-                    <a href="${learner_dashboard_url}?tab=personalized" class="nav-item">
+                    <a href="${dashboard_personalization_url}" class="nav-item">
                         <i class="fa fa-user nav-icon" aria-hidden="true"></i>
                         <span class="nav-label">Cá nhân hóa</span>
                     </a>
