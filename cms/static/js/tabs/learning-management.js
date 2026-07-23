@@ -134,7 +134,9 @@
             .lm-card-btn { 
                 padding: 6px 12px; font-size: 12px; border-radius: 6px; 
                 border: none; cursor: pointer; transition: all 200ms ease;
+                display: inline-flex; align-items: center; gap: 6px;
             }
+            .lm-card-btn i { font-size: 12px; }
             .lm-card-btn.view { background: #e0f2fe; color: #0369a1; }
             .lm-card-btn.edit { background: #fef3c7; color: #92400e; }
             .lm-card-btn.delete { background: #fee2e2; color: #dc2626; }
@@ -1189,9 +1191,9 @@
                     ${escapeHtml(program.short_description || 'Chưa có mô tả')}
                 </div>
                 <div class="lm-card-actions">
-                    <button class="lm-card-btn view" data-action="view-program" data-id="${program.id}">Xem</button>
-                    <button class="lm-card-btn edit" data-action="edit-program" data-id="${program.id}">Sửa</button>
-                    <button class="lm-card-btn delete" data-action="delete-program" data-id="${program.id}">Xóa</button>
+                    <button class="lm-card-btn view" data-action="view-program" data-id="${program.id}"><i class="fa fa-eye" aria-hidden="true"></i><span>Xem</span></button>
+                    <button class="lm-card-btn edit" data-action="edit-program" data-id="${program.id}"><i class="fa fa-pencil" aria-hidden="true"></i><span>Sửa</span></button>
+                    <button class="lm-card-btn delete" data-action="delete-program" data-id="${program.id}"><i class="fa fa-trash" aria-hidden="true"></i><span>Xóa</span></button>
                 </div>
             `;
 
@@ -1296,9 +1298,9 @@
                     ${escapeHtml(course.short_description || 'Chưa có mô tả')}
                 </div>
                 <div class="lm-card-actions">
-                    <button class="lm-card-btn view" data-action="view-course" data-id="${courseIdentifier}">Xem</button>
-                    <button class="lm-card-btn edit" data-action="edit-course" data-id="${courseIdentifier}">Sửa</button>
-                    <button class="lm-card-btn delete" data-action="delete-course" data-id="${courseIdentifier}">Xóa</button>
+                    <button class="lm-card-btn view" data-action="view-course" data-id="${courseIdentifier}"><i class="fa fa-eye" aria-hidden="true"></i><span>Xem</span></button>
+                    <button class="lm-card-btn edit" data-action="edit-course" data-id="${courseIdentifier}"><i class="fa fa-pencil" aria-hidden="true"></i><span>Sửa</span></button>
+                    <button class="lm-card-btn delete" data-action="delete-course" data-id="${courseIdentifier}"><i class="fa fa-trash" aria-hidden="true"></i><span>Xóa</span></button>
                 </div>
             `;
 
@@ -4257,8 +4259,8 @@
                 <td>${updatedDate}</td>
                 <td>${escapeHtml(adminName)}</td>
                 <td class="actions-cell">
-                    <button class="lm-card-btn edit" data-action="update-org" data-id="${org.id}">Sửa</button>
-                    <button class="lm-card-btn delete" data-action="delete-org" data-id="${org.id}" ${isBo ? '' : 'style="display:none;"'}>Xóa</button>
+                    <button class="lm-card-btn edit" data-action="update-org" data-id="${org.id}"><i class="fa fa-pencil" aria-hidden="true"></i><span>Sửa</span></button>
+                    <button class="lm-card-btn delete" data-action="delete-org" data-id="${org.id}" ${isBo ? '' : 'style="display:none;"'}><i class="fa fa-trash" aria-hidden="true"></i><span>Xóa</span></button>
                 </td>
             `;
 
