@@ -116,6 +116,7 @@
                 padding: 20px; transition: all 200ms ease; cursor: pointer;
                 width: 100%;
                 box-sizing: border-box;
+                position: relative;
             }
             .lm-card-item:hover { 
                 border-color: #3b82f6; 
@@ -126,6 +127,59 @@
             .lm-card-header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
             .lm-card-icon { width: 24px; height: 24px; flex-shrink: 0; }
             .lm-card-title { font-size: 18px; font-weight: 600; color: #1f2937; margin: 0; }
+
+            .lm-card-info-btn {
+                position: absolute;
+                top: 14px;
+                right: 14px;
+                width: 28px;
+                height: 28px;
+                border: 1px solid #cbd5e1;
+                border-radius: 999px;
+                background: #fff;
+                color: #475569;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                cursor: pointer;
+                transition: all 200ms ease;
+                box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+            }
+            .lm-card-info-btn:hover {
+                background: #eff6ff;
+                border-color: #93c5fd;
+                color: #2563eb;
+            }
+            .lm-card-info-btn i { font-size: 13px; }
+            .lm-card-info-btn::after {
+                content: attr(data-tooltip);
+                position: absolute;
+                top: calc(100% + 8px);
+                right: 0;
+                min-width: 140px;
+                max-width: 220px;
+                padding: 8px 10px;
+                border-radius: 8px;
+                background: rgba(15, 23, 42, 0.96);
+                color: #fff;
+                font-size: 12px;
+                line-height: 1.4;
+                white-space: normal;
+                text-align: left;
+                box-shadow: 0 8px 20px rgba(15, 23, 42, 0.18);
+                opacity: 0;
+                visibility: hidden;
+                transform: translateY(-4px);
+                transition: opacity 160ms ease, transform 160ms ease, visibility 160ms ease;
+                pointer-events: none;
+                z-index: 5;
+            }
+            .lm-card-info-btn:hover::after,
+            .lm-card-info-btn:focus-visible::after {
+                opacity: 1;
+                visibility: visible;
+                transform: translateY(0);
+            }
             
             .lm-card-meta { font-size: 12px; color: #6b7280; margin-bottom: 8px; }
             .lm-card-desc { font-size: 14px; color: #374151; margin-bottom: 16px; line-height: 1.4; }
@@ -1175,17 +1229,19 @@
         programs.forEach(program => {
             const card = document.createElement('div');
             card.className = 'lm-card-item';
+            const topicsCount = program.topics_count || (program.topics ? program.topics.length : 0);
+            const infoTooltip = escapeHtml(`ID: ${program.id} • ${topicsCount} chuyên đề`);
             
             const iconSvg = getIconSvg(program.icon || 'seed-of-life');
             const iconHtml = iconSvg ? iconSvg.outerHTML : '📚';
             
             card.innerHTML = `
+                <button class="lm-card-info-btn" type="button" aria-label="Thông tin chương trình học" data-tooltip="${infoTooltip}">
+                    <i class="fa fa-info" aria-hidden="true"></i>
+                </button>
                 <div class="lm-card-header">
                     <div class="lm-card-icon">${iconHtml}</div>
                     <h4 class="lm-card-title">${escapeHtml(program.title)}</h4>
-                </div>
-                <div class="lm-card-meta">
-                    ID: ${program.id} • ${program.topics_count || (program.topics ? program.topics.length : 0)} chuyên đề
                 </div>
                 <div class="lm-card-desc">
                     ${escapeHtml(program.short_description || 'Chưa có mô tả')}
@@ -1219,6 +1275,10 @@
             card.querySelector('[data-action="delete-program"]').addEventListener('click', (e) => {
                 e.stopPropagation();
                 deleteProgram(program.id, () => loadProgramsList(contentArea));
+            });
+
+            card.querySelector('.lm-card-info-btn').addEventListener('click', (e) => {
+                e.stopPropagation();
             });
 
             grid.appendChild(card);
