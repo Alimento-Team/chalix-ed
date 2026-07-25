@@ -117,6 +117,10 @@
                 width: 100%;
                 box-sizing: border-box;
                 position: relative;
+                display: flex;
+                flex-direction: column;
+                gap: 14px;
+                min-height: 220px;
             }
             .lm-card-item:hover { 
                 border-color: #3b82f6; 
@@ -124,9 +128,29 @@
                 transform: translateY(-1px);
             }
             
-            .lm-card-header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
-            .lm-card-icon { width: 24px; height: 24px; flex-shrink: 0; }
-            .lm-card-title { font-size: 18px; font-weight: 600; color: #1f2937; margin: 0; }
+            .lm-card-header {
+                display: flex;
+                align-items: flex-start;
+                gap: 10px;
+                padding-right: 42px;
+                margin: 0;
+            }
+            .lm-card-icon {
+                width: 24px;
+                height: 24px;
+                flex-shrink: 0;
+                margin-top: 2px;
+            }
+            .lm-card-title {
+                font-size: 18px;
+                font-weight: 600;
+                color: #1f2937;
+                margin: 0;
+                line-height: 1.25;
+                white-space: normal;
+                word-break: break-word;
+                overflow-wrap: anywhere;
+            }
 
             .lm-card-info-btn {
                 position: absolute;
@@ -181,10 +205,22 @@
                 transform: translateY(0);
             }
             
-            .lm-card-meta { font-size: 12px; color: #6b7280; margin-bottom: 8px; }
-            .lm-card-desc { font-size: 14px; color: #374151; margin-bottom: 16px; line-height: 1.4; }
+            .lm-card-meta { font-size: 12px; color: #6b7280; margin: 0; }
+            .lm-card-desc {
+                font-size: 14px;
+                color: #374151;
+                margin: 0;
+                line-height: 1.45;
+                flex: 1;
+            }
             
-            .lm-card-actions { display: flex; gap: 8px; justify-content: flex-end; }
+            .lm-card-actions {
+                display: flex;
+                gap: 8px;
+                justify-content: flex-end;
+                margin-top: auto;
+                padding-top: 4px;
+            }
             .lm-card-btn { 
                 padding: 6px 12px; font-size: 12px; border-radius: 6px; 
                 border: none; cursor: pointer; transition: all 200ms ease;
