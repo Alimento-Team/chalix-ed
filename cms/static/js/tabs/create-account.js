@@ -81,16 +81,11 @@
                                 <i class="fa fa-upload"></i>
                                 Nhập danh sách người dùng bằng file excel
                             </button>
-                            <button type="button" class="upload-template-btn" id="upload-template-btn" style="background: #28a745; color: white; border: none; padding: 12px 16px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500; display: flex; align-items: center; gap: 8px; font-family: 'Inter', sans-serif;">
-                                <i class="fa fa-upload"></i>
-                                Tải template mẫu lên
-                            </button>
                             <button type="button" class="download-template-btn" id="download-template-btn" style="background: #6c757d; color: white; border: none; padding: 12px 16px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500; display: flex; align-items: center; gap: 8px; font-family: 'Inter', sans-serif;">
                                 <i class="fa fa-download"></i>
                                 Tải file mẫu
                             </button>
                             <input type="file" id="excel-file-input" accept=".xlsx,.xls,.csv" style="display: none;">
-                            <input type="file" id="template-file-input" accept=".xlsx,.xls" style="display: none;">
                         </div>
                     </div>
                     ` : ''}
@@ -241,6 +236,20 @@
                     </form>
                 </div>
             </div>
+
+            <!-- Excel Import Result Modal -->
+            <div id="excel-import-result-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(2, 6, 23, 0.55); z-index: 10001; justify-content: center; align-items: center;">
+                <div style="background: #fff; width: 92%; max-width: 760px; max-height: 86vh; border-radius: 12px; box-shadow: 0 12px 32px rgba(15, 23, 42, 0.22); display: flex; flex-direction: column; overflow: hidden;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; padding:16px 20px; border-bottom:1px solid #e6eef6;">
+                        <h3 id="excel-import-result-title" style="margin:0; font-family:'Inter', sans-serif; font-size:18px; font-weight:600; color:#0f172a;">Kết quả nhập danh sách người dùng</h3>
+                        <button type="button" id="excel-import-result-close" style="background:none; border:none; font-size:24px; color:#64748b; cursor:pointer; line-height:1;">&times;</button>
+                    </div>
+                    <div id="excel-import-result-content" style="padding:16px 20px; overflow:auto; font-family:'Inter', sans-serif;"></div>
+                    <div style="padding:12px 20px; border-top:1px solid #e6eef6; display:flex; justify-content:flex-end;">
+                        <button type="button" id="excel-import-result-ok" style="background:#00aaed; color:#fff; border:none; border-radius:8px; padding:10px 18px; cursor:pointer; font-size:14px; font-weight:500;">Đã hiểu</button>
+                    </div>
+                </div>
+            </div>
         `;
 
         const wrap = container;
@@ -253,13 +262,16 @@
         const cancelModalBtn = document.getElementById('cancel-user-modal');
         const form = document.getElementById('user-creation-form');
         const excelUploadBtn = wrap.querySelector('#excel-upload-btn');
-        const uploadTemplateBtn = wrap.querySelector('#upload-template-btn');
         const downloadTemplateBtn = wrap.querySelector('#download-template-btn');
         const excelFileInput = wrap.querySelector('#excel-file-input');
-        const templateFileInput = wrap.querySelector('#template-file-input');
         const messagesContainer = wrap.querySelector('#user-creation-messages');
         const successMessage = wrap.querySelector('#success-message');
         const errorMessage = wrap.querySelector('#error-message');
+        const importResultModal = wrap.querySelector('#excel-import-result-modal');
+        const importResultTitle = wrap.querySelector('#excel-import-result-title');
+        const importResultContent = wrap.querySelector('#excel-import-result-content');
+        const importResultClose = wrap.querySelector('#excel-import-result-close');
+        const importResultOk = wrap.querySelector('#excel-import-result-ok');
 
         // Modal open/close handlers
         if (openModalBtn && modal) {
@@ -344,6 +356,28 @@
             modal.addEventListener('click', (e) => {
                 if (e.target === modal) {
                     closeModal();
+                }
+            });
+        }
+
+        const closeImportResultModal = () => {
+            if (importResultModal) {
+                importResultModal.style.display = 'none';
+            }
+        };
+
+        if (importResultClose) {
+            importResultClose.addEventListener('click', closeImportResultModal);
+        }
+
+        if (importResultOk) {
+            importResultOk.addEventListener('click', closeImportResultModal);
+        }
+
+        if (importResultModal) {
+            importResultModal.addEventListener('click', (event) => {
+                if (event.target === importResultModal) {
+                    closeImportResultModal();
                 }
             });
         }
@@ -462,16 +496,6 @@
             
             // File input change handler
             excelFileInput.addEventListener('change', handleFileUpload);
-        }
-        
-        // Upload template button handler (for bo role to upload custom template)
-        if (uploadTemplateBtn && templateFileInput) {
-            uploadTemplateBtn.addEventListener('click', () => {
-                templateFileInput.click();
-            });
-            
-            // Template file input change handler
-            templateFileInput.addEventListener('change', handleTemplateUpload);
         }
         
         // Download template button handler (only if enabled)
@@ -607,6 +631,81 @@
                     errorMessage.style.display = 'none';
                 }
             }
+        }
+
+        function toSafeNumber(value) {
+            const num = Number(value);
+            return Number.isFinite(num) ? num : 0;
+        }
+
+        function showImportResultPopup(result, { responseOk, fileName }) {
+            if (!importResultModal || !importResultTitle || !importResultContent) {
+                return;
+            }
+
+            const totalRows = toSafeNumber(result.total_rows);
+            const successCount = toSafeNumber(result.successful_imports ?? result.created_count);
+            const failedCount = toSafeNumber(result.failed_imports ?? (totalRows > successCount ? totalRows - successCount : 0));
+            const errors = Array.isArray(result.errors) ? result.errors : [];
+            const warnings = Array.isArray(result.warnings) ? result.warnings : [];
+            const isSuccess = !!result.success;
+            const hasProblems = failedCount > 0 || errors.length > 0;
+
+            importResultTitle.textContent = isSuccess
+                ? 'Nhập danh sách người dùng thành công'
+                : 'Nhập danh sách người dùng thất bại';
+
+            const statusColor = isSuccess && !hasProblems ? '#166534' : '#b91c1c';
+            const statusLabel = isSuccess && !hasProblems
+                ? 'Thành công'
+                : 'Có lỗi khi nhập dữ liệu';
+
+            const summaryHtml = `
+                <div style="border:1px solid #e2e8f0; border-radius:10px; padding:14px; margin-bottom:14px; background:#f8fafc;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:10px;">
+                        <div style="font-size:14px; color:#334155;"><strong>File:</strong> ${escapeHtml(fileName || 'Không xác định')}</div>
+                        <span style="display:inline-block; padding:4px 10px; border-radius:999px; background:${isSuccess && !hasProblems ? '#dcfce7' : '#fee2e2'}; color:${statusColor}; font-size:12px; font-weight:600;">${statusLabel}</span>
+                    </div>
+                    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:8px; font-size:13px; color:#475569;">
+                        <div><strong>Tổng số dòng:</strong> ${totalRows}</div>
+                        <div><strong>Nhập thành công:</strong> ${successCount}</div>
+                        <div><strong>Nhập thất bại:</strong> ${failedCount}</div>
+                        <div><strong>HTTP:</strong> ${responseOk ? '200' : 'Lỗi phản hồi'}</div>
+                    </div>
+                </div>
+            `;
+
+            const renderListBlock = (title, items, blockColor) => {
+                if (!items.length) {
+                    return '';
+                }
+
+                const rows = items.map((item) => `<li style="margin-bottom:6px;">${escapeHtml(String(item))}</li>`).join('');
+                return `
+                    <div style="border:1px solid ${blockColor.border}; border-radius:10px; background:${blockColor.bg}; padding:12px 14px; margin-top:10px;">
+                        <div style="font-size:14px; font-weight:600; color:${blockColor.title}; margin-bottom:8px;">${title} (${items.length})</div>
+                        <ul style="margin:0; padding-left:18px; color:${blockColor.text}; font-size:13px; line-height:1.45;">${rows}</ul>
+                    </div>
+                `;
+            };
+
+            importResultContent.innerHTML = `
+                ${summaryHtml}
+                ${renderListBlock('Chi tiết lỗi', errors, {
+                    border: '#fecaca',
+                    bg: '#fef2f2',
+                    title: '#b91c1c',
+                    text: '#7f1d1d',
+                })}
+                ${renderListBlock('Cảnh báo', warnings, {
+                    border: '#fde68a',
+                    bg: '#fffbeb',
+                    title: '#92400e',
+                    text: '#78350f',
+                })}
+            `;
+
+            importResultModal.style.display = 'flex';
         }
         
         function showUserCreatedInfo(user) {
@@ -1013,60 +1112,6 @@
             showSuccess('File mẫu đã được tải xuống. Vui lòng kiểm tra thư mục Downloads của bạn.');
         }
         
-        function handleTemplateUpload(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            
-            // Validate file type
-            const validTypes = ['.xlsx', '.xls'];
-            const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
-            
-            if (!validTypes.includes(fileExtension)) {
-                showError('File template phải có định dạng Excel (.xlsx, .xls)');
-                event.target.value = '';
-                return;
-            }
-            
-            // Upload template file
-            uploadTemplateFile(file);
-        }
-        
-        async function uploadTemplateFile(file) {
-            try {
-                const formData = new FormData();
-                formData.append('file', file);
-                
-                const response = await fetch('/api/contentstore/v1/users/excel/template', {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRFToken': getCSRFToken()
-                    },
-                    credentials: 'include',
-                    body: formData
-                });
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                
-                const result = await response.json();
-                
-                if (result.success) {
-                    showSuccess('Template đã được cập nhật thành công. File mẫu mới sẽ được sử dụng cho tất cả người dùng.');
-                    // Change download button color to green
-                    updateDownloadButtonStyle(true);
-                    // Store custom template state
-                    localStorage.setItem('hasCustomTemplate', 'true');
-                } else {
-                    showError(result.message || 'Lỗi tải template lên');
-                }
-                
-            } catch (error) {
-                console.error('Error uploading template:', error);
-                showError('Lỗi tải template lên. Vui lòng thử lại.');
-            }
-        }
-        
         function updateDownloadButtonStyle(hasCustomTemplate) {
             const downloadBtn = document.getElementById('download-template-btn');
             if (downloadBtn) {
@@ -1158,21 +1203,47 @@
                         body: fallbackFormData
                     });
                 }
-                
-                const result = await response.json();
-                
+
+                let result = {};
+                try {
+                    result = await response.json();
+                } catch (parseError) {
+                    result = {
+                        success: false,
+                        message: 'Phản hồi máy chủ không đúng định dạng JSON.',
+                        errors: ['Không thể đọc dữ liệu phản hồi từ máy chủ.'],
+                    };
+                }
+
+                showImportResultPopup(result, {
+                    responseOk: response.ok,
+                    fileName: file && file.name,
+                });
+
                 if (result.success) {
-                    showSuccess(`Tạo thành công ${result.created_count} tài khoản`);
+                    showSuccess(`Tạo thành công ${result.created_count || result.successful_imports || 0} tài khoản`);
                     // Refresh listing after bulk create
                     const perPage = parseInt(document.getElementById('users-per-page').value, 10) || 50;
                     loadUsers(1, perPage, document.getElementById('users-search').value || '');
                 } else {
-                    showError(result.message || 'Lỗi tải file');
+                    const primaryMessage = result.message || 'Không thể nhập danh sách người dùng từ file Excel.';
+                    showError(primaryMessage);
                 }
                 
             } catch (error) {
                 console.error('Error uploading file:', error);
                 showError('Lỗi tải file. Vui lòng thử lại.');
+                showImportResultPopup({
+                    success: false,
+                    total_rows: 0,
+                    successful_imports: 0,
+                    failed_imports: 0,
+                    errors: ['Lỗi kết nối hoặc máy chủ không phản hồi.'],
+                    warnings: [],
+                }, {
+                    responseOk: false,
+                    fileName: file && file.name,
+                });
             }
         }
         

@@ -5,6 +5,7 @@ Supports Vietnamese user profile fields and bulk user creation.
 
 import io
 import logging
+import unicodedata
 from datetime import datetime
 from typing import List, Dict, Any, Tuple
 
@@ -56,6 +57,52 @@ USER_MODEL_FIELDS = {'email', 'password'}
 
 # Fields that should be stored in UserProfile.meta as JSON
 META_FIELDS = set(EXCEL_COLUMN_MAPPINGS.values()) - DIRECT_PROFILE_FIELDS - USER_MODEL_FIELDS
+
+
+def normalize_gender_value(gender_raw: Any) -> str:
+    """
+    Normalize gender input to edX profile values: m/f/o.
+
+    Accepts common Vietnamese and English values (with/without accents), e.g.:
+    - nam, male, m -> m
+    - nữ, nu, female, f -> f
+    - khác, khac, other, o -> o
+    """
+    if gender_raw is None:
+        return ''
+
+    value = str(gender_raw).strip().lower()
+    if not value:
+        return ''
+
+    # Normalize spacing/separators before comparison (e.g. "Nữ-Giới", " NU  GIOI ").
+    value = value.replace('-', ' ').replace('_', ' ')
+    value = ' '.join(value.split())
+
+    # Remove Vietnamese accents/diacritics for robust matching.
+    value_no_accent = ''.join(
+        c for c in unicodedata.normalize('NFD', value)
+        if unicodedata.category(c) != 'Mn'
+    )
+
+    mapping = {
+        'm': 'm',
+        'male': 'm',
+        'nam': 'm',
+        'nam gioi': 'm',
+
+        'f': 'f',
+        'female': 'f',
+        'nu': 'f',
+        'nu gioi': 'f',
+
+        'o': 'o',
+        'other': 'o',
+        'khac': 'o',
+        'gioi tinh khac': 'o',
+    }
+
+    return mapping.get(value_no_accent, '')
 
 
 def generate_excel_template() -> bytes:
@@ -220,10 +267,16 @@ def validate_user_data(user_data: Dict[str, Any]) -> Tuple[bool, List[str]]:
     if password and len(password) < 6:
         errors.append(f"Dòng {row_num}: Mật khẩu phải có ít nhất 6 ký tự")
     
-    # Validate gender
-    gender = user_data.get('gender', '').strip().lower()
-    if gender and gender not in ['m', 'f', 'o', '']:
-        errors.append(f"Dòng {row_num}: Giới tính không hợp lệ '{gender}' (chỉ chấp nhận: m, f, o)")
+    # Validate gender (accept nam/nu/khac and normalize to m/f/o)
+    gender_raw = user_data.get('gender', '')
+    gender_normalized = normalize_gender_value(gender_raw)
+    if str(gender_raw).strip() and not gender_normalized:
+        errors.append(
+            f"Dòng {row_num}: Giới tính không hợp lệ '{str(gender_raw).strip()}' "
+            "(chấp nhận: m, f, o, nam, nữ, khác)"
+        )
+    elif gender_normalized:
+        user_data['gender'] = gender_normalized
     
     # Validate phone number format (basic)
     phone = user_data.get('phone_number', '').strip()
@@ -283,8 +336,8 @@ def create_user_from_data(user_data: Dict[str, Any], created_by: User) -> Tuple[
             profile.phone_number = user_data['phone_number'].strip()
         
         if user_data.get('gender'):
-            gender = user_data['gender'].strip().lower()
-            if gender in ['m', 'f', 'o']:
+            gender = normalize_gender_value(user_data.get('gender'))
+            if gender:
                 profile.gender = gender
         
         # Build meta data dictionary for additional fields
