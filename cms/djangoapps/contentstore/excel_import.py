@@ -112,6 +112,34 @@ def normalize_gender_value(gender_raw: Any) -> str:
     return mapping.get(value_no_accent, '')
 
 
+def normalize_role_label(role_raw: Any) -> str:
+    """
+    Normalize Vietnamese role labels from Excel.
+
+    Example accepted inputs:
+    - Quản trị cơ quan
+    - Giảng viên
+    - Học viên
+    - Công chức
+    - Viên chức
+    - Công chức/Viên chức
+    """
+    if role_raw is None:
+        return ''
+
+    value = str(role_raw).strip().lower()
+    if not value:
+        return ''
+
+    value = value.replace('-', ' ').replace('_', ' ').replace('/', ' ')
+    value = ' '.join(value.split())
+
+    return ''.join(
+        c for c in unicodedata.normalize('NFD', value)
+        if unicodedata.category(c) != 'Mn'
+    )
+
+
 def generate_excel_template() -> bytes:
     """
     Generate an Excel template file with required columns.
@@ -364,73 +392,88 @@ def create_user_from_data(user_data: Dict[str, Any], created_by: User, force_org
         profile.set_meta(meta_data)
         profile.save()
         
-        # Assign user role if provided
-        # If force_org is set (org admin uploading), use that instead of parsing from file
-        if user_role:
-            # Map Vietnamese role names to role codes
-            role_mapping = {
-                'Quản trị cơ quan': 'co_quan',
-                'Giảng viên': 'giang_vien',
-                'Học viên': 'cong_chuc',  # Changed from 'hoc_vien' to match model
-                'Công chức': 'cong_chuc',
-                'Viên chức': 'cong_chuc',
-            }
-            
-            role_code = role_mapping.get(user_role)
-            if role_code:
-                try:
-                    from cms.djangoapps.contentstore.models import ChalixOrganization
-                    
-                    organization = None
-                    
-                    # If force_org is provided (org admin), use it and ignore don_vi_cong_tac
-                    if force_org:
-                        organization = force_org
-                        logger.info(f"Using force_org '{organization.display_name}' for user {username}")
-                    elif don_vi_cong_tac:
-                        # Find organization by name (try exact match first, then case-insensitive)
-                        organization = ChalixOrganization.objects.filter(name=don_vi_cong_tac).first()
-                        if not organization:
-                            # Try case-insensitive match
-                            organization = ChalixOrganization.objects.filter(name__iexact=don_vi_cong_tac).first()
-                        
-                        if not organization:
-                            # Try display_name match
-                            organization = ChalixOrganization.objects.filter(display_name__iexact=don_vi_cong_tac).first()
-                        
-                        if not organization:
-                            warnings.append(f"Không tìm thấy tổ chức '{don_vi_cong_tac}' trong hệ thống. Vui lòng tạo tổ chức trước.")
-                            logger.warning(f"Organization '{don_vi_cong_tac}' not found for user {username}")
-                    
-                    if organization:
-                        # Check if user already has a role for this organization
-                        existing_role = ChalixUserRole.objects.filter(
-                            user=user,
-                            organization=organization
-                        ).first()
-                        
-                        if existing_role:
-                            # Update existing role
-                            existing_role.role = role_code
-                            existing_role.is_active = True
-                            existing_role.created_by = created_by
-                            existing_role.save()
-                            warnings.append(f"Cập nhật vai trò '{user_role}' cho người dùng {username} tại '{organization.display_name}'")
-                        else:
-                            # Create new role
-                            ChalixUserRole.objects.create(
-                                user=user,
-                                role=role_code,
-                                organization=organization,
-                                is_active=True,
-                                created_by=created_by
-                            )
-                            logger.info(f"Assigned role '{role_code}' to user {username} at organization '{organization.display_name}'")
-                except Exception as e:
-                    warnings.append(f"Không thể gán vai trò '{user_role}': {str(e)}")
-                    logger.error(f"Failed to assign role to user {username}: {str(e)}", exc_info=True)
+        # Assign role + organization for imported users.
+        # If force_org is set (org admin upload), default to cong_chuc when role is missing/invalid
+        # so imported accounts remain visible in co_quan account list.
+        role_mapping = {
+            'quan tri co quan': 'co_quan',
+            'giang vien': 'giang_vien',
+            'hoc vien': 'cong_chuc',
+            'cong chuc': 'cong_chuc',
+            'vien chuc': 'cong_chuc',
+            'cong chuc vien chuc': 'cong_chuc',
+        }
+
+        normalized_role = normalize_role_label(user_role)
+        role_code = role_mapping.get(normalized_role)
+
+        if force_org and not role_code:
+            role_code = 'cong_chuc'
+            if user_role:
+                warnings.append(
+                    f"Vai trò '{user_role}' không hợp lệ. Tự động gán 'Công chức/Viên chức' cho người dùng {username}."
+                )
             else:
-                warnings.append(f"Vai trò '{user_role}' không hợp lệ. Chỉ chấp nhận: Quản trị cơ quan, Giảng viên, Học viên, Công chức, Viên chức")
+                warnings.append(
+                    f"Thiếu vai trò người dùng hệ thống. Tự động gán 'Công chức/Viên chức' cho người dùng {username}."
+                )
+
+        if role_code:
+            try:
+                from cms.djangoapps.contentstore.models import ChalixOrganization
+
+                organization = None
+
+                # If force_org is provided (org admin), use it and ignore don_vi_cong_tac
+                if force_org:
+                    organization = force_org
+                    logger.info(f"Using force_org '{organization.display_name}' for user {username}")
+                elif don_vi_cong_tac:
+                    # Find organization by name (try exact match first, then case-insensitive)
+                    organization = ChalixOrganization.objects.filter(name=don_vi_cong_tac).first()
+                    if not organization:
+                        # Try case-insensitive match
+                        organization = ChalixOrganization.objects.filter(name__iexact=don_vi_cong_tac).first()
+
+                    if not organization:
+                        # Try display_name match
+                        organization = ChalixOrganization.objects.filter(display_name__iexact=don_vi_cong_tac).first()
+
+                    if not organization:
+                        warnings.append(f"Không tìm thấy tổ chức '{don_vi_cong_tac}' trong hệ thống. Vui lòng tạo tổ chức trước.")
+                        logger.warning(f"Organization '{don_vi_cong_tac}' not found for user {username}")
+
+                if organization:
+                    # Check if user already has a role for this organization
+                    existing_role = ChalixUserRole.objects.filter(
+                        user=user,
+                        organization=organization
+                    ).first()
+
+                    if existing_role:
+                        # Update existing role
+                        existing_role.role = role_code
+                        existing_role.is_active = True
+                        existing_role.created_by = created_by
+                        existing_role.save()
+                        warnings.append(f"Cập nhật vai trò '{role_code}' cho người dùng {username} tại '{organization.display_name}'")
+                    else:
+                        # Create new role
+                        ChalixUserRole.objects.create(
+                            user=user,
+                            role=role_code,
+                            organization=organization,
+                            is_active=True,
+                            created_by=created_by
+                        )
+                        logger.info(f"Assigned role '{role_code}' to user {username} at organization '{organization.display_name}'")
+            except Exception as e:
+                warnings.append(f"Không thể gán vai trò '{user_role or role_code}': {str(e)}")
+                logger.error(f"Failed to assign role to user {username}: {str(e)}", exc_info=True)
+        elif user_role:
+            warnings.append(
+                f"Vai trò '{user_role}' không hợp lệ. Chỉ chấp nhận: Quản trị cơ quan, Giảng viên, Học viên, Công chức, Viên chức"
+            )
         
         logger.info(f"Created user: {username} ({email}) by {created_by.username}")
         
