@@ -227,9 +227,12 @@
                 display: inline-flex; align-items: center; gap: 6px;
             }
             .lm-card-btn i { font-size: 12px; }
-            .lm-card-btn.view { background: #e0f2fe; color: #0369a1; }
-            .lm-card-btn.edit { background: #fef3c7; color: #92400e; }
-            .lm-card-btn.delete { background: #fee2e2; color: #dc2626; }
+            .lm-card-btn.view,
+            .lm-card-btn.edit,
+            .lm-card-btn.delete { background: #3b82f6; color: #ffffff; }
+            .lm-card-btn.view:hover,
+            .lm-card-btn.edit:hover,
+            .lm-card-btn.delete:hover { background: #2563eb; }
         `;
         const style = document.createElement('style');
         style.id = 'cms-learning-management-styles';
