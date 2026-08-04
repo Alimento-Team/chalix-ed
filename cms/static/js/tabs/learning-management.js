@@ -13,66 +13,6 @@
     };
     let isHeaderSearchBound = false;
 
-    // returns an inline SVG element (DOM node) for a given icon token
-    function getIconSvg(token) {
-        const wrapper = document.createElement('div');
-        wrapper.innerHTML = {
-            'seed-of-life': `
-                <svg class="chalix-icon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                    <g fill="none" stroke="#111" stroke-width="1">
-                        <circle cx="12" cy="12" r="2.2" />
-                        <circle cx="8" cy="12" r="2.2" />
-                        <circle cx="16" cy="12" r="2.2" />
-                        <circle cx="10.5" cy="9.5" r="2.2" />
-                        <circle cx="13.5" cy="9.5" r="2.2" />
-                        <circle cx="10.5" cy="14.5" r="2.2" />
-                        <circle cx="13.5" cy="14.5" r="2.2" />
-                    </g>
-                </svg>`,
-            'flower-of-life': `
-                <svg class="chalix-icon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                    <g fill="none" stroke="#111" stroke-width="1">
-                        <circle cx="12" cy="6" r="3" />
-                        <circle cx="16.5" cy="9" r="3" />
-                        <circle cx="12" cy="12" r="3" />
-                        <circle cx="7.5" cy="9" r="3" />
-                        <circle cx="12" cy="18" r="3" />
-                    </g>
-                </svg>`,
-            'tree-of-life': `
-                <svg class="chalix-icon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                    <g fill="none" stroke="#111" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M12 3v4" />
-                        <path d="M7 10c1-2 4-3 5-3s4 1 5 3c.5 1-1 2-2 2s-1-1-3-1-2 1-3 1-2 0-2-1c0-1-2-1.5-1-4z" />
-                        <path d="M6 19c2-1 4-1 6-1s4 0 6 1" />
-                    </g>
-                </svg>`,
-            'lotus': `
-                <svg class="chalix-icon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                    <g fill="none" stroke="#111" stroke-width="1">
-                        <path d="M12 20s-3-5-7-6c0 0 4-4 7-4s7 4 7 4c-4 1-7 6-7 6z" />
-                        <path d="M4 11s4-3 8-3 8 3 8 3" />
-                    </g>
-                </svg>`,
-            'mandala': `
-                <svg class="chalix-icon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                    <g fill="none" stroke="#111" stroke-width="1">
-                        <circle cx="12" cy="12" r="2" />
-                        <path d="M12 4v2M12 18v2M4 12h2M18 12h2M6.5 6.5l1.5 1.5M16 16l1.5 1.5M6.5 17.5l1.5-1.5M16 8l1.5-1.5" />
-                    </g>
-                </svg>`,
-            'sacred-geometry': `
-                <svg class="chalix-icon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                    <g fill="none" stroke="#111" stroke-width="1">
-                        <polygon points="12,3 20,8 20,16 12,21 4,16 4,8" />
-                        <circle cx="12" cy="12" r="2" />
-                    </g>
-                </svg>`
-        }[token] || '';
-        // return firstElementChild (the svg) if present
-        return wrapper.firstElementChild;
-    }
-
     function ensureStyles() {
         if (document.getElementById('cms-learning-management-styles')) return;
         const css = `
@@ -113,14 +53,14 @@
             }
             .lm-card-item { 
                 background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; 
-                padding: 20px; transition: all 200ms ease; cursor: pointer;
+                padding: 16px; transition: all 200ms ease; cursor: pointer;
                 width: 100%;
                 box-sizing: border-box;
                 position: relative;
                 display: flex;
                 flex-direction: column;
                 gap: 14px;
-                min-height: 220px;
+                min-height: 180px;
             }
             .lm-card-item:hover { 
                 border-color: #3b82f6; 
@@ -131,18 +71,12 @@
             .lm-card-header {
                 display: flex;
                 align-items: flex-start;
-                gap: 10px;
-                padding-right: 42px;
+                gap: 0;
+                padding-right: 36px;
                 margin: 0;
             }
-            .lm-card-icon {
-                width: 24px;
-                height: 24px;
-                flex-shrink: 0;
-                margin-top: 2px;
-            }
             .lm-card-title {
-                font-size: 18px;
+                font-size: 17px;
                 font-weight: 600;
                 color: #1f2937;
                 margin: 0;
@@ -799,53 +733,9 @@
                 margin-bottom: 8px;
             }
             
-            .lm-icon-picker {
-                display: grid;
-                grid-template-columns: repeat(6, 1fr);
-                gap: 8px;
-                padding: 12px;
-                border: 1px solid #e5e7eb;
-                border-radius: 8px;
-                background: #f9fafb;
-            }
-            
-            .lm-icon-option {
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                padding: 12px;
-                border: 2px solid transparent;
-                border-radius: 8px;
-                background: white;
-                cursor: pointer;
-                transition: all 200ms;
-                min-height: 48px;
-            }
-            
-            .lm-icon-option:hover {
-                border-color: #3b82f6;
-                background: #eff6ff;
-            }
-            
-            .lm-icon-option.selected {
-                border-color: #3b82f6;
-                background: #dbeafe;
-                box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
-            }
-            
-            .lm-icon-option svg {
-                width: 24px;
-                height: 24px;
-                display: block;
-            }
-            
             @media (max-width: 768px) {
                 .lm-form-row {
                     grid-template-columns: 1fr;
-                }
-                
-                .lm-icon-picker {
-                    grid-template-columns: repeat(3, 1fr);
                 }
                 
                 .lm-edit-topic-item {
@@ -1271,15 +1161,11 @@
             const topicsCount = program.topics_count || (program.topics ? program.topics.length : 0);
             const infoTooltip = escapeHtml(`ID: ${program.id} • ${topicsCount} chuyên đề`);
             
-            const iconSvg = getIconSvg(program.icon || 'seed-of-life');
-            const iconHtml = iconSvg ? iconSvg.outerHTML : '📚';
-            
             card.innerHTML = `
                 <button class="lm-card-info-btn" type="button" aria-label="Thông tin chương trình học" data-tooltip="${infoTooltip}">
                     <i class="fa fa-info" aria-hidden="true"></i>
                 </button>
                 <div class="lm-card-header">
-                    <div class="lm-card-icon">${iconHtml}</div>
                     <h4 class="lm-card-title">${escapeHtml(program.title)}</h4>
                 </div>
                 <div class="lm-card-desc">
@@ -1382,7 +1268,6 @@
             
             card.innerHTML = `
                 <div class="lm-card-header">
-                    <div class="lm-card-icon">📚</div>
                     <h4 class="lm-card-title">${escapeHtml(course.title)}</h4>
                 </div>
                 <div class="lm-card-meta">
@@ -1602,7 +1487,6 @@
                     topics: topics && Array.isArray(topics) && topics.length > 0
                         ? topics
                         : [], // Don't generate fake topics - let API provide real data
-                    icon: 'seed-of-life',
                     created_at: new Date().toISOString(),
                     created_by: 'Người dùng hiện tại'
                 });
@@ -1615,16 +1499,12 @@
         const overlay = document.createElement('div');
         overlay.className = 'lm-modal-overlay';
         
-        const iconSvg = getIconSvg(program.icon || 'seed-of-life');
-        const iconHtml = iconSvg ? iconSvg.outerHTML : '📚';
-        
         const topicsList = generateTopicsListHtml(program.topics);
 
         overlay.innerHTML = `
             <div class="lm-modal lm-detail-modal">
                 <div class="lm-modal-header">
                     <div class="lm-detail-title">
-                        <div class="lm-detail-icon">${iconHtml}</div>
                         <h3>${escapeHtml(program.title)}</h3>
                     </div>
                     <div class="lm-modal-header-actions">
@@ -1641,10 +1521,6 @@
                             <div class="lm-detail-item">
                                 <label>ID</label>
                                 <span>${program.id}</span>
-                            </div>
-                            <div class="lm-detail-item">
-                                <label>Biểu tượng</label>
-                                <span>${program.icon || 'seed-of-life'}</span>
                             </div>
                             <div class="lm-detail-item">
                                 <label>Số chuyên đề</label>
@@ -1746,16 +1622,6 @@
         
         const overlay = document.createElement('div');
         overlay.className = 'lm-modal-overlay';
-        
-        const iconOptions = ['seed-of-life', 'flower-of-life', 'tree-of-life', 'lotus', 'mandala', 'sacred-geometry'];
-        const iconOptionsHtml = iconOptions.map(icon => {
-            const iconSvg = getIconSvg(icon);
-            const iconHtml = iconSvg ? iconSvg.outerHTML : '📚';
-            const selected = icon === (program.icon || 'seed-of-life') ? 'selected' : '';
-            return `<div class="lm-icon-option ${selected}" data-icon="${icon}" title="${icon}">
-                        ${iconHtml}
-                    </div>`;
-        }).join('');
 
         const topicsHtml = (program.topics || []).map((topic, index) => 
             `<div class="lm-edit-topic-item" data-index="${index}">
@@ -1781,16 +1647,8 @@
                             <label class="lm-form-label">Mô tả ngắn</label>
                             <textarea name="short_description" class="lm-form-input lm-form-textarea">${escapeHtml(program.short_description || '')}</textarea>
                         </div>
-                        
+
                         <div class="lm-form-row">
-                            <div class="lm-form-group">
-                                <label class="lm-form-label">Biểu tượng</label>
-                                <div class="lm-icon-picker" id="icon-picker">
-                                    ${iconOptionsHtml}
-                                </div>
-                                <input type="hidden" name="icon" value="${program.icon || 'seed-of-life'}" id="selected-icon">
-                            </div>
-                            
                             <div class="lm-form-group">
                                 <label class="lm-form-label">
                                     <input type="checkbox" name="update_topics" ${program.update_topics ? 'checked' : ''}>
@@ -1855,22 +1713,6 @@
         cancelBtn.addEventListener('click', closeModal);
         overlay.addEventListener('click', (e) => {
             if (e.target === overlay) closeModal();
-        });
-
-        // Icon picker handlers
-        const iconPicker = overlay.querySelector('#icon-picker');
-        const selectedIconInput = overlay.querySelector('#selected-icon');
-        
-        iconPicker.addEventListener('click', (e) => {
-            const iconOption = e.target.closest('.lm-icon-option');
-            if (iconOption) {
-                // Remove selected class from all options
-                iconPicker.querySelectorAll('.lm-icon-option').forEach(opt => opt.classList.remove('selected'));
-                // Add selected class to clicked option
-                iconOption.classList.add('selected');
-                // Update hidden input value
-                selectedIconInput.value = iconOption.dataset.icon;
-            }
         });
 
         // Add topic handler
@@ -2020,55 +1862,11 @@
             }
 
             // Show loading
-            messageDiv.innerHTML = '<div class="lm-message lm-loading">Đang lưu thay đổi...</div>';
-            messageDiv.style.display = 'block';
-            saveBtn.disabled = true;
-
-            // Try to save via API
-            saveProgramChanges(programData)
-                .then((response) => {
-                    // Save successful (log removed)
-                    // Updated program data used to update UI (log removed)
-                    const successMessage = response.message || 'Đã lưu chương trình học thành công!';
-                    messageDiv.innerHTML = `<div class="lm-message lm-success">${successMessage}</div>`;
-                    // Ensure visible list and any open details are updated with the new data
-                    try {
-                        updateProgramInDOM(programData);
-                        updateOpenProgramDetails(programData);
-                        // UI update calls completed (log removed)
-                    } catch (e) { 
-                        console.warn('Failed to update UI after save:', e); 
-                    }
-
-                    setTimeout(() => {
-                        // Always refresh after save to ensure fresh data
-                        overlay.remove();
-                        // Closing edit modal and refreshing program list (log removed)
-                        if (onSuccess) {
-                            onSuccess();
-                        }
-                    }, 1500);
-                })
-                .catch(err => {
-                    console.error('Save failed:', err);
-                    const errorMessage = err.message || 'Có lỗi xảy ra khi lưu chương trình học';
-                    messageDiv.innerHTML = `<div class="lm-message lm-error">${errorMessage}</div>`;
-                    saveBtn.disabled = false;
-                });
-        });
-
-        // Handle form submission (when Enter is pressed)
-        form.addEventListener('submit', (e) => {
-            e.preventDefault();
             saveBtn.click();
         });
     }
 
     function saveProgramChanges(programData) {
-        // Saving program data (log removed)
-        
-        // Try to save via API first
-        return fetch(`/api/chalix/dashboard/update-program/`, {
             method: 'POST',
             credentials: 'same-origin',
             headers: {
@@ -2219,7 +2017,6 @@
             const titleEl = card.querySelector('.lm-card-title');
             const metaEl = card.querySelector('.lm-card-meta');
             const descEl = card.querySelector('.lm-card-desc');
-            const iconEl = card.querySelector('.lm-card-icon');
             
             if (titleEl && metaEl) {
                 const idMatch = metaEl.textContent.match(/ID:\s*(\d+)/);
@@ -2232,10 +2029,6 @@
                     if (metaEl) {
                         const topicsCount = programData.topics_count || (programData.topics ? programData.topics.length : 0);
                         metaEl.textContent = `ID: ${programData.id} • ${topicsCount} chuyên đề`;
-                    }
-                    if (iconEl && programData.icon) {
-                        const iconSvg = getIconSvg(programData.icon);
-                        iconEl.innerHTML = iconSvg ? iconSvg.outerHTML : '📚';
                     }
                     // Store topics on the card for future reads (so getAllProgramsFromDOM can pick up titles)
                     try {
@@ -3340,12 +3133,6 @@
                         </div>
 
                         <div class="lm-form-group">
-                            <label class="lm-form-label">Biểu tượng</label>
-                            <div class="lm-icon-picker" id="create-icon-picker"></div>
-                            <input type="hidden" name="icon" id="create-selected-icon" value="seed-of-life">
-                        </div>
-
-                        <div class="lm-form-group">
                             <label class="lm-form-label">Danh sách chuyên đề</label>
                             <div class="lm-topics-editor" id="create-topics-editor">
                                 <div id="create-topics-list"></div>
@@ -3743,31 +3530,11 @@
         const form = overlay.querySelector('#create-program-form');
         const topicsEditor = overlay.querySelector('#create-topics-editor');
         const addTopicBtn = overlay.querySelector('#add-create-topic-btn');
-        const iconPicker = overlay.querySelector('#create-icon-picker');
-        const selectedIconInput = overlay.querySelector('#create-selected-icon');
-
         // Close handlers
         const closeModal = () => overlay.remove();
         closeBtn.addEventListener('click', closeModal);
         cancelBtn.addEventListener('click', closeModal);
         overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
-
-        // Initialize icon picker options
-        const iconOptions = ['seed-of-life', 'flower-of-life', 'tree-of-life', 'lotus', 'mandala', 'sacred-geometry'];
-        iconPicker.innerHTML = iconOptions.map(icon => {
-            const svg = getIconSvg(icon);
-            const html = svg ? svg.outerHTML : icon;
-            const selected = icon === (selectedIconInput.value || 'seed-of-life') ? 'selected' : '';
-            return `<div class="lm-icon-option ${selected}" data-icon="${icon}" title="${icon}">${html}</div>`;
-        }).join('');
-
-        iconPicker.addEventListener('click', (e) => {
-            const opt = e.target.closest('.lm-icon-option');
-            if (!opt) return;
-            iconPicker.querySelectorAll('.lm-icon-option').forEach(o => o.classList.remove('selected'));
-            opt.classList.add('selected');
-            selectedIconInput.value = opt.dataset.icon;
-        });
 
         // Setup evaluation mode switch
         const evaluationSwitch = overlay.querySelector('#evaluation-mode-switch');
