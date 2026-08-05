@@ -1845,7 +1845,7 @@
                 .filter(topic => topic.title);
 
             // Get the selected icon from the hidden input
-            const selectedIcon = selectedIconInput.value || 'seed-of-life';
+            const selectedIcon = 'seed-of-life';
 
             const evalCheckboxValue = overlay.querySelector('#evaluation-mode-switch').checked;
             const programData = {
@@ -1871,12 +1871,40 @@
                 return;
             }
 
-            // Show loading
-            saveBtn.click();
+            // Show loading state and submit changes
+            const originalLabel = saveBtn.textContent;
+            saveBtn.disabled = true;
+            saveBtn.textContent = 'Đang lưu...';
+            messageDiv.innerHTML = '';
+
+            saveProgramChanges(programData)
+                .then((result) => {
+                    const successMessage = result && result.message
+                        ? result.message
+                        : 'Đã cập nhật chương trình học thành công!';
+                    messageDiv.innerHTML = `<div class="lm-message lm-success">${successMessage}</div>`;
+
+                    if (typeof onSuccess === 'function') {
+                        onSuccess();
+                    }
+
+                    setTimeout(() => {
+                        closeModal();
+                    }, 700);
+                })
+                .catch((err) => {
+                    console.error('Failed to save program changes:', err);
+                    messageDiv.innerHTML = '<div class="lm-message lm-error">Không thể lưu thay đổi. Vui lòng thử lại.</div>';
+                })
+                .finally(() => {
+                    saveBtn.disabled = false;
+                    saveBtn.textContent = originalLabel;
+                });
         });
     }
 
     function saveProgramChanges(programData) {
+        return fetch('/api/chalix/dashboard/update-program/', {
             method: 'POST',
             credentials: 'same-origin',
             headers: {
@@ -3629,7 +3657,7 @@
             const formData = new FormData(form);
             const title = formData.get('title') || '';
             const short_description = formData.get('short_description') || '';
-            const icon = selectedIconInput.value || 'seed-of-life';
+            const icon = 'seed-of-life';
 
             const topics = Array.from(topicsEditor.querySelectorAll('.lm-topic-input'))
                 .map(input => ({ title: input.value.trim() }))
