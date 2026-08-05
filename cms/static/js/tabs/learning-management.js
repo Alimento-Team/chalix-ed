@@ -53,14 +53,14 @@
             }
             .lm-card-item { 
                 background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; 
-                padding: 16px; transition: all 200ms ease; cursor: pointer;
+                padding: 14px; transition: all 200ms ease; cursor: pointer;
                 width: 100%;
                 box-sizing: border-box;
                 position: relative;
                 display: flex;
                 flex-direction: column;
-                gap: 14px;
-                min-height: 180px;
+                gap: 10px;
+                min-height: 168px;
             }
             .lm-card-item:hover { 
                 border-color: #3b82f6; 
@@ -75,12 +75,22 @@
                 padding-right: 36px;
                 margin: 0;
             }
+            /* Safety net: hide stale icon markup if browser/server serves cached HTML */
+            .lm-card-icon {
+                display: none !important;
+                width: 0 !important;
+                height: 0 !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                overflow: hidden !important;
+            }
             .lm-card-title {
                 font-size: 17px;
                 font-weight: 600;
                 color: #1f2937;
                 margin: 0;
-                line-height: 1.25;
+                line-height: 1.35;
+                min-height: 46px;
                 white-space: normal;
                 word-break: break-word;
                 overflow-wrap: anywhere;
@@ -144,19 +154,19 @@
                 font-size: 14px;
                 color: #374151;
                 margin: 0;
-                line-height: 1.45;
+                line-height: 1.4;
                 flex: 1;
             }
             
             .lm-card-actions {
                 display: flex;
-                gap: 8px;
+                gap: 6px;
                 justify-content: flex-end;
                 margin-top: auto;
-                padding-top: 4px;
+                padding-top: 2px;
             }
             .lm-card-btn { 
-                padding: 6px 12px; font-size: 12px; border-radius: 6px; 
+                padding: 5px 10px; font-size: 11px; border-radius: 5px; 
                 border: none; cursor: pointer; transition: all 200ms ease;
                 display: inline-flex; align-items: center; gap: 6px;
             }
